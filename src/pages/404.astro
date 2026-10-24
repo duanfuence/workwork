@@ -1,0 +1,33 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Страница не найдена" description="Такой страницы нет на сайте." noindex>
+  <section class="section">
+    <div class="container not-found">
+      <p class="not-found__code">404</p>
+      <h1>Страница не найдена</h1>
+      <p>Возможно, калькулятор ещё в разработке или адрес набран с ошибкой.</p>
+      <p>
+        <a href="/">Вернуться на главную</a>
+      </p>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .not-found {
+    display: grid;
+    gap: var(--space-3);
+    max-width: 36rem;
+  }
+
+  .not-found__code {
+    color: var(--color-text-muted);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .not-found h1 {
+    font-size: var(--font-size-2xl);
+  }
+</style>

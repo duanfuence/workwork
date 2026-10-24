@@ -1,0 +1,119 @@
+---
+import type { CalculatorEntry } from '../data/catalog.types';
+import { getCalculatorHref, statusLabels } from '../lib/catalog';
+import { buildSearchIndex } from '../lib/search';
+
+interface Props {
+  entry: CalculatorEntry;
+  categoryTitle: string;
+}
+
+const { entry, categoryTitle } = Astro.props;
+const href = getCalculatorHref(entry);
+const status = statusLabels[entry.status];
+---
+
+<li class="calc-card-item" data-search-index={buildSearchIndex(entry)}>
+  <article class:list={['calc-card', { 'calc-card--soon': !href }]}>
+    <div class="calc-card__meta">
+      <span class="calc-card__category">{categoryTitle}</span>
+      {!href && <span class="badge badge--soon">{status}</span>}
+    </div>
+    <h3 class="calc-card__title">
+      {href ? (
+        <a class="calc-card__link" href={href}>
+          {entry.title}
+        </a>
+      ) : (
+        entry.title
+      )}
+    </h3>
+    <p class="calc-card__text">{entry.description}</p>
+  </article>
+</li>
+
+<style>
+  .calc-card-item {
+    display: flex;
+  }
+
+  .calc-card-item[hidden] {
+    display: none;
+  }
+
+  .calc-card {
+    position: relative;
+    display: grid;
+    align-content: start;
+    gap: var(--space-2);
+    width: 100%;
+    padding: var(--space-5);
+    background: var(--color-surface);
+    border: var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    transition:
+      border-color var(--transition-fast),
+      box-shadow var(--transition-fast);
+  }
+
+  .calc-card:not(.calc-card--soon):hover {
+    border-color: var(--color-accent);
+    box-shadow: var(--shadow-md);
+  }
+
+  .calc-card__meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+  }
+
+  .calc-card__category {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+  }
+
+  .calc-card__title {
+    font-size: var(--font-size-lg);
+    line-height: var(--line-height-snug);
+  }
+
+  .calc-card__link {
+    color: var(--color-text);
+    text-decoration: none;
+  }
+
+  /* Вся карточка кликабельна, когда калькулятор доступен. */
+  .calc-card__link::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: var(--radius-lg);
+  }
+
+  .calc-card__text {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+  }
+
+  .calc-card--soon .calc-card__title {
+    color: var(--color-text-secondary);
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-pill);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .badge--soon {
+    background: var(--color-badge-soon-bg);
+    color: var(--color-badge-soon-text);
+  }
+</style>

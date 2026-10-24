@@ -1,0 +1,233 @@
+---
+import { site } from '../config/site';
+import { navLinks } from '../config/navigation';
+---
+
+<header class="site-header">
+  <div class="container site-header__inner">
+    <a class="logo" href="/" aria-label={`${site.name} — на главную`}>
+      <svg class="logo__mark" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true">
+        <rect width="32" height="32" rx="7" fill="currentColor"></rect>
+        <path
+          d="M8 15.5 16 9l8 6.5V24a1 1 0 0 1-1 1h-4.5v-5.5h-5V25H9a1 1 0 0 1-1-1z"
+          fill="#fff"
+        ></path>
+      </svg>
+      <span class="logo__text">{site.name}</span>
+    </a>
+
+    <button
+      class="nav-toggle"
+      type="button"
+      aria-expanded="false"
+      aria-controls="site-nav"
+      data-nav-toggle
+    >
+      <span class="nav-toggle__icon" aria-hidden="true"></span>
+      <span class="nav-toggle__label">Меню</span>
+    </button>
+
+    <nav class="site-nav" id="site-nav" aria-label="Основная навигация" data-nav>
+      <ul class="site-nav__list">
+        {navLinks.map((link) => (
+          <li>
+            <a class="site-nav__link" href={link.href}>
+              {link.label}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<script>
+  const toggle = document.querySelector<HTMLButtonElement>('[data-nav-toggle]');
+  const nav = document.querySelector<HTMLElement>('[data-nav]');
+
+  if (toggle && nav) {
+    const setOpen = (open: boolean) => {
+      toggle.setAttribute('aria-expanded', String(open));
+      nav.classList.toggle('is-open', open);
+    };
+
+    toggle.addEventListener('click', () => {
+      setOpen(toggle.getAttribute('aria-expanded') !== 'true');
+    });
+
+    nav.addEventListener('click', (event) => {
+      if (event.target instanceof HTMLAnchorElement) setOpen(false);
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && nav.classList.contains('is-open')) {
+        setOpen(false);
+        toggle.focus();
+      }
+    });
+  }
+</script>
+
+<style>
+  .site-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: rgb(255 255 255 / 0.92);
+    backdrop-filter: saturate(1.4) blur(8px);
+    border-bottom: var(--border);
+  }
+
+  .site-header__inner {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    min-height: var(--header-height);
+  }
+
+  .logo {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: var(--tap-target-min);
+    color: var(--color-text);
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-bold);
+    text-decoration: none;
+  }
+
+  .logo:hover {
+    color: var(--color-text);
+  }
+
+  .logo__mark {
+    color: var(--color-accent);
+    flex: none;
+  }
+
+  .nav-toggle {
+    display: none;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: var(--tap-target-min);
+    padding: 0 var(--space-3);
+    background: var(--color-surface);
+    border: var(--border-strong);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    cursor: pointer;
+    transition: background-color var(--transition-fast);
+  }
+
+  .nav-toggle:hover {
+    background: var(--color-surface-muted);
+  }
+
+  .nav-toggle__icon,
+  .nav-toggle__icon::before,
+  .nav-toggle__icon::after {
+    display: block;
+    width: 1rem;
+    height: 2px;
+    background: currentColor;
+    border-radius: 1px;
+    transition: transform var(--transition-base);
+  }
+
+  .nav-toggle__icon {
+    position: relative;
+  }
+
+  .nav-toggle__icon::before,
+  .nav-toggle__icon::after {
+    content: '';
+    position: absolute;
+    left: 0;
+  }
+
+  .nav-toggle__icon::before {
+    top: -5px;
+  }
+
+  .nav-toggle__icon::after {
+    top: 5px;
+  }
+
+  .nav-toggle[aria-expanded='true'] .nav-toggle__icon {
+    background: transparent;
+  }
+
+  .nav-toggle[aria-expanded='true'] .nav-toggle__icon::before {
+    transform: translateY(5px) rotate(45deg);
+  }
+
+  .nav-toggle[aria-expanded='true'] .nav-toggle__icon::after {
+    transform: translateY(-5px) rotate(-45deg);
+  }
+
+  .site-nav__list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .site-nav__link {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--tap-target-min);
+    padding: 0 var(--space-3);
+    border-radius: var(--radius-md);
+    color: var(--color-text-secondary);
+    font-weight: var(--font-weight-medium);
+    text-decoration: none;
+    transition:
+      background-color var(--transition-fast),
+      color var(--transition-fast);
+  }
+
+  .site-nav__link:hover {
+    background: var(--color-surface-muted);
+    color: var(--color-text);
+  }
+
+  /* Мобильная навигация: раскрывающееся меню. Без JavaScript ссылки остаются видимыми. */
+  @media (max-width: 47.99rem) {
+    :global(.js) .nav-toggle {
+      display: inline-flex;
+    }
+
+    :global(.js) .site-nav {
+      display: none;
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      padding: var(--space-2) var(--container-gutter) var(--space-4);
+      background: var(--color-surface);
+      border-bottom: var(--border);
+      box-shadow: var(--shadow-md);
+    }
+
+    :global(.js) .site-nav.is-open {
+      display: block;
+    }
+
+    :global(.js) .site-nav__list {
+      flex-direction: column;
+    }
+
+    :global(.js) .site-nav__link {
+      display: flex;
+    }
+
+    .site-nav__link {
+      padding-inline: var(--space-2);
+    }
+  }
+</style>

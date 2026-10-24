@@ -1,0 +1,113 @@
+/*
+ * Дизайн-токены ДомРасчёта. Описание и правила использования — docs/DESIGN_SYSTEM.md.
+ * Компоненты используют только семантические токены (--color-text, --space-4 и т. д.),
+ * а не «сырые» значения цветов и размеров.
+ */
+:root {
+  color-scheme: light;
+
+  /* Палитра (базовые значения) */
+  --palette-stone-0: #ffffff;
+  --palette-stone-50: #f7f7f4;
+  --palette-stone-100: #efefea;
+  --palette-stone-200: #e2e2db;
+  --palette-stone-300: #cfcfc6;
+  --palette-stone-500: #636662;
+  --palette-stone-700: #3e423f;
+  --palette-stone-900: #1c1f1d;
+  --palette-green-50: #ecf5f1;
+  --palette-green-100: #d5eae1;
+  --palette-green-600: #1d6b57;
+  --palette-green-700: #175747;
+  --palette-green-800: #114236;
+  --palette-amber-50: #fbf3e2;
+  --palette-amber-800: #7a4f0b;
+
+  /* Цвета: семантика */
+  --color-bg: var(--palette-stone-50);
+  --color-surface: var(--palette-stone-0);
+  --color-surface-muted: var(--palette-stone-100);
+  --color-text: var(--palette-stone-900);
+  --color-text-muted: var(--palette-stone-500);
+  --color-text-secondary: var(--palette-stone-700);
+  --color-border: var(--palette-stone-200);
+  --color-border-strong: var(--palette-stone-300);
+  --color-accent: var(--palette-green-600);
+  --color-accent-hover: var(--palette-green-700);
+  --color-accent-active: var(--palette-green-800);
+  --color-accent-soft: var(--palette-green-50);
+  --color-accent-soft-hover: var(--palette-green-100);
+  --color-on-accent: var(--palette-stone-0);
+  --color-badge-soon-bg: var(--palette-amber-50);
+  --color-badge-soon-text: var(--palette-amber-800);
+  --color-focus-ring: var(--palette-green-600);
+
+  /* Типографика: системные шрифты — без загрузки веб-шрифтов */
+  --font-sans:
+    system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+  --font-size-xs: 0.8125rem; /* 13px */
+  --font-size-sm: 0.875rem; /* 14px */
+  --font-size-md: 1rem; /* 16px — основной текст, не меньше 16px на мобильных */
+  --font-size-lg: 1.125rem; /* 18px */
+  --font-size-xl: 1.375rem; /* 22px */
+  --font-size-2xl: clamp(1.5rem, 1.2rem + 1.2vw, 1.875rem);
+  --font-size-3xl: clamp(2rem, 1.5rem + 2.4vw, 3rem);
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --line-height-tight: 1.2;
+  --line-height-snug: 1.35;
+  --line-height-base: 1.6;
+
+  /* Отступы: шкала с шагом 4px */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  /* Раскладка */
+  --container-max: 72rem;
+  --container-gutter: var(--space-4);
+  --header-height: 3.5rem;
+  --tap-target-min: 2.75rem; /* 44px — минимальная зона нажатия */
+
+  /* Радиусы */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.875rem;
+  --radius-pill: 999px;
+
+  /* Границы и тени */
+  --border-width: 1px;
+  --border: var(--border-width) solid var(--color-border);
+  --border-strong: var(--border-width) solid var(--color-border-strong);
+  --shadow-sm: 0 1px 2px rgb(28 31 29 / 0.06);
+  --shadow-md: 0 4px 16px rgb(28 31 29 / 0.08);
+
+  /* Состояния интерактивных элементов */
+  --focus-ring: 0 0 0 3px var(--color-surface), 0 0 0 5px var(--color-focus-ring);
+  --opacity-disabled: 0.5;
+  --transition-fast: 120ms ease-out;
+  --transition-base: 200ms ease-out;
+}
+
+@media (min-width: 48rem) {
+  :root {
+    --container-gutter: var(--space-6);
+    --header-height: 4rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --transition-fast: 0ms;
+    --transition-base: 0ms;
+  }
+}

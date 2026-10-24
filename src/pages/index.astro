@@ -1,0 +1,212 @@
+---
+import CalculatorCard from '../components/CalculatorCard.astro';
+import CatalogSearch from '../components/CatalogSearch.astro';
+import CategoryCard from '../components/CategoryCard.astro';
+import { site } from '../config/site';
+import { calculators } from '../data/calculators';
+import { categories } from '../data/categories';
+import {
+  getCalculatorsByCategory,
+  getPopularCalculators,
+  isAvailable,
+  sortCategories,
+} from '../lib/catalog';
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const sortedCategories = sortCategories(categories);
+const categoryTitles = new Map(categories.map((category) => [category.id, category.title]));
+const popular = getPopularCalculators(calculators);
+const hasAvailable = calculators.some((entry) => isAvailable(entry));
+---
+
+<BaseLayout>
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="container hero__inner">
+      <p class="hero__status">Сайт в разработке</p>
+      <h1 class="hero__title" id="hero-title">
+        {site.name}
+      </h1>
+      <p class="hero__lead">
+        Бесплатные онлайн-калькуляторы для ремонта и строительства. Помогут прикинуть, сколько
+        материалов купить для комнаты, — без регистрации и на любом устройстве.
+      </p>
+      <CatalogSearch listId="catalog-list" sectionId="catalog" />
+    </div>
+  </section>
+
+  <section class="section" id="catalog" aria-labelledby="catalog-title">
+    <div class="container">
+      <div class="section-header">
+        <h2 class="section-title" id="catalog-title">
+          Популярные инструменты
+        </h2>
+        <p class="section-lead">
+          {hasAvailable
+            ? 'Калькуляторы, которые чаще всего нужны при ремонте.'
+            : 'Первая очередь калькуляторов для ремонта. Они сейчас в разработке — карточки станут ссылками, когда страницы будут готовы.'}
+        </p>
+      </div>
+      <p class="catalog-status" id="catalog-search-status" role="status" aria-live="polite"></p>
+      <ul class="card-grid" id="catalog-list">
+        {popular.map((entry) => (
+          <CalculatorCard entry={entry} categoryTitle={categoryTitles.get(entry.category) ?? ''} />
+        ))}
+      </ul>
+      <p class="catalog-empty" data-catalog-empty hidden>
+        По этому запросу калькуляторов пока нет. Попробуйте другое слово, например «стены» или
+        «пол».
+      </p>
+    </div>
+  </section>
+
+  <section class="section section--muted" id="categories" aria-labelledby="categories-title">
+    <div class="container">
+      <div class="section-header">
+        <h2 class="section-title" id="categories-title">
+          Категории
+        </h2>
+        <p class="section-lead">Каталог будет расти по четырём направлениям.</p>
+      </div>
+      <ul class="card-grid card-grid--categories">
+        {sortedCategories.map((category) => {
+          const inCategory = getCalculatorsByCategory(calculators, category.id);
+          const availableCount = inCategory.filter((entry) => isAvailable(entry)).length;
+          return (
+            <CategoryCard
+              category={category}
+              availableCount={availableCount}
+              plannedCount={inCategory.length - availableCount}
+            />
+          );
+        })}
+      </ul>
+    </div>
+  </section>
+
+  <section class="section" id="about" aria-labelledby="about-title">
+    <div class="container about">
+      <div class="section-header">
+        <h2 class="section-title" id="about-title">
+          О сервисе
+        </h2>
+        <p class="section-lead">
+          {site.name} — русскоязычный сервис расчётов для домашнего ремонта и строительства.
+        </p>
+      </div>
+      <ul class="principles">
+        <li>
+          <h3>Бесплатно и без регистрации</h3>
+          <p>Расчёты будут доступны сразу — без аккаунта и оплаты.</p>
+        </li>
+        <li>
+          <h3>Понятные формулы</h3>
+          <p>
+            Каждый калькулятор покажет, из чего складывается результат. Формулы проверяются
+            автоматическими тестами.
+          </p>
+        </li>
+        <li>
+          <h3>Удобно с телефона</h3>
+          <p>Сайт рассчитан на работу прямо в магазине стройматериалов или на объекте.</p>
+        </li>
+      </ul>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .hero {
+    padding-block: var(--space-10) var(--space-8);
+    background: linear-gradient(180deg, var(--color-surface) 0%, var(--color-bg) 100%);
+    border-bottom: var(--border);
+  }
+
+  @media (min-width: 48rem) {
+    .hero {
+      padding-block: var(--space-16) var(--space-12);
+    }
+  }
+
+  .hero__inner {
+    display: grid;
+    justify-items: start;
+    gap: var(--space-4);
+  }
+
+  .hero__status {
+    padding: var(--space-1) var(--space-3);
+    background: var(--color-accent-soft);
+    color: var(--color-accent-hover);
+    border-radius: var(--radius-pill);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .hero__title {
+    font-size: var(--font-size-3xl);
+    letter-spacing: -0.02em;
+  }
+
+  .hero__lead {
+    max-width: 38rem;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--space-2);
+  }
+
+  .section--muted {
+    background: var(--color-surface-muted);
+  }
+
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
+    gap: var(--space-4);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .catalog-status:empty {
+    display: none;
+  }
+
+  .catalog-status {
+    margin-bottom: var(--space-4);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+  }
+
+  .catalog-empty {
+    padding: var(--space-6);
+    background: var(--color-surface);
+    border: var(--border-width) dashed var(--color-border-strong);
+    border-radius: var(--radius-lg);
+    color: var(--color-text-secondary);
+  }
+
+  .principles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+    gap: var(--space-6);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .principles li {
+    display: grid;
+    align-content: start;
+    gap: var(--space-2);
+    padding-left: var(--space-4);
+    border-left: 3px solid var(--color-accent);
+  }
+
+  .principles h3 {
+    font-size: var(--font-size-md);
+  }
+
+  .principles p {
+    color: var(--color-text-muted);
+  }
+</style>
