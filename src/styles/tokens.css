@@ -22,6 +22,8 @@
   --palette-green-800: #114236;
   --palette-amber-50: #fbf3e2;
   --palette-amber-800: #7a4f0b;
+  --palette-red-50: #fdf0ee;
+  --palette-red-700: #b42318;
 
   /* Цвета: семантика */
   --color-bg: var(--palette-stone-50);
@@ -41,6 +43,8 @@
   --color-badge-soon-bg: var(--palette-amber-50);
   --color-badge-soon-text: var(--palette-amber-800);
   --color-focus-ring: var(--palette-green-600);
+  --color-danger: var(--palette-red-700);
+  --color-danger-soft: var(--palette-red-50);
 
   /* Типографика: системные шрифты — без загрузки веб-шрифтов */
   --font-sans:

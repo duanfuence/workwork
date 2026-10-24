@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+env:
+  # Анонимная телеметрия Astro включена по умолчанию и отправляется даже из CI.
+  ASTRO_TELEMETRY_DISABLED: '1'
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true

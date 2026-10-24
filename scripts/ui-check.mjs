@@ -24,16 +24,23 @@ try {
 const outDir = path.resolve(process.argv[2] ?? '.ui-check');
 const port = 4329;
 const baseUrl = `http://localhost:${port}`;
+const calcPath = '/kalkulyatory/oboi/';
 const viewports = [
-  { name: 'mobile', width: 390, height: 844, isMobile: true },
-  { name: 'desktop', width: 1440, height: 900, isMobile: false },
+  { name: '320', width: 320, height: 640, isMobile: true },
+  { name: '390', width: 390, height: 844, isMobile: true },
+  { name: '768', width: 768, height: 1024, isMobile: true },
+  { name: '1440', width: 1440, height: 900, isMobile: false },
 ];
+/** Подробные функциональные проверки — на одном мобильном и одном широком экране. */
+const fullCheckViewports = new Set(['390', '1440']);
 
 const failures = [];
 const check = (condition, message) => {
   console.log(`${condition ? '✓' : '✗'} ${message}`);
   if (!condition) failures.push(message);
 };
+/** Неразрывные пробелы из Intl → обычные, для сравнения текста. */
+const plain = (text) => (text ?? '').replace(/[\u00a0\u202f]/g, ' ').trim();
 
 async function waitForServer(url, timeoutMs = 20000) {
   const start = Date.now();
@@ -49,9 +56,411 @@ async function waitForServer(url, timeoutMs = 20000) {
   throw new Error(`Сервер не ответил за ${timeoutMs} мс: ${url}`);
 }
 
+async function checkCommon(page, label) {
+  const meta = await page.evaluate(() => ({
+    lang: document.documentElement.lang,
+    charset: document.characterSet,
+    title: document.title,
+    description: document.querySelector('meta[name="description"]')?.getAttribute('content'),
+    viewport: document.querySelector('meta[name="viewport"]')?.getAttribute('content'),
+    ogTitle: document.querySelector('meta[property="og:title"]')?.getAttribute('content'),
+    robots: document.querySelector('meta[name="robots"]')?.getAttribute('content') ?? null,
+    h1Count: document.querySelectorAll('h1').length,
+  }));
+  check(meta.lang === 'ru', `${label}: lang="ru"`);
+  check(meta.charset === 'UTF-8', `${label}: кодировка UTF-8`);
+  check((meta.description ?? '').length >= 50, `${label}: meta description заполнен`);
+  check(meta.viewport?.includes('width=device-width') ?? false, `${label}: meta viewport`);
+  check(meta.ogTitle === meta.title, `${label}: og:title совпадает с title`);
+  check(meta.robots === null, `${label}: страница индексируется (нет meta robots)`);
+  check(meta.h1Count === 1, `${label}: ровно один h1 (${meta.h1Count})`);
+  return meta;
+}
+
+async function checkOverflow(page, label) {
+  const overflow = await page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    clientWidth: document.documentElement.clientWidth,
+  }));
+  check(
+    overflow.scrollWidth <= overflow.clientWidth,
+    `${label}: нет горизонтальной прокрутки (${overflow.scrollWidth} ≤ ${overflow.clientWidth})`,
+  );
+}
+
+async function checkLinks(page, label) {
+  const hrefs = await page.$$eval('a[href]', (links) => links.map((a) => a.getAttribute('href')));
+  const broken = [];
+  for (const href of new Set(hrefs)) {
+    if (!href || href.startsWith('http')) continue;
+    const url = new URL(href, page.url());
+    const response = await fetch(url);
+    let ok = response.ok;
+    if (ok && url.hash) {
+      const html = await response.text();
+      ok = html.includes(`id="${url.hash.slice(1)}"`);
+    }
+    if (!ok) broken.push(href);
+  }
+  check(
+    broken.length === 0,
+    `${label}: все внутренние ссылки и якоря существуют ${broken.join(' ')}`,
+  );
+}
+
+async function checkHome(page, viewport) {
+  const label = `главная ${viewport.name}`;
+  const response = await page.goto(baseUrl + '/', { waitUntil: 'networkidle' });
+  check(response?.status() === 200, `${label}: ответ 200`);
+  const meta = await checkCommon(page, label);
+  check(meta.title.startsWith('ДомРасчёт'), `${label}: title «${meta.title}»`);
+  const h1 = (await page.textContent('h1'))?.trim();
+  check(h1 === 'ДомРасчёт', `${label}: h1 кириллицей «${h1}»`);
+  await checkOverflow(page, label);
+  if (!fullCheckViewports.has(viewport.name)) {
+    await page.screenshot({ path: path.join(outDir, `home-${viewport.name}.png`), fullPage: true });
+    return;
+  }
+
+  // Каталог: обои опубликованы, остальные — «Скоро» без ссылок
+  const cards = page.locator('#catalog-list > li');
+  check((await cards.count()) === 6, `${label}: 6 карточек калькуляторов`);
+  const cardLinks = await page
+    .locator('#catalog-list a')
+    .evaluateAll((links) => links.map((a) => a.getAttribute('href')));
+  check(
+    cardLinks.length === 1 && cardLinks[0] === calcPath,
+    `${label}: ссылка только у калькулятора обоев (${cardLinks.join(', ')})`,
+  );
+  check(
+    (await page.locator('#catalog-list .badge--soon').count()) === 5,
+    `${label}: 5 карточек со статусом «Скоро»`,
+  );
+  check(
+    plain(await page.locator('#catalog-list > li').first().textContent()).includes(
+      'Калькулятор обоев',
+    ),
+    `${label}: доступный калькулятор стоит первым`,
+  );
+  await checkLinks(page, label);
+
+  // Навигация
+  const toggle = page.locator('[data-nav-toggle]');
+  const nav = page.locator('#site-nav');
+  if (viewport.isMobile) {
+    check(await toggle.isVisible(), `${label}: кнопка «Меню» видна`);
+    check(!(await nav.isVisible()), `${label}: меню свёрнуто`);
+    await toggle.click();
+    await page.waitForTimeout(300);
+    check((await toggle.getAttribute('aria-expanded')) === 'true', `${label}: aria-expanded=true`);
+    check(await nav.isVisible(), `${label}: меню раскрывается`);
+    await page.screenshot({ path: path.join(outDir, `home-${viewport.name}-menu.png`) });
+    await page.locator('#site-nav a[href="/#categories"]').click();
+    await page.waitForTimeout(600);
+    check(!(await nav.isVisible()), `${label}: меню закрывается после выбора пункта`);
+    check(page.url().endsWith('#categories'), `${label}: переход к «Категориям»`);
+    await toggle.click();
+    await page.keyboard.press('Escape');
+    check(!(await nav.isVisible()), `${label}: меню закрывается по Escape`);
+  } else {
+    check(!(await toggle.isVisible()), `${label}: кнопка «Меню» скрыта`);
+    check(await nav.isVisible(), `${label}: навигация видна`);
+  }
+
+  // Поиск
+  await page.goto(baseUrl + '/', { waitUntil: 'networkidle' });
+  const search = page.locator('#catalog-search-input');
+  const visibleCards = () => page.locator('#catalog-list > li:not([hidden])').count();
+  await search.fill('плит');
+  check((await visibleCards()) === 1, `${label}: поиск «плит» → 1 карточка`);
+  await search.fill('обои');
+  check((await visibleCards()) === 1, `${label}: поиск «обои» → 1 карточка`);
+  await search.fill('бетон');
+  check((await visibleCards()) === 0, `${label}: поиск «бетон» → 0`);
+  check(await page.locator('[data-catalog-empty]').isVisible(), `${label}: «ничего не найдено»`);
+  await search.fill('');
+  check((await visibleCards()) === 6, `${label}: пустой запрос → все карточки`);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({ path: path.join(outDir, `home-${viewport.name}.png`), fullPage: true });
+
+  // Переход с карточки на калькулятор
+  await page.locator(`#catalog-list a[href="${calcPath}"]`).click();
+  await page.waitForURL(`**${calcPath}`);
+  check(new URL(page.url()).pathname === calcPath, `${label}: карточка обоев ведёт на калькулятор`);
+}
+
+async function checkCalculator(page, viewport) {
+  const label = `обои ${viewport.name}`;
+  const response = await page.goto(baseUrl + calcPath, { waitUntil: 'networkidle' });
+  check(response?.status() === 200, `${label}: ответ 200`);
+  const meta = await checkCommon(page, label);
+  check(
+    meta.title === 'Калькулятор обоев — сколько рулонов нужно на комнату — ДомРасчёт',
+    `${label}: title «${meta.title}»`,
+  );
+  check(
+    (meta.description ?? '').startsWith('Рассчитайте количество рулонов обоев'),
+    `${label}: уникальный description`,
+  );
+  check(plain(await page.textContent('h1')) === 'Калькулятор обоев', `${label}: h1`);
+  check(
+    (await page
+      .locator('nav[aria-label="Навигационная цепочка"] [aria-current="page"]')
+      .count()) === 1,
+    `${label}: навигационная цепочка`,
+  );
+  await checkOverflow(page, `${label}, пустая форма`);
+
+  const field = (name) => page.locator(`input[name="${name}"]`);
+  const error = (name) => page.locator(`[data-error-for="${name}"]`);
+  const state = () => page.locator('[data-result]').getAttribute('data-state');
+  const out = async (name) => plain(await page.locator(`[data-out="${name}"]`).textContent());
+  const submit = page.locator('form[data-wallpaper-form] button[type="submit"]');
+  const fill = async (values) => {
+    for (const [name, value] of Object.entries(values)) await field(name).fill(value);
+  };
+
+  check((await state()) === 'empty', `${label}: до расчёта результат пуст`);
+  check(
+    (await field('rollWidth').inputValue()) === '0,53' &&
+      (await field('rollLength').inputValue()) === '10,05' &&
+      (await field('trimAllowance').inputValue()) === '10',
+    `${label}: значения по умолчанию — рулон 0,53 × 10,05, подрезка 10 см`,
+  );
+
+  // Пустые поля
+  await submit.click();
+  check((await state()) === 'invalid', `${label}: пустая форма → состояние «ошибка»`);
+  for (const name of ['roomLength', 'roomWidth', 'wallHeight']) {
+    check(
+      plain(await error(name).textContent()) === 'Заполните поле.' &&
+        (await field(name).getAttribute('aria-invalid')) === 'true',
+      `${label}: ошибка рядом с пустым полем ${name}`,
+    );
+  }
+  check(
+    (await page.locator('[data-error-summary] li').count()) === 3,
+    `${label}: сводка ошибок — 3 поля`,
+  );
+  check(
+    await page.evaluate(() => document.activeElement?.getAttribute('name') === 'roomLength'),
+    `${label}: фокус переходит на первое поле с ошибкой`,
+  );
+  await page.waitForTimeout(600); // плавная прокрутка
+  check(
+    await page.evaluate(() => {
+      const header = document.querySelector('.site-header')?.getBoundingClientRect().bottom ?? 0;
+      const rect = document.activeElement?.getBoundingClientRect();
+      return rect ? rect.top >= header && rect.bottom <= window.innerHeight : false;
+    }),
+    `${label}: поле с ошибкой видно на экране, не под шапкой`,
+  );
+  check(
+    !(await page.locator('[data-state-panel="ready"]').isVisible()),
+    `${label}: результат не показывается при ошибках`,
+  );
+  if (viewport.name === '390') {
+    await page.screenshot({ path: path.join(outDir, `calc-${viewport.name}-errors.png`) });
+  }
+
+  if (!fullCheckViewports.has(viewport.name)) {
+    // Для промежуточных ширин — только расчёт, переполнение и скриншот.
+    await fill({ roomLength: '5', roomWidth: '4', wallHeight: '2,7' });
+    await fill({ windowCount: '2', windowWidth: '1,5', windowHeight: '1,4' });
+    await fill({ doorCount: '1', doorWidth: '0,9', doorHeight: '2', rollPrice: '1299,90' });
+    await submit.click();
+    check((await out('rolls')) === '11', `${label}: пример 4 → 11 рулонов`);
+    await checkOverflow(page, `${label}, с результатом`);
+    await page.screenshot({ path: path.join(outDir, `calc-${viewport.name}.png`), fullPage: true });
+    return;
+  }
+
+  // Клавиатура: ввод, Tab между полями, Enter отправляет форму
+  await field('roomLength').focus();
+  await page.keyboard.type('4');
+  await page.keyboard.press('Tab');
+  await page.keyboard.type('3');
+  await page.keyboard.press('Tab');
+  await page.keyboard.type('2,5');
+  await page.keyboard.press('Enter');
+  check((await state()) === 'ready', `${label}: Enter в поле выполняет расчёт`);
+  check(
+    await page.evaluate(() => document.activeElement?.id === 'calc-result-title'),
+    `${label}: после расчёта фокус на заголовке результата`,
+  );
+  await page.waitForTimeout(600); // плавная прокрутка
+  check(
+    await page.evaluate(() => {
+      const header = document.querySelector('.site-header')?.getBoundingClientRect().bottom ?? 0;
+      const rect = document.activeElement?.getBoundingClientRect();
+      return rect ? rect.top >= header - 1 && rect.bottom <= window.innerHeight : false;
+    }),
+    `${label}: заголовок результата виден на экране`,
+  );
+
+  // Пример 1
+  check((await out('rolls')) === '9', `${label}: пример 1 → 9 (${await out('rolls')})`);
+  check((await out('rollsWord')) === 'рулонов', `${label}: «9 рулонов»`);
+  check((await out('perimeter')) === '14', `${label}: периметр 14 м`);
+  check((await out('wallArea')) === '35', `${label}: площадь стен 35 м²`);
+  check((await out('stripsAroundPerimeter')) === '27', `${label}: 27 полос`);
+  check((await out('stripLength')) === '2,6', `${label}: полоса 2,6 м`);
+  check((await out('stripsPerRoll')) === '3', `${label}: 3 полосы из рулона`);
+  check(
+    !(await page.locator('[data-row="openings"]').first().isVisible()),
+    `${label}: строки про проёмы скрыты, когда проёмов нет`,
+  );
+  check(
+    !(await page.locator('[data-row="totalCost"]').isVisible()),
+    `${label}: стоимость скрыта без цены`,
+  );
+
+  // Изменение параметров после расчёта — без кнопки
+  await field('wallHeight').fill('2,3');
+  check((await out('rolls')) === '7', `${label}: высота 2,3 → 7 рулонов без перезагрузки`);
+  check((await out('stripsPerRoll')) === '4', `${label}: 4 полосы из рулона`);
+  await field('patternRepeat').fill('64');
+  check((await out('stripLength')) === '2,56', `${label}: раппорт 64 → полоса 2,56 м`);
+  check((await out('rolls')) === '9', `${label}: раппорт 64 → 9 рулонов`);
+  await fill({ patternRepeat: '', wallHeight: '2,5', rollPrice: '1299,90' });
+  check(
+    (await out('totalCost')) === '11 699,10 ₽',
+    `${label}: стоимость 9 × 1 299,90 = «${await out('totalCost')}»`,
+  );
+  check((await out('rollsWord')) === 'рулонов', `${label}: склонение «рулонов»`);
+
+  // Пример 4: окна и двери
+  await fill({ roomLength: '5', roomWidth: '4', wallHeight: '2,7' });
+  await fill({ windowCount: '2', windowWidth: '1,5', windowHeight: '1,4' });
+  await fill({ doorCount: '1', doorWidth: '0,9', doorHeight: '2' });
+  check((await out('rolls')) === '11', `${label}: пример 4 → 11 рулонов`);
+  check((await out('openingsArea')) === '6', `${label}: площадь проёмов 6 м²`);
+  check((await out('stripsSavedByOpenings')) === '2', `${label}: проёмы экономят 2 полосы`);
+  check((await out('shortPieces')) === '2', `${label}: 2 коротких куска`);
+  check((await out('totalCost')) === '14 298,90 ₽', `${label}: стоимость 11 × 1 299,90`);
+  await checkOverflow(page, `${label}, с результатом`);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({ path: path.join(outDir, `calc-${viewport.name}.png`), fullPage: true });
+
+  // Некорректные значения
+  const expectError = async (values, name, message, title) => {
+    await fill(values);
+    check(
+      (await state()) === 'invalid' && plain(await error(name).textContent()) === message,
+      `${label}: ${title} → «${plain(await error(name).textContent())}»`,
+    );
+  };
+  await expectError(
+    { roomLength: '-5' },
+    'roomLength',
+    'Значение должно быть больше нуля.',
+    'отрицательная длина',
+  );
+  await expectError(
+    { roomLength: '0' },
+    'roomLength',
+    'Значение должно быть больше нуля.',
+    'нулевая длина',
+  );
+  await expectError({ roomLength: 'пять' }, 'roomLength', 'Введите число.', 'текст вместо числа');
+  await fill({ roomLength: '5' });
+  check((await state()) === 'ready', `${label}: после исправления результат возвращается`);
+  await expectError(
+    { patternRepeat: '250' },
+    'patternRepeat',
+    'Не больше 200 см.',
+    'чрезмерный раппорт',
+  );
+  await fill({ patternRepeat: '' });
+  await expectError(
+    { wallHeight: '10' },
+    'rollLength',
+    'Полоса (10,1 м с подрезкой) длиннее рулона.',
+    'полоса длиннее рулона',
+  );
+  await fill({ wallHeight: '2,7' });
+  await expectError(
+    { windowWidth: '6' },
+    'windowWidth',
+    'Окно шире самой длинной стены (5 м).',
+    'окно шире стены',
+  );
+  await fill({ windowWidth: '1,5' });
+  await expectError(
+    { doorHeight: '3' },
+    'doorHeight',
+    'Дверь выше стены (2,7 м).',
+    'дверь выше стены',
+  );
+  await fill({ doorHeight: '2' });
+  await expectError(
+    { windowCount: '1,5' },
+    'windowCount',
+    'Введите целое число.',
+    'дробное число окон',
+  );
+  await expectError(
+    { windowCount: '-1' },
+    'windowCount',
+    'Значение не может быть отрицательным.',
+    'отрицательное число окон',
+  );
+  await fill({ windowCount: '2' });
+  await expectError(
+    { rollPrice: '-10' },
+    'rollPrice',
+    'Значение не может быть отрицательным.',
+    'отрицательная цена',
+  );
+  await fill({ rollPrice: '1299,90' });
+  check((await state()) === 'ready', `${label}: после исправления всех полей — результат`);
+  check(
+    (await page.locator('[aria-invalid="true"]').count()) === 0,
+    `${label}: отметки ошибок сняты`,
+  );
+  await checkOverflow(page, `${label}, после ошибок`);
+
+  // Порядок Tab по форме
+  await field('roomLength').focus();
+  const order = [];
+  for (let i = 0; i < 15; i += 1) {
+    order.push(
+      await page.evaluate(
+        () => document.activeElement?.getAttribute('name') ?? document.activeElement?.textContent,
+      ),
+    );
+    await page.keyboard.press('Tab');
+  }
+  check(
+    order.join(',') ===
+      'roomLength,roomWidth,wallHeight,windowCount,windowWidth,windowHeight,doorCount,doorWidth,doorHeight,rollWidth,rollLength,patternRepeat,trimAllowance,rollPrice,Рассчитать',
+    `${label}: порядок Tab соответствует порядку полей`,
+  );
+  const focusShadow = await field('roomWidth').evaluate((input) => {
+    input.focus();
+    return getComputedStyle(input).boxShadow;
+  });
+  check(focusShadow !== 'none', `${label}: у поля в фокусе видимое выделение`);
+
+  // Сброс
+  await page.locator('form[data-wallpaper-form] button[type="reset"]').click();
+  await page.waitForTimeout(100);
+  check((await state()) === 'empty', `${label}: «Сбросить» очищает результат`);
+  check(
+    (await field('roomLength').inputValue()) === '' &&
+      (await field('rollWidth').inputValue()) === '0,53',
+    `${label}: «Сбросить» возвращает значения по умолчанию`,
+  );
+  await field('roomLength').fill('4');
+  check((await state()) === 'empty', `${label}: после сброса расчёт снова по кнопке`);
+
+  await checkLinks(page, label);
+}
+
 const server = spawn('npx', ['astro', 'preview', '--port', String(port)], {
   stdio: 'ignore',
   detached: true,
+  env: { ...process.env, ASTRO_TELEMETRY_DISABLED: '1' },
 });
 
 try {
@@ -60,7 +469,7 @@ try {
   const browser = await chromium.launch();
 
   for (const viewport of viewports) {
-    console.log(`\n— ${viewport.name} (${viewport.width}×${viewport.height})`);
+    console.log(`\n— ${viewport.width}×${viewport.height}`);
     const context = await browser.newContext({
       viewport: { width: viewport.width, height: viewport.height },
       isMobile: viewport.isMobile,
@@ -74,124 +483,16 @@ try {
     });
     page.on('pageerror', (error) => consoleErrors.push(error.message));
 
-    const response = await page.goto(baseUrl + '/', { waitUntil: 'networkidle' });
-    check(response?.status() === 200, 'главная отвечает 200');
-    check((response?.headers()['content-type'] ?? '').includes('text/html'), 'ответ — text/html');
-
-    // Метаданные
-    const meta = await page.evaluate(() => ({
-      lang: document.documentElement.lang,
-      charset: document.characterSet,
-      title: document.title,
-      description: document.querySelector('meta[name="description"]')?.getAttribute('content'),
-      viewport: document.querySelector('meta[name="viewport"]')?.getAttribute('content'),
-      ogTitle: document.querySelector('meta[property="og:title"]')?.getAttribute('content'),
-      h1Count: document.querySelectorAll('h1').length,
-    }));
-    check(meta.lang === 'ru', `lang="ru" (${meta.lang})`);
-    check(meta.charset === 'UTF-8', `кодировка UTF-8 (${meta.charset})`);
-    check(meta.title.startsWith('ДомРасчёт'), `title: «${meta.title}»`);
-    check((meta.description ?? '').length >= 50, 'meta description заполнен');
-    check(meta.viewport?.includes('width=device-width') ?? false, 'meta viewport');
-    check(Boolean(meta.ogTitle), 'og:title');
-    check(meta.h1Count === 1, `ровно один h1 (${meta.h1Count})`);
-
-    // Кириллица
-    const h1 = (await page.textContent('h1'))?.trim();
-    check(h1 === 'ДомРасчёт', `h1 отображается кириллицей: «${h1}»`);
-
-    // Горизонтальная прокрутка
-    const overflow = await page.evaluate(() => ({
-      scrollWidth: document.documentElement.scrollWidth,
-      clientWidth: document.documentElement.clientWidth,
-    }));
+    await checkHome(page, viewport);
+    await checkCalculator(page, viewport);
     check(
-      overflow.scrollWidth <= overflow.clientWidth,
-      `нет горизонтальной прокрутки (${overflow.scrollWidth} ≤ ${overflow.clientWidth})`,
+      consoleErrors.length === 0,
+      `${viewport.name}: нет ошибок в консоли (${consoleErrors.join(' | ') || '0'})`,
     );
-
-    // Карточки «Скоро» не являются ссылками
-    const cards = page.locator('#catalog-list > li');
-    check((await cards.count()) === 6, `6 карточек калькуляторов (${await cards.count()})`);
-    const cardLinks = await page.locator('#catalog-list a').count();
-    check(cardLinks === 0, `карточки «Скоро» не содержат ссылок (${cardLinks})`);
-    const soonBadges = await page.locator('#catalog-list .badge--soon').count();
-    check(soonBadges === 6, `у всех карточек статус «Скоро» (${soonBadges})`);
-
-    // Все внутренние ссылки ведут на существующие страницы или якоря
-    const hrefs = await page.$$eval('a[href]', (links) => links.map((a) => a.getAttribute('href')));
-    for (const href of new Set(hrefs)) {
-      if (!href || href.startsWith('http')) continue;
-      const url = new URL(href, baseUrl);
-      const linkResponse = await fetch(url);
-      let ok = linkResponse.ok;
-      if (ok && url.hash) {
-        ok = (await page.locator(url.hash).count()) === 1;
-      }
-      check(ok, `ссылка ${href} ведёт на существующую страницу/раздел`);
-    }
-
-    // Навигация
-    const toggle = page.locator('[data-nav-toggle]');
-    if (viewport.isMobile) {
-      check(await toggle.isVisible(), 'кнопка «Меню» видна');
-      check(!(await page.locator('#site-nav').isVisible()), 'меню свёрнуто по умолчанию');
-      await toggle.click();
-      check(
-        (await toggle.getAttribute('aria-expanded')) === 'true',
-        'aria-expanded=true после нажатия',
-      );
-      check(await page.locator('#site-nav').isVisible(), 'меню раскрывается');
-      await page.waitForTimeout(300); // дождаться анимации значка
-      await page.screenshot({ path: path.join(outDir, `${viewport.name}-menu.png`) });
-      await page.locator('#site-nav a[href="/#categories"]').click();
-      await page.waitForTimeout(600);
-      check(!(await page.locator('#site-nav').isVisible()), 'меню закрывается после выбора пункта');
-      check(page.url().endsWith('#categories'), 'переход к разделу «Категории»');
-      await toggle.click();
-      await page.keyboard.press('Escape');
-      check(!(await page.locator('#site-nav').isVisible()), 'меню закрывается по Escape');
-    } else {
-      check(!(await toggle.isVisible()), 'кнопка «Меню» скрыта на широком экране');
-      check(await page.locator('#site-nav').isVisible(), 'навигация видна');
-      await page.locator('#site-nav a[href="/#about"]').click();
-      await page.waitForTimeout(600);
-      check(page.url().endsWith('#about'), 'переход к разделу «О сервисе»');
-    }
-
-    // Поиск
-    await page.goto(baseUrl + '/', { waitUntil: 'networkidle' });
-    const search = page.locator('#catalog-search-input');
-    check(await search.isVisible(), 'поисковая строка видна');
-    const visibleCards = () => page.locator('#catalog-list > li:not([hidden])').count();
-    await search.fill('плит');
-    check((await visibleCards()) === 1, `«плит» → 1 карточка (${await visibleCards()})`);
-    check(
-      (await page.textContent('#catalog-search-status'))?.includes('Найдено: 1 калькулятор') ??
-        false,
-      'статус поиска «Найдено: 1 калькулятор»',
-    );
-    await search.fill('шпаклевка');
-    check((await visibleCards()) === 1, `«шпаклевка» (без ё) → 1 карточка`);
-    await search.fill('стены');
-    check((await visibleCards()) >= 4, `«стены» → несколько карточек (${await visibleCards()})`);
-    await search.fill('бетон');
-    check((await visibleCards()) === 0, '«бетон» → 0 карточек');
-    check(await page.locator('[data-catalog-empty]').isVisible(), 'сообщение «ничего не найдено»');
-    await page.screenshot({ path: path.join(outDir, `${viewport.name}-search-empty.png`) });
-    await search.fill('');
-    check((await visibleCards()) === 6, 'пустой запрос возвращает все карточки');
-
-    // Скриншот всей страницы
-    await page.evaluate(() => window.scrollTo(0, 0));
-    await page.screenshot({ path: path.join(outDir, `${viewport.name}.png`), fullPage: true });
-
-    check(consoleErrors.length === 0, `нет ошибок в консоли (${consoleErrors.join(' | ') || '0'})`);
 
     // 404 — после проверки консоли: браузер сам пишет в неё об ответе 404.
-    const notFound = await page.goto(baseUrl + '/kalkulyatory/oboi/');
-    check(notFound?.status() === 404, 'несуществующая страница калькулятора отдаёт 404');
-
+    const notFound = await page.goto(baseUrl + '/kalkulyatory/laminat/');
+    check(notFound?.status() === 404, `${viewport.name}: неготовый калькулятор отдаёт 404`);
     await context.close();
   }
 
@@ -207,6 +508,7 @@ try {
 console.log(`\nСкриншоты: ${outDir}`);
 if (failures.length > 0) {
   console.error(`\nПровалено проверок: ${failures.length}`);
+  for (const failure of failures) console.error(`  ✗ ${failure}`);
   process.exit(1);
 }
 console.log('\nВсе проверки интерфейса пройдены.');

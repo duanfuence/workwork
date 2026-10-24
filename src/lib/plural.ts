@@ -13,3 +13,5 @@ export function pluralizeRu(count: number, forms: readonly [string, string, stri
 }
 
 export const calculatorWordForms = ['калькулятор', 'калькулятора', 'калькуляторов'] as const;
+export const rollWordForms = ['рулон', 'рулона', 'рулонов'] as const;
+export const stripWordForms = ['полоса', 'полосы', 'полос'] as const;

@@ -2,15 +2,15 @@
 
 ## Стек
 
-| Слой          | Решение                                                                     |
-| ------------- | --------------------------------------------------------------------------- |
-| Фреймворк     | Astro 7.4.1, `output: 'static'`                                             |
-| Язык          | TypeScript 5.9 (`astro/tsconfigs/strictest`)                                |
-| Стили         | обычный CSS + CSS-переменные (дизайн-токены), scoped-стили Astro            |
-| Клиентский JS | только небольшие `<script>` в компонентах (меню, поиск), без UI-фреймворков |
-| Тесты         | Vitest 5 (unit), Playwright — локальный скрипт `scripts/ui-check.mjs`       |
-| Качество      | ESLint 10 + typescript-eslint + eslint-plugin-astro, Prettier 3             |
-| CI            | GitHub Actions: `.github/workflows/ci.yml`                                  |
+| Слой          | Решение                                                                                         |
+| ------------- | ----------------------------------------------------------------------------------------------- |
+| Фреймворк     | Astro 7.4.1, `output: 'static'`                                                                 |
+| Язык          | TypeScript 5.9 (`astro/tsconfigs/strictest`)                                                    |
+| Стили         | обычный CSS + CSS-переменные (дизайн-токены), scoped-стили Astro                                |
+| Клиентский JS | только небольшие `<script>` в компонентах (меню, поиск, форма калькулятора), без UI-фреймворков |
+| Тесты         | Vitest 5 (unit), Playwright — локальный скрипт `scripts/ui-check.mjs`                           |
+| Качество      | ESLint 10 + typescript-eslint + eslint-plugin-astro, Prettier 3                                 |
+| CI            | GitHub Actions: `.github/workflows/ci.yml`                                                      |
 
 Почему такие версии — см. `DECISIONS.md` (D-004).
 
@@ -25,21 +25,29 @@ src/
   data/
     catalog.types.ts      типы каталога: Category, CalculatorEntry, CalculatorStatus, CalculatorSeo
     categories.ts         4 категории
-    calculators.ts        калькуляторы (сейчас 6, все planned)
+    calculators.ts        калькуляторы (6: обои — available, остальные planned)
     catalog.test.ts       проверки целостности каталога
   lib/
     catalog.ts            выборки по каталогу, ссылка только для available
     search.ts             нормализация текста и поиск (используется и при сборке, и в браузере)
     plural.ts             русские формы множественного числа
-    *.test.ts             unit-тесты
+    number.ts             разбор чисел из полей, ceilDiv, перевод м/см → целые мм
+    format.ts             числа и рубли по-русски (Intl, ru-RU)
+    calculators/
+      wallpaper.ts        расчёт обоев: проверка ввода + алгоритм (чистая функция)
+      wallpaper-form.ts   разбор текстовых полей формы и вызов расчёта
+    *.test.ts             unit-тесты рядом с модулями
   layouts/BaseLayout.astro  <head>, метаданные, шапка, подвал
-  components/             SiteHeader, SiteFooter, CalculatorCard, CategoryCard, CatalogSearch
+  components/             SiteHeader, SiteFooter, CalculatorCard, CategoryCard, CatalogSearch, Breadcrumbs
+    calculator/NumberField.astro  поле ввода числа: label, единица, подсказка, место для ошибки
   pages/
     index.astro           главная
     404.astro             страница «не найдено»
+    kalkulyatory/oboi.astro  калькулятор обоев → /kalkulyatory/oboi/
   styles/
     tokens.css            дизайн-токены
-    global.css            базовые стили и утилиты (.container, .section, .visually-hidden)
+    global.css            базовые стили и утилиты (.container, .section, .visually-hidden, .button)
+    calculator.css        общие стили страниц калькуляторов
 public/favicon.svg
 scripts/ui-check.mjs      Playwright-проверка главной
 ```
@@ -69,8 +77,8 @@ interface CalculatorEntry {
 - `path` всегда равен `/kalkulyatory/<slug>/` (проверяется тестом).
 - Ссылка выводится только для `status: 'available'` — через `getCalculatorHref()`.
   Остальные карточки показываются с бейджем «Скоро» и без ссылки.
-- Сейчас тест требует, чтобы `available`-калькуляторов не было: страниц ещё нет.
-  На этапе 2 его нужно заменить проверкой, что для каждого `available` есть страница.
+- Тест `src/data/catalog.test.ts` сверяет файлы в `src/pages/kalkulyatory/` (через `import.meta.glob`)
+  с записями `available`: страница без записи или запись без страницы — ошибка.
 
 ## Поиск
 
@@ -86,9 +94,24 @@ interface CalculatorEntry {
 На ширине < 768 px меню сворачивается в кнопку «Меню» (только если JS доступен: класс `js` на `<html>`
 ставится inline-скриптом). Без JS ссылки остаются видимыми строкой. Меню закрывается при выборе пункта и по Escape.
 
-## Будущие страницы калькуляторов (план этапа 2)
+## Страница калькулятора (образец — обои)
 
-- URL: `/kalkulyatory/<slug>/` (транслит, со слэшем в конце).
-- Логика расчёта — `src/lib/calculators/<id>.ts` + тесты; страница только собирает форму и вызывает функцию.
-- Форма работает без перезагрузки (небольшой `<script>`), но содержание страницы (заголовок,
-  описание, пояснение формулы) — статический HTML для поисковиков.
+- Файл `src/pages/kalkulyatory/<slug>.astro` → URL `/kalkulyatory/<slug>/`. Отдельный файл на калькулятор,
+  а не `[slug].astro`: у каждого калькулятора своя форма и свой текст.
+- `title`/`description` берутся из `seo` записи каталога; H1 — `title` записи.
+- Слои:
+  1. `src/lib/calculators/<id>.ts` — чистая функция `calculate…(input)`: сама проверяет ввод и возвращает
+     `{ ok: true, result }` или `{ ok: false, errors }` (ошибки по полям). Никогда не возвращает NaN/Infinity.
+  2. `src/lib/calculators/<id>-form.ts` — текст полей → числа (`parseDecimal`) → расчёт.
+  3. Страница: разметка формы (`NumberField` в `<fieldset>`), блок результата, статья; клиентский `<script>`
+     только читает поля, вызывает (2) и выводит ошибки/результат. Математики в `.astro` нет.
+- Поведение формы: до первой отправки ошибки не показываются; после «Рассчитать» результат пересчитывается
+  при каждом вводе. Ошибки — у поля (`aria-invalid`, `aria-describedby`) и сводкой со ссылками в блоке результата;
+  фокус переходит на первое поле с ошибкой (с прокруткой мимо липкой шапки) или на заголовок результата.
+  При ошибках результат скрывается — устаревшие цифры не показываются. «Сбросить» возвращает значения по умолчанию.
+- Без JavaScript расчёт недоступен (сообщение в `<noscript>`), текст страницы и формулы остаются.
+- Калькулятор обоев: алгоритм и допущения — `docs/calculators/WALLPAPER.md`.
+
+## Телеметрия
+
+Анонимная телеметрия Astro отключена переменной `ASTRO_TELEMETRY_DISABLED=1` в npm-скриптах и CI (D-008).

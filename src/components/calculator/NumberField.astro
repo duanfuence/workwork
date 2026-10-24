@@ -1,0 +1,152 @@
+---
+interface Props {
+  /** Имя поля формы. */
+  name: string;
+  /** Префикс id, уникальный для формы. */
+  idPrefix: string;
+  label: string;
+  /** Единица измерения справа от поля: «м», «см», «шт.», «₽». */
+  unit?: string;
+  hint?: string;
+  /** Начальное значение (только там, где оно не вводит в заблуждение). */
+  value?: string;
+  placeholder?: string;
+  /** `numeric` — целые числа, `decimal` — дробные. */
+  inputmode?: 'decimal' | 'numeric';
+  /** Необязательное поле (без aria-required). Пометка «необязательно» ставится у группы. */
+  optional?: boolean;
+}
+
+const {
+  name,
+  idPrefix,
+  label,
+  unit,
+  hint,
+  value = '',
+  placeholder,
+  inputmode = 'decimal',
+  optional = false,
+} = Astro.props;
+
+const id = `${idPrefix}-${name}`;
+const hintId = `${id}-hint`;
+const errorId = `${id}-error`;
+const describedBy = [hint ? hintId : null, errorId].filter(Boolean).join(' ');
+---
+
+<div class="field">
+  <label class="field__label" for={id}>
+    {label}
+  </label>
+  <div class="field__control">
+    <input
+      class="field__input"
+      id={id}
+      name={name}
+      type="text"
+      inputmode={inputmode}
+      autocomplete="off"
+      spellcheck="false"
+      value={value}
+      placeholder={placeholder}
+      aria-describedby={describedBy}
+      aria-required={optional ? undefined : 'true'}
+      data-label={label}
+    />
+    {unit && (
+      <span class="field__unit" aria-hidden="true">
+        {unit}
+      </span>
+    )}
+  </div>
+  {hint && (
+    <p class="field__hint" id={hintId}>
+      {hint}
+    </p>
+  )}
+  <p class="field__error" id={errorId} data-error-for={name} hidden></p>
+</div>
+
+<style>
+  .field {
+    display: grid;
+    align-content: start;
+    gap: var(--space-1);
+    min-width: 0;
+  }
+
+  .field__label {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text);
+  }
+
+  .field__control {
+    position: relative;
+  }
+
+  .field__input {
+    width: 100%;
+    min-height: var(--tap-target-min);
+    padding: var(--space-2) 2.75rem var(--space-2) var(--space-3);
+    background: var(--color-surface);
+    border: var(--border-strong);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-md);
+    font-variant-numeric: tabular-nums;
+    transition:
+      border-color var(--transition-fast),
+      box-shadow var(--transition-fast);
+  }
+
+  .field__input::placeholder {
+    color: var(--color-text-muted);
+  }
+
+  .field__input:hover {
+    border-color: var(--color-text-muted);
+  }
+
+  .field__input:focus-visible {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px var(--color-accent-soft-hover);
+  }
+
+  .field__input[aria-invalid='true'] {
+    border-color: var(--color-danger);
+    background: var(--color-danger-soft);
+  }
+
+  .field__input[aria-invalid='true']:focus-visible {
+    box-shadow: 0 0 0 3px var(--color-danger-soft);
+  }
+
+  .field__unit {
+    position: absolute;
+    right: var(--space-3);
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    pointer-events: none;
+  }
+
+  .field__hint {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    line-height: var(--line-height-snug);
+  }
+
+  .field__error {
+    color: var(--color-danger);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    line-height: var(--line-height-snug);
+  }
+
+  .field__error[hidden] {
+    display: none;
+  }
+</style>

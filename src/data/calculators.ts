@@ -15,7 +15,7 @@ export const calculators: readonly CalculatorEntry[] = [
     category: 'repair',
     description: 'Сколько рулонов обоев нужно на комнату с учётом окон, дверей и подгонки рисунка.',
     path: '/kalkulyatory/oboi/',
-    status: 'planned',
+    status: 'available',
     popular: true,
     searchTerms: ['обои', 'рулоны', 'поклейка', 'стены', 'раппорт', 'флизелин', 'винил'],
     seo: {

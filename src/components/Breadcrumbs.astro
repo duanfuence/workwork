@@ -1,0 +1,59 @@
+---
+export interface Crumb {
+  label: string;
+  /** Нет у текущей страницы. */
+  href?: string;
+}
+
+interface Props {
+  items: readonly Crumb[];
+}
+
+const { items } = Astro.props;
+---
+
+<nav class="breadcrumbs" aria-label="Навигационная цепочка">
+  <ol class="breadcrumbs__list">
+    {items.map((item) => (
+      <li class="breadcrumbs__item">
+        {item.href ? (
+          <a href={item.href}>{item.label}</a>
+        ) : (
+          <span aria-current="page">{item.label}</span>
+        )}
+      </li>
+    ))}
+  </ol>
+</nav>
+
+<style>
+  .breadcrumbs__list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+  }
+
+  .breadcrumbs__item {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .breadcrumbs__item + .breadcrumbs__item::before {
+    content: '/';
+    color: var(--color-border-strong);
+  }
+
+  .breadcrumbs a {
+    color: var(--color-text-secondary);
+  }
+
+  .breadcrumbs a:hover {
+    color: var(--color-accent);
+  }
+</style>

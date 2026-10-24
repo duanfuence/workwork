@@ -2,6 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { calculators } from './calculators';
 import { categories } from './categories';
 
+/**
+ * Пути страниц калькуляторов по файлам в src/pages/kalkulyatory/:
+ * `oboi.astro` и `oboi/index.astro` → `/kalkulyatory/oboi/`. Файлы не импортируются (lazy glob).
+ */
+const calculatorPagePaths = Object.keys(import.meta.glob('../pages/kalkulyatory/**/*.astro')).map(
+  (file) => `/${file.replace('../pages/', '').replace(/(\/index)?\.astro$/, '')}/`,
+);
+
 describe('целостность каталога', () => {
   it('идентификаторы калькуляторов уникальны и в формате kebab-case', () => {
     const ids = calculators.map((entry) => entry.id);
@@ -51,9 +59,22 @@ describe('целостность каталога', () => {
     ]);
   });
 
-  it('пока нет ни одного опубликованного калькулятора — страницы ещё не созданы', () => {
-    // Когда появится первая страница калькулятора, этот тест нужно заменить проверкой,
-    // что для каждого `available` существует файл страницы.
-    expect(calculators.filter((entry) => entry.status === 'available')).toEqual([]);
+  it('у каждого опубликованного калькулятора есть страница по его path', () => {
+    for (const entry of calculators.filter((item) => item.status === 'available')) {
+      expect(calculatorPagePaths, entry.path).toContain(entry.path);
+    }
+  });
+
+  it('страницы калькуляторов есть только у опубликованных записей каталога', () => {
+    const availablePaths = calculators
+      .filter((item) => item.status === 'available')
+      .map((item) => item.path);
+    expect([...calculatorPagePaths].sort()).toEqual([...availablePaths].sort());
+  });
+
+  it('калькулятор обоев опубликован, остальные пока в статусе «Скоро»', () => {
+    expect(calculators.filter((entry) => entry.status === 'available').map((e) => e.id)).toEqual([
+      'wallpaper',
+    ]);
   });
 });

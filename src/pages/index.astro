@@ -17,6 +17,7 @@ const sortedCategories = sortCategories(categories);
 const categoryTitles = new Map(categories.map((category) => [category.id, category.title]));
 const popular = getPopularCalculators(calculators);
 const hasAvailable = calculators.some((entry) => isAvailable(entry));
+const allAvailable = calculators.every((entry) => isAvailable(entry));
 ---
 
 <BaseLayout>
@@ -41,9 +42,11 @@ const hasAvailable = calculators.some((entry) => isAvailable(entry));
           Популярные инструменты
         </h2>
         <p class="section-lead">
-          {hasAvailable
+          {allAvailable
             ? 'Калькуляторы, которые чаще всего нужны при ремонте.'
-            : 'Первая очередь калькуляторов для ремонта. Они сейчас в разработке — карточки станут ссылками, когда страницы будут готовы.'}
+            : hasAvailable
+              ? 'Первая очередь калькуляторов для ремонта. Готовые открываются по клику, отмеченные «Скоро» — в разработке.'
+              : 'Первая очередь калькуляторов для ремонта. Они сейчас в разработке — карточки станут ссылками, когда страницы будут готовы.'}
         </p>
       </div>
       <p class="catalog-status" id="catalog-search-status" role="status" aria-live="polite"></p>
@@ -96,7 +99,7 @@ const hasAvailable = calculators.some((entry) => isAvailable(entry));
       <ul class="principles">
         <li>
           <h3>Бесплатно и без регистрации</h3>
-          <p>Расчёты будут доступны сразу — без аккаунта и оплаты.</p>
+          <p>Расчёты доступны сразу — без аккаунта и оплаты.</p>
         </li>
         <li>
           <h3>Понятные формулы</h3>

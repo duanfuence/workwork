@@ -13,7 +13,9 @@ interface Props {
 const { category, plannedCount, availableCount } = Astro.props;
 
 let summary: string;
-if (availableCount > 0) {
+if (availableCount > 0 && plannedCount > 0) {
+  summary = `Доступно: ${availableCount} · в разработке: ${plannedCount}`;
+} else if (availableCount > 0) {
   summary = `Доступно: ${availableCount} ${pluralizeRu(availableCount, calculatorWordForms)}`;
 } else if (plannedCount > 0) {
   summary = `${plannedCount} ${pluralizeRu(plannedCount, calculatorWordForms)} в первой очереди`;
