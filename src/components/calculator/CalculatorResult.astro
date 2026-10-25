@@ -1,0 +1,34 @@
+---
+/**
+ * Блок результата калькулятора: заголовок и три состояния — до расчёта, ошибки, результат.
+ * Содержимое состояния «результат» (числа, строки, пояснения) передаётся через слот.
+ * Переключением состояний управляет src/client/calculator-form.ts.
+ */
+interface Props {
+  /** id заголовка; на него переходит фокус после расчёта. */
+  headingId: string;
+  /** Подсказка до первого расчёта. */
+  placeholder: string;
+}
+
+const { headingId, placeholder } = Astro.props;
+---
+
+<section class="calc-result" aria-labelledby={headingId} data-calculator-result data-state="empty">
+  <h2 class="calc-result__title" id={headingId} tabindex="-1" data-result-heading>
+    Результат
+  </h2>
+
+  <div data-state-panel="empty">
+    <p class="calc-result__placeholder">{placeholder}</p>
+  </div>
+
+  <div data-state-panel="invalid" hidden>
+    <p class="calc-result__invalid">Расчёт не выполнен: исправьте значения в полях.</p>
+    <ul class="calc-result__error-list" data-error-summary></ul>
+  </div>
+
+  <div data-state-panel="ready" hidden>
+    <slot />
+  </div>
+</section>

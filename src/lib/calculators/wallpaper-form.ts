@@ -1,11 +1,5 @@
-import { parseDecimal } from '../number';
-import {
-  calculateWallpaper,
-  type WallpaperCalculation,
-  type WallpaperErrors,
-  type WallpaperField,
-  type WallpaperInput,
-} from './wallpaper';
+import { parseNumberFields, withParseErrors } from '../form';
+import { calculateWallpaper, type WallpaperCalculation, type WallpaperField } from './wallpaper';
 
 export const wallpaperFields = [
   'roomLength',
@@ -26,42 +20,22 @@ export const wallpaperFields = [
 
 export type WallpaperFormValues = Record<WallpaperField, string>;
 
-/** Поля, которые не участвуют в расчёте, если соответствующих проёмов нет. */
-const dependsOnCount: Partial<Record<WallpaperField, WallpaperField>> = {
+/** Размеры проёмов не участвуют в расчёте, если проёмов нет, — их ошибки ввода не показываются. */
+const dependsOnCount = {
   windowWidth: 'windowCount',
   windowHeight: 'windowCount',
   doorWidth: 'doorCount',
   doorHeight: 'doorCount',
-};
+} as const satisfies Partial<Record<WallpaperField, WallpaperField>>;
 
-/**
- * Разбирает текст полей формы и выполняет расчёт.
- * Ошибка разбора («Введите число») важнее ошибки расчёта для того же поля.
- */
+/** Разбирает текст полей формы и выполняет расчёт. */
 export function evaluateWallpaperForm(values: WallpaperFormValues): WallpaperCalculation {
-  const parseErrors: WallpaperErrors = {};
-  const input = {} as WallpaperInput;
-
-  for (const field of wallpaperFields) {
-    const parsed = parseDecimal(values[field]);
-    if (parsed.kind === 'number') {
-      input[field] = parsed.value;
-    } else {
-      input[field] = null;
-      if (parsed.kind === 'invalid') parseErrors[field] = 'Введите число.';
-    }
-  }
-
-  // Размеры проёмов игнорируются, если количество не указано или равно нулю.
+  const parsed = parseNumberFields(wallpaperFields, values);
   for (const [field, countField] of Object.entries(dependsOnCount) as [
     WallpaperField,
     WallpaperField,
   ][]) {
-    if (!input[countField]) delete parseErrors[field];
+    if (!parsed.values[countField]) delete parsed.errors[field];
   }
-
-  const calculation = calculateWallpaper(input);
-  if (Object.keys(parseErrors).length === 0) return calculation;
-  const errors = calculation.ok ? parseErrors : { ...calculation.errors, ...parseErrors };
-  return { ok: false, errors };
+  return withParseErrors(calculateWallpaper(parsed.values), parsed.errors);
 }

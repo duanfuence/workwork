@@ -38,14 +38,16 @@ export interface WallpaperResult {
   openingsArea: number;
   /** Площадь под оклейку (стены минус проёмы), м². */
   netArea: number;
-  /** Полос по периметру без учёта проёмов. */
-  stripsAroundPerimeter: number;
+  /** Полос по стенам без учёта проёмов: каждая стена считается от угла отдельно. */
+  stripsForWalls: number;
   /** Полос, которые не нужны на полную высоту благодаря проёмам. */
   stripsSavedByOpenings: number;
   /** Полос на полную высоту. */
   fullStrips: number;
-  /** Расчётная длина полосы с подрезкой и раппортом, м. */
+  /** Расчётная длина полосы с подрезкой и раппортом (шаг расхода рулона на полосу), м. */
   stripLength: number;
+  /** Запас на совмещение рисунка в начале каждого рулона, м (0 без раппорта). */
+  rollStartAllowance: number;
   /** Сколько полос получается из одного рулона. */
   stripsPerRoll: number;
   /** Рулонов на полные полосы. */
@@ -252,48 +254,80 @@ export function calculateWallpaper(input: WallpaperInput): WallpaperCalculation 
     };
   }
 
-  const withRepeat = (length: number) => (repeat > 0 ? ceilToMultiple(length, repeat) : length);
-  const stripLength = withRepeat(H + trim);
-  const stripsPerRoll = Math.floor(rollLength / stripLength);
+  // Длина полосы на стене с подрезкой; при раппорте расход на полосу — шаг, кратный раппорту.
+  const base = H + trim;
+  const stripLength = repeat > 0 ? ceilToMultiple(base, repeat) : base;
+  // Фаза рисунка в начале рулона неизвестна: на совмещение может уйти до одного раппорта.
+  const rollStart = repeat;
+  // k полос из рулона: подгонка + (k − 1) шагов + последняя полоса без хвоста до следующей фазы.
+  const stripsPerRoll =
+    base + rollStart <= rollLength
+      ? Math.floor((rollLength - rollStart - base) / stripLength) + 1
+      : 0;
   if (stripsPerRoll === 0) {
     return {
       ok: false,
       errors: {
-        rollLength: `Полоса (${fmt(stripLength / 1000)} м с подрезкой${
-          repeat > 0 ? ' и раппортом' : ''
-        }) длиннее рулона.`,
+        rollLength:
+          repeat > 0
+            ? `Полоса (${fmt(base / 1000)} м с подрезкой) вместе с подгонкой рисунка (до ${fmt(
+                repeat / 1000,
+              )} м) длиннее рулона.`
+            : `Полоса (${fmt(base / 1000)} м с подрезкой) длиннее рулона.`,
       },
     };
   }
 
-  const stripsAroundPerimeter = ceilDiv(perimeter, rollWidth);
+  // Каждая стена обклеивается от угла; обрезок угловой полосы на соседнюю стену не переносится.
+  const stripsForWalls = 2 * ceilDiv(L, rollWidth) + 2 * ceilDiv(W, rollWidth);
+
   let stripsSaved = 0;
   const pieces: number[] = [];
   for (const opening of openings) {
-    // Гарантированно целиком внутри проёма — при любом положении проёма относительно стыков.
-    const savedPerOpening = Math.max(0, Math.floor(opening.width / rollWidth) - 1);
-    const saved = savedPerOpening * opening.count;
-    stripsSaved += saved;
     const rest = H - opening.height;
+    let piece = 0;
     if (rest > 0) {
-      const piece = Math.min(withRepeat(rest + opening.trims * trim), stripLength);
-      for (let i = 0; i < saved; i += 1) pieces.push(piece);
+      const raw = rest + opening.trims * trim;
+      if (repeat === 0) piece = raw;
+      // Кусок над дверью начинается с той же фазы, что и полосы: достаточно округлить до раппорта.
+      else if (opening.trims === 1) piece = ceilToMultiple(raw, repeat);
+      // У окна фаза нижнего куска зависит от высоты подоконника (не вводится): до раппорта на подгонку.
+      else piece = ceilToMultiple(raw, repeat) + repeat;
     }
+    // Если куски над и под проёмом не короче полной полосы, экономии нет — колонка остаётся полосой.
+    if (piece >= stripLength) continue;
+    // Гарантированно целиком внутри проёма — при любом положении проёма относительно стыков.
+    const saved = Math.max(0, Math.floor(opening.width / rollWidth) - 1) * opening.count;
+    stripsSaved += saved;
+    if (piece > 0) for (let i = 0; i < saved; i += 1) pieces.push(piece);
   }
-  // Сумма ширин проёмов не больше периметра, поэтому полос не может стать отрицательно много.
-  const fullStrips = Math.max(0, stripsAroundPerimeter - stripsSaved);
 
-  const fullRolls = Math.floor(fullStrips / stripsPerRoll);
-  const stripsInLastRoll = fullStrips % stripsPerRoll;
-  const rollsForFullStrips = fullRolls + (stripsInLastRoll > 0 ? 1 : 0);
-  const remnants: number[] = Array.from(
-    { length: fullRolls },
-    () => rollLength - stripsPerRoll * stripLength,
-  );
-  if (stripsInLastRoll > 0) remnants.push(rollLength - stripsInLastRoll * stripLength);
+  /** Рулоны на `strips` полных полос; остатки рулонов — уже совмещённые с фазой рисунка. */
+  const planFullStrips = (strips: number) => {
+    const fullRolls = Math.floor(strips / stripsPerRoll);
+    const inLastRoll = strips % stripsPerRoll;
+    const remnants = Array.from({ length: fullRolls }, () =>
+      Math.max(0, rollLength - rollStart - stripsPerRoll * stripLength),
+    );
+    if (inLastRoll > 0)
+      remnants.push(Math.max(0, rollLength - rollStart - inLastRoll * stripLength));
+    return { rolls: fullRolls + (inLastRoll > 0 ? 1 : 0), remnants };
+  };
 
-  const extraRolls = packShortPieces(pieces, remnants, rollLength);
-  const rolls = rollsForFullStrips + extraRolls;
+  // Σ⌊a/w⌋ ≤ ⌊P/w⌋ ≤ полос по стенам, поэтому разность неотрицательна; max — защита на будущее.
+  const fullStripsWithOpenings = Math.max(0, stripsForWalls - stripsSaved);
+  // План с учётом проёмов: меньше полных полос, короткие куски — из остатков или новых рулонов.
+  const withOpenings = planFullStrips(fullStripsWithOpenings);
+  const extraRolls = packShortPieces(pieces, withOpenings.remnants, rollLength - rollStart);
+  // План без экономии на проёмах всегда выполним; берём меньший из двух гарантированных.
+  const withoutOpenings = planFullStrips(stripsForWalls);
+  const useOpenings = withOpenings.rolls + extraRolls <= withoutOpenings.rolls;
+
+  const fullStrips = useOpenings ? fullStripsWithOpenings : stripsForWalls;
+  const usedPieces = useOpenings ? pieces : [];
+  const rollsForFullStrips = useOpenings ? withOpenings.rolls : withoutOpenings.rolls;
+  const extraRollsForShortPieces = useOpenings ? extraRolls : 0;
+  const rolls = rollsForFullStrips + extraRollsForShortPieces;
 
   const wallAreaMm2 = perimeter * H;
   const openingsAreaMm2 = openings.reduce((sum, o) => sum + o.count * o.width * o.height, 0);
@@ -306,15 +340,16 @@ export function calculateWallpaper(input: WallpaperInput): WallpaperCalculation 
       wallArea: wallAreaMm2 / 1_000_000,
       openingsArea: openingsAreaMm2 / 1_000_000,
       netArea: (wallAreaMm2 - openingsAreaMm2) / 1_000_000,
-      stripsAroundPerimeter,
-      stripsSavedByOpenings: stripsSaved,
+      stripsForWalls,
+      stripsSavedByOpenings: useOpenings ? stripsSaved : 0,
       fullStrips,
       stripLength: stripLength / 1000,
+      rollStartAllowance: rollStart / 1000,
       stripsPerRoll,
       rollsForFullStrips,
-      shortPieces: pieces.length,
-      shortPiecesLength: pieces.reduce((sum, p) => sum + p, 0) / 1000,
-      extraRollsForShortPieces: extraRolls,
+      shortPieces: usedPieces.length,
+      shortPiecesLength: usedPieces.reduce((sum, p) => sum + p, 0) / 1000,
+      extraRollsForShortPieces,
       rolls,
       patternRepeat: repeat / 10,
       trimAllowance: trim / 10,

@@ -31,7 +31,7 @@ const filled: WallpaperFormValues = {
 describe('evaluateWallpaperForm', () => {
   it('понимает десятичную запятую и считает пример 1', () => {
     const calculation = evaluateWallpaperForm(filled);
-    expect(calculation.ok && calculation.result.rolls).toBe(9);
+    expect(calculation.ok && calculation.result.rolls).toBe(10); // аудит: 28 полос по стенам
   });
 
   it('пустая форма — ошибки во всех обязательных полях', () => {

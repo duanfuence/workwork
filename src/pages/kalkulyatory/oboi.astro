@@ -1,5 +1,6 @@
 ---
 import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import CalculatorResult from '../../components/calculator/CalculatorResult.astro';
 import NumberField from '../../components/calculator/NumberField.astro';
 import { calculators } from '../../data/calculators';
 import BaseLayout from '../../layouts/BaseLayout.astro';
@@ -166,111 +167,98 @@ const id = 'wp';
         </div>
       </form>
 
-      <section
-        class="calc-result"
-        aria-labelledby="calc-result-title"
-        data-result
-        data-state="empty"
+      <CalculatorResult
+        headingId="calc-result-title"
+        placeholder="Заполните размеры комнаты и рулона и нажмите «Рассчитать». После первого расчёта результат обновляется сразу при изменении параметров."
       >
-        <h2 class="calc-result__title" id="calc-result-title" tabindex="-1">
-          Результат
-        </h2>
+        <p class="calc-result__main" role="status">
+          <span class="calc-result__number" data-out="rolls"></span>
+          <span class="calc-result__unit" data-out="rollsWord"></span>
+        </p>
+        <p class="calc-result__cost" data-row="totalCost" hidden>
+          Стоимость: <strong data-out="totalCost"></strong>
+        </p>
 
-        <div data-state-panel="empty">
-          <p class="calc-result__placeholder">
-            Заполните размеры комнаты и рулона и нажмите «Рассчитать». После первого расчёта
-            результат обновляется сразу при изменении параметров.
-          </p>
-        </div>
+        <dl class="calc-result__list">
+          <div>
+            <dt>Периметр комнаты</dt>
+            <dd>
+              <span data-out="perimeter"></span> м
+            </dd>
+          </div>
+          <div>
+            <dt>Площадь стен</dt>
+            <dd>
+              <span data-out="wallArea"></span> м²
+            </dd>
+          </div>
+          <div data-row="openings">
+            <dt>Площадь окон и дверей</dt>
+            <dd>
+              <span data-out="openingsArea"></span> м²
+            </dd>
+          </div>
+          <div>
+            <dt>Полос по стенам</dt>
+            <dd data-out="stripsForWalls"></dd>
+          </div>
+          <div data-row="openings">
+            <dt>Из них не нужны на всю высоту</dt>
+            <dd data-out="stripsSavedByOpenings"></dd>
+          </div>
+          <div>
+            <dt>Полос на полную высоту</dt>
+            <dd data-out="fullStrips"></dd>
+          </div>
+          <div>
+            <dt>Длина одной полосы</dt>
+            <dd>
+              <span data-out="stripLength"></span> м
+            </dd>
+          </div>
+          <div data-row="rollStart">
+            <dt>Подгонка рисунка в начале рулона</dt>
+            <dd>
+              до <span data-out="rollStartAllowance"></span> м
+            </dd>
+          </div>
+          <div>
+            <dt>Полос из одного рулона</dt>
+            <dd data-out="stripsPerRoll"></dd>
+          </div>
+          <div data-row="shortPieces">
+            <dt>Коротких кусков над и под проёмами</dt>
+            <dd>
+              <span data-out="shortPieces"></span> шт., <span data-out="shortPiecesLength"></span> м
+            </dd>
+          </div>
+          <div data-row="shortPieces">
+            <dt>Дополнительно рулонов на куски</dt>
+            <dd data-out="extraRollsForShortPieces"></dd>
+          </div>
+        </dl>
 
-        <div data-state-panel="invalid" hidden>
-          <p class="calc-result__invalid">Расчёт не выполнен: исправьте значения в полях.</p>
-          <ul class="calc-result__error-list" data-error-summary></ul>
-        </div>
-
-        <div data-state-panel="ready" hidden>
-          <p class="calc-result__main" role="status">
-            <span class="calc-result__number" data-out="rolls"></span>
-            <span class="calc-result__unit" data-out="rollsWord"></span>
-          </p>
-          <p class="calc-result__cost" data-row="totalCost" hidden>
-            Стоимость: <strong data-out="totalCost"></strong>
-          </p>
-
-          <dl class="calc-result__list">
-            <div>
-              <dt>Периметр комнаты</dt>
-              <dd>
-                <span data-out="perimeter"></span> м
-              </dd>
-            </div>
-            <div>
-              <dt>Площадь стен</dt>
-              <dd>
-                <span data-out="wallArea"></span> м²
-              </dd>
-            </div>
-            <div data-row="openings">
-              <dt>Площадь окон и дверей</dt>
-              <dd>
-                <span data-out="openingsArea"></span> м²
-              </dd>
-            </div>
-            <div>
-              <dt>Полос по периметру</dt>
-              <dd data-out="stripsAroundPerimeter"></dd>
-            </div>
-            <div data-row="openings">
-              <dt>Из них не нужны на всю высоту</dt>
-              <dd data-out="stripsSavedByOpenings"></dd>
-            </div>
-            <div>
-              <dt>Полос на полную высоту</dt>
-              <dd data-out="fullStrips"></dd>
-            </div>
-            <div>
-              <dt>Длина одной полосы</dt>
-              <dd>
-                <span data-out="stripLength"></span> м
-              </dd>
-            </div>
-            <div>
-              <dt>Полос из одного рулона</dt>
-              <dd data-out="stripsPerRoll"></dd>
-            </div>
-            <div data-row="shortPieces">
-              <dt>Коротких кусков над и под проёмами</dt>
-              <dd>
-                <span data-out="shortPieces"></span> шт., <span data-out="shortPiecesLength"></span>{' '}
-                м
-              </dd>
-            </div>
-            <div data-row="shortPieces">
-              <dt>Дополнительно рулонов на куски</dt>
-              <dd data-out="extraRollsForShortPieces"></dd>
-            </div>
-          </dl>
-
-          <p class="calc-result__note" data-out="stripNote"></p>
-          <p class="calc-result__note">
-            Результат ориентировочный. Покупайте рулоны одной партии (номер партии — на этикетке):
-            оттенок разных партий может отличаться.
-          </p>
-        </div>
-      </section>
+        <p class="calc-result__note" data-out="stripNote"></p>
+        <p class="calc-result__note" data-row="openingsNote" data-out="openingsNote"></p>
+        <p class="calc-result__note">
+          Результат ориентировочный. Покупайте рулоны одной партии (номер партии — на этикетке):
+          оттенок разных партий может отличаться.
+        </p>
+      </CalculatorResult>
     </div>
 
     <article class="calc-article">
       <section aria-labelledby="method-title">
         <h2 id="method-title">Как считается</h2>
         <p>
-          Обои клеят вертикальными полосами по всему периметру комнаты, поэтому калькулятор считает
-          не площадь, а полосы.
+          Обои клеят вертикальными полосами, поэтому калькулятор считает не площадь, а полосы — и
+          там, где точная раскладка неизвестна, выбирает вариант с запасом.
         </p>
         <ol>
           <li>
-            Периметр комнаты делится на ширину рулона — так получается число полос. Неполная полоса
-            округляется вверх: у угла её всё равно придётся отрезать от целой.
+            Каждая стена делится на ширину рулона, неполная полоса округляется вверх: у угла её всё
+            равно отрезают от целой. Полосы четырёх стен складываются. Обрезок угловой полосы на
+            соседнюю стену не переносится — это даёт запас до одной полосы на стену.
           </li>
           <li>
             Длина полосы — это высота стен плюс запас на подрезку. Если у обоев есть раппорт, каждая
@@ -278,13 +266,15 @@ const id = 'wp';
             кратной раппорту.
           </li>
           <li>
-            Из рулона выходит столько целых полос, сколько помещается в его длину. Остаток короче
-            полосы на стену не пойдёт.
+            Из рулона выходит столько целых полос, сколько помещается в его длину. Если есть
+            раппорт, в начале каждого рулона откладывается до одного раппорта, чтобы совместить
+            рисунок с уже наклеенными полосами. Остаток короче полосы на стену не пойдёт.
           </li>
           <li>
             Окна и двери уменьшают расход только на те полосы, которые гарантированно целиком
             попадают в ширину проёма. Над и под проёмом нужны короткие куски — калькулятор
-            раскладывает их по остаткам рулонов и добавляет рулоны, если остатков не хватает.
+            раскладывает их по остаткам рулонов и добавляет рулоны, если остатков не хватает. Если
+            такой план не дешевле, чем клеить полные полосы, проёмы не учитываются.
           </li>
           <li>Число рулонов округляется вверх.</li>
         </ol>
@@ -300,9 +290,9 @@ const id = 'wp';
             </dd>
           </div>
           <div>
-            <dt>Число полос</dt>
+            <dt>Число полос (по стенам)</dt>
             <dd>
-              <code>N = ⌈P ÷ ширина рулона⌉</code>
+              <code>N = 2 × ⌈длина ÷ ширина рулона⌉ + 2 × ⌈ширина ÷ ширина рулона⌉</code>
             </dd>
           </div>
           <div>
@@ -315,13 +305,17 @@ const id = 'wp';
           <div>
             <dt>Полос из рулона</dt>
             <dd>
-              <code>k = ⌊длина рулона ÷ S⌋</code>
+              <code>k = ⌊длина рулона ÷ S⌋</code>; с раппортом:
+              <code>k = ⌊(длина рулона − r − высота − подрезка) ÷ S⌋ + 1</code>
             </dd>
           </div>
           <div>
             <dt>Экономия на проёме шириной a</dt>
             <dd>
-              <code>e = max(0, ⌊a ÷ ширина рулона⌋ − 1)</code>
+              <code>e = max(0, ⌊a ÷ ширина рулона⌋ − 1)</code>; кусок над дверью —
+              <code>высота − h + подрезка</code>, над и под окном —
+              <code>высота − h + 2 × подрезка</code> (с раппортом: округление до кратного
+              <code>r</code>, для окна ещё <code>+ r</code>)
             </dd>
           </div>
           <div>
@@ -338,8 +332,8 @@ const id = 'wp';
         </p>
         <p>
           <strong>Пример.</strong> Комната 4 × 3 м, высота 2,5 м, рулон 0,53 × 10,05 м, подрезка 10
-          см: P = 14 м, N = ⌈14 ÷ 0,53⌉ = ⌈26,4⌉ = 27 полос, S = 2,6 м, k = ⌊10,05 ÷ 2,6⌋ = 3,
-          рулонов ⌈27 ÷ 3⌉ = 9.
+          см: N = 2 × ⌈4 ÷ 0,53⌉ + 2 × ⌈3 ÷ 0,53⌉ = 2 × 8 + 2 × 6 = 28 полос, S = 2,6 м, k = ⌊10,05
+          ÷ 2,6⌋ = 3, рулонов ⌈28 ÷ 3⌉ = 10.
         </p>
       </section>
 
@@ -350,6 +344,14 @@ const id = 'wp';
           <li>
             Удачное расположение проёмов: если окно стоит точно по стыкам полос, расход может быть
             немного меньше.
+          </li>
+          <li>
+            Перенос обрезка угловой полосы на соседнюю стену: опытный мастер так сэкономит до полосы
+            на каждом углу.
+          </li>
+          <li>
+            Высоту подоконника: при раппорте кусок под окном считается с запасом на совмещение
+            рисунка.
           </li>
           <li>Повторное использование обрезков, кроме остатков в конце рулонов.</li>
           <li>Брак, ошибки при поклейке и обои со смещённой стыковкой рисунка.</li>
@@ -364,6 +366,8 @@ const id = 'wp';
             Полосы по краям окна всё равно режутся из полной длины, а над и под окном нужны короткие
             куски. Экономия появляется, только когда проём шире двух полос. Например, при ширине
             рулона 0,53 м окно шириной 1,5 м экономит одну полосу, а дверь шириной 0,9 м — ни одной.
+            При крупном раппорте куски над и под окном с подгонкой рисунка могут оказаться не короче
+            полной полосы — тогда экономии нет совсем.
           </p>
 
           <h3>Что такое раппорт и где его найти?</h3>
@@ -402,166 +406,63 @@ const id = 'wp';
 </BaseLayout>
 
 <script>
-  import {
-    evaluateWallpaperForm,
-    wallpaperFields,
-    type WallpaperFormValues,
-  } from '../../lib/calculators/wallpaper-form';
-  import type { WallpaperErrors, WallpaperResult } from '../../lib/calculators/wallpaper';
+  import { initCalculatorForm } from '../../client/calculator-form';
+  import { evaluateWallpaperForm, wallpaperFields } from '../../lib/calculators/wallpaper-form';
   import { formatNumber, formatRubles } from '../../lib/format';
   import { pluralizeRu, rollWordForms, stripWordForms } from '../../lib/plural';
 
   const form = document.querySelector<HTMLFormElement>('[data-wallpaper-form]');
-  const result = document.querySelector<HTMLElement>('[data-result]');
+  const result = document.querySelector<HTMLElement>('[data-calculator-result]');
 
   if (form && result) {
-    const heading = result.querySelector<HTMLElement>('#calc-result-title');
-    const summary = result.querySelector<HTMLUListElement>('[data-error-summary]');
-    const inputs = new Map(
-      wallpaperFields.map((field) => [
-        field,
-        form.querySelector<HTMLInputElement>(`input[name="${field}"]`),
-      ]),
-    );
-    let live = false;
+    initCalculatorForm({
+      form,
+      result,
+      fields: wallpaperFields,
+      evaluate: evaluateWallpaperForm,
+      render(value, view) {
+        view.text('rolls', String(value.rolls));
+        view.text('rollsWord', pluralizeRu(value.rolls, rollWordForms));
+        view.text('perimeter', formatNumber(value.perimeter, 3));
+        view.text('wallArea', formatNumber(value.wallArea));
+        view.text('openingsArea', formatNumber(value.openingsArea));
+        view.text('stripsForWalls', String(value.stripsForWalls));
+        view.text('stripsSavedByOpenings', String(value.stripsSavedByOpenings));
+        view.text('fullStrips', String(value.fullStrips));
+        view.text('stripLength', formatNumber(value.stripLength, 3));
+        view.text('rollStartAllowance', formatNumber(value.rollStartAllowance, 3));
+        view.text('stripsPerRoll', String(value.stripsPerRoll));
+        view.text('shortPieces', String(value.shortPieces));
+        view.text('shortPiecesLength', formatNumber(value.shortPiecesLength, 3));
+        view.text('extraRollsForShortPieces', String(value.extraRollsForShortPieces));
+        view.show('openings', value.openingsArea > 0);
+        view.show('rollStart', value.rollStartAllowance > 0);
+        view.show('shortPieces', value.shortPieces > 0);
+        view.show('totalCost', value.totalCost !== null);
+        if (value.totalCost !== null) view.text('totalCost', formatRubles(value.totalCost));
 
-    // Явная прокрутка: при обычном focus() поле может оказаться под липкой шапкой.
-    const focusField = (input: HTMLInputElement) => {
-      input.focus({ preventScroll: true });
-      (input.closest('.field') ?? input).scrollIntoView({ block: 'center' });
-    };
-
-    const out = (name: string, text: string) => {
-      const element = result.querySelector<HTMLElement>(`[data-out="${name}"]`);
-      if (element) element.textContent = text;
-    };
-
-    const showRows = (name: string, visible: boolean) => {
-      for (const row of result.querySelectorAll<HTMLElement>(`[data-row="${name}"]`)) {
-        row.hidden = !visible;
-      }
-    };
-
-    const setState = (state: 'empty' | 'invalid' | 'ready') => {
-      result.dataset['state'] = state;
-      for (const panel of result.querySelectorAll<HTMLElement>('[data-state-panel]')) {
-        panel.hidden = panel.dataset['statePanel'] !== state;
-      }
-    };
-
-    const readValues = (): WallpaperFormValues => {
-      const values = {} as WallpaperFormValues;
-      for (const field of wallpaperFields) values[field] = inputs.get(field)?.value ?? '';
-      return values;
-    };
-
-    const showErrors = (errors: WallpaperErrors) => {
-      for (const field of wallpaperFields) {
-        const input = inputs.get(field);
-        const message = errors[field];
-        const errorElement = form.querySelector<HTMLElement>(`[data-error-for="${field}"]`);
-        if (input) {
-          if (message) input.setAttribute('aria-invalid', 'true');
-          else input.removeAttribute('aria-invalid');
+        const parts = [
+          `Полоса ${formatNumber(value.stripLength, 3)} м = высота стен + подрезка ${formatNumber(value.trimAllowance)} см`,
+        ];
+        if (value.patternRepeat > 0) {
+          parts.push(`с округлением до кратного раппорту ${formatNumber(value.patternRepeat)} см`);
         }
-        if (errorElement) {
-          errorElement.textContent = message ?? '';
-          errorElement.hidden = !message;
-        }
-      }
-      if (summary) {
-        summary.replaceChildren(
-          ...wallpaperFields
-            .filter((field) => errors[field])
-            .map((field) => {
-              const input = inputs.get(field);
-              const item = document.createElement('li');
-              const link = document.createElement('a');
-              link.href = `#${input?.id ?? ''}`;
-              link.textContent = `${input?.dataset['label'] ?? field}: ${errors[field] ?? ''}`;
-              link.addEventListener('click', (event) => {
-                event.preventDefault();
-                if (input) focusField(input);
-              });
-              item.append(link);
-              return item;
-            }),
+        view.text(
+          'stripNote',
+          `${parts.join(', ')}. Из рулона выходит ${value.stripsPerRoll} ${pluralizeRu(
+            value.stripsPerRoll,
+            stripWordForms,
+          )}.`,
         );
-      }
-    };
-
-    const renderResult = (value: WallpaperResult) => {
-      out('rolls', String(value.rolls));
-      out('rollsWord', pluralizeRu(value.rolls, rollWordForms));
-      out('perimeter', formatNumber(value.perimeter, 3));
-      out('wallArea', formatNumber(value.wallArea));
-      out('openingsArea', formatNumber(value.openingsArea));
-      out('stripsAroundPerimeter', String(value.stripsAroundPerimeter));
-      out('stripsSavedByOpenings', String(value.stripsSavedByOpenings));
-      out('fullStrips', String(value.fullStrips));
-      out('stripLength', formatNumber(value.stripLength, 3));
-      out('stripsPerRoll', String(value.stripsPerRoll));
-      out('shortPieces', String(value.shortPieces));
-      out('shortPiecesLength', formatNumber(value.shortPiecesLength, 3));
-      out('extraRollsForShortPieces', String(value.extraRollsForShortPieces));
-      showRows('openings', value.openingsArea > 0);
-      showRows('shortPieces', value.shortPieces > 0);
-      showRows('totalCost', value.totalCost !== null);
-      if (value.totalCost !== null) out('totalCost', formatRubles(value.totalCost));
-
-      const parts = [
-        `Полоса ${formatNumber(value.stripLength, 3)} м = высота стен + подрезка ${formatNumber(value.trimAllowance)} см`,
-      ];
-      if (value.patternRepeat > 0) {
-        parts.push(`с округлением до кратного раппорту ${formatNumber(value.patternRepeat)} см`);
-      }
-      out(
-        'stripNote',
-        `${parts.join(', ')}. Из рулона выходит ${value.stripsPerRoll} ${pluralizeRu(
-          value.stripsPerRoll,
-          stripWordForms,
-        )}.`,
-      );
-    };
-
-    const update = (moveFocus: boolean) => {
-      const calculation = evaluateWallpaperForm(readValues());
-      if (calculation.ok) {
-        showErrors({});
-        renderResult(calculation.result);
-        setState('ready');
-        if (moveFocus && heading) {
-          heading.focus({ preventScroll: true });
-          heading.scrollIntoView({ block: 'start' });
+        const openingsGaveNothing = value.openingsArea > 0 && value.stripsSavedByOpenings === 0;
+        view.show('openingsNote', openingsGaveNothing);
+        if (openingsGaveNothing) {
+          view.text(
+            'openingsNote',
+            'Проёмы не уменьшили расход: они уже двух полос или куски над и под ними с подгонкой рисунка не короче полной полосы.',
+          );
         }
-        return;
-      }
-      showErrors(calculation.errors);
-      setState('invalid');
-      if (moveFocus) {
-        const firstInvalid = wallpaperFields.find((field) => calculation.errors[field]);
-        const input = firstInvalid ? inputs.get(firstInvalid) : null;
-        if (input) focusField(input);
-      }
-    };
-
-    form.addEventListener('submit', (event) => {
-      event.preventDefault();
-      live = true;
-      update(true);
-    });
-
-    form.addEventListener('input', () => {
-      if (live) update(false);
-    });
-
-    form.addEventListener('reset', () => {
-      live = false;
-      // Значения полей сбрасываются после события reset.
-      requestAnimationFrame(() => {
-        showErrors({});
-        setState('empty');
-      });
+      },
     });
   }
 </script>

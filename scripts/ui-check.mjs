@@ -213,7 +213,7 @@ async function checkCalculator(page, viewport) {
 
   const field = (name) => page.locator(`input[name="${name}"]`);
   const error = (name) => page.locator(`[data-error-for="${name}"]`);
-  const state = () => page.locator('[data-result]').getAttribute('data-state');
+  const state = () => page.locator('[data-calculator-result]').getAttribute('data-state');
   const out = async (name) => plain(await page.locator(`[data-out="${name}"]`).textContent());
   const submit = page.locator('form[data-wallpaper-form] button[type="submit"]');
   const fill = async (values) => {
@@ -267,9 +267,9 @@ async function checkCalculator(page, viewport) {
     // Для промежуточных ширин — только расчёт, переполнение и скриншот.
     await fill({ roomLength: '5', roomWidth: '4', wallHeight: '2,7' });
     await fill({ windowCount: '2', windowWidth: '1,5', windowHeight: '1,4' });
-    await fill({ doorCount: '1', doorWidth: '0,9', doorHeight: '2', rollPrice: '1299,90' });
+    await fill({ doorCount: '1', doorWidth: '0,9', doorHeight: '2', rollPrice: '1299,95' });
     await submit.click();
-    check((await out('rolls')) === '11', `${label}: пример 4 → 11 рулонов`);
+    check((await out('rolls')) === '12', `${label}: пример 4 → 12 рулонов`);
     await checkOverflow(page, `${label}, с результатом`);
     await page.screenshot({ path: path.join(outDir, `calc-${viewport.name}.png`), fullPage: true });
     return;
@@ -299,11 +299,11 @@ async function checkCalculator(page, viewport) {
   );
 
   // Пример 1
-  check((await out('rolls')) === '9', `${label}: пример 1 → 9 (${await out('rolls')})`);
-  check((await out('rollsWord')) === 'рулонов', `${label}: «9 рулонов»`);
+  check((await out('rolls')) === '10', `${label}: пример 1 → 10 (${await out('rolls')})`);
+  check((await out('rollsWord')) === 'рулонов', `${label}: «10 рулонов»`);
   check((await out('perimeter')) === '14', `${label}: периметр 14 м`);
   check((await out('wallArea')) === '35', `${label}: площадь стен 35 м²`);
-  check((await out('stripsAroundPerimeter')) === '27', `${label}: 27 полос`);
+  check((await out('stripsForWalls')) === '28', `${label}: 28 полос по стенам`);
   check((await out('stripLength')) === '2,6', `${label}: полоса 2,6 м`);
   check((await out('stripsPerRoll')) === '3', `${label}: 3 полосы из рулона`);
   check(
@@ -321,11 +321,20 @@ async function checkCalculator(page, viewport) {
   check((await out('stripsPerRoll')) === '4', `${label}: 4 полосы из рулона`);
   await field('patternRepeat').fill('64');
   check((await out('stripLength')) === '2,56', `${label}: раппорт 64 → полоса 2,56 м`);
-  check((await out('rolls')) === '9', `${label}: раппорт 64 → 9 рулонов`);
-  await fill({ patternRepeat: '', wallHeight: '2,5', rollPrice: '1299,90' });
+  check((await out('rolls')) === '10', `${label}: раппорт 64 → 10 рулонов`);
   check(
-    (await out('totalCost')) === '11 699,10 ₽',
-    `${label}: стоимость 9 × 1 299,90 = «${await out('totalCost')}»`,
+    (await page.locator('[data-row="rollStart"]').isVisible()) &&
+      (await out('rollStartAllowance')) === '0,64',
+    `${label}: показана подгонка рисунка в начале рулона до 0,64 м`,
+  );
+  await fill({ patternRepeat: '', wallHeight: '2,5', rollPrice: '1299,95' });
+  check(
+    !(await page.locator('[data-row="rollStart"]').isVisible()),
+    `${label}: без раппорта строка подгонки скрыта`,
+  );
+  check(
+    (await out('totalCost')) === '12 999,50 ₽',
+    `${label}: стоимость 10 × 1 299,95 = «${await out('totalCost')}»`,
   );
   check((await out('rollsWord')) === 'рулонов', `${label}: склонение «рулонов»`);
 
@@ -333,11 +342,23 @@ async function checkCalculator(page, viewport) {
   await fill({ roomLength: '5', roomWidth: '4', wallHeight: '2,7' });
   await fill({ windowCount: '2', windowWidth: '1,5', windowHeight: '1,4' });
   await fill({ doorCount: '1', doorWidth: '0,9', doorHeight: '2' });
-  check((await out('rolls')) === '11', `${label}: пример 4 → 11 рулонов`);
+  check((await out('rolls')) === '12', `${label}: пример 4 → 12 рулонов`);
+  check((await out('stripsForWalls')) === '36', `${label}: 36 полос по стенам`);
   check((await out('openingsArea')) === '6', `${label}: площадь проёмов 6 м²`);
   check((await out('stripsSavedByOpenings')) === '2', `${label}: проёмы экономят 2 полосы`);
   check((await out('shortPieces')) === '2', `${label}: 2 коротких куска`);
-  check((await out('totalCost')) === '14 298,90 ₽', `${label}: стоимость 11 × 1 299,90`);
+  check((await out('totalCost')) === '15 599,40 ₽', `${label}: стоимость 12 × 1 299,95`);
+  check(
+    !(await page.locator('[data-row="openingsNote"]').isVisible()),
+    `${label}: пояснение «проёмы не уменьшили расход» скрыто, когда экономия есть`,
+  );
+  await fill({ windowCount: '0' });
+  check(
+    (await page.locator('[data-row="openingsNote"]').isVisible()) &&
+      (await out('stripsSavedByOpenings')) === '0',
+    `${label}: только узкая дверь → пояснение, что проёмы не уменьшили расход`,
+  );
+  await fill({ windowCount: '2' });
   await checkOverflow(page, `${label}, с результатом`);
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: path.join(outDir, `calc-${viewport.name}.png`), fullPage: true });
@@ -412,7 +433,7 @@ async function checkCalculator(page, viewport) {
     'Значение не может быть отрицательным.',
     'отрицательная цена',
   );
-  await fill({ rollPrice: '1299,90' });
+  await fill({ rollPrice: '1299,95' });
   check((await state()) === 'ready', `${label}: после исправления всех полей — результат`);
   check(
     (await page.locator('[aria-invalid="true"]').count()) === 0,

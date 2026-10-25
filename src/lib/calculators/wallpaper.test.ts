@@ -1,6 +1,10 @@
 /**
  * Ожидаемые значения рассчитаны вручную — см. docs/calculators/WALLPAPER.md,
  * раздел «Контрольные примеры». Номера примеров совпадают.
+ *
+ * Этап 2.1 (аудит): модель стала консервативнее — полосы считаются по стенам, при раппорте
+ * резервируется подгонка рисунка в начале рулона и под окном. Изменённые ожидания пересчитаны
+ * вручную и помечены «аудит:»; прежние значения указаны в документе.
  */
 import { describe, expect, it } from 'vitest';
 import { calculateWallpaper, type WallpaperInput, type WallpaperResult } from './wallpaper';
@@ -37,22 +41,24 @@ function errorsOf(overrides: Partial<WallpaperInput>) {
 }
 
 describe('пример 1: обычная комната без рисунка', () => {
-  it('4 × 3 × 2,5 м, рулон 0,53 × 10,05 → 9 рулонов', () => {
+  // аудит: 2·⌈4000/530⌉ + 2·⌈3000/530⌉ = 2·8 + 2·6 = 28 полос (было ⌈14 000/530⌉ = 27); ⌈28/3⌉ = 10
+  it('4 × 3 × 2,5 м, рулон 0,53 × 10,05 → 28 полос по стенам, 10 рулонов', () => {
     expect(calc({})).toEqual({
       perimeter: 14,
       wallArea: 35,
       openingsArea: 0,
       netArea: 35,
-      stripsAroundPerimeter: 27,
+      stripsForWalls: 28,
       stripsSavedByOpenings: 0,
-      fullStrips: 27,
+      fullStrips: 28,
       stripLength: 2.6,
+      rollStartAllowance: 0,
       stripsPerRoll: 3,
-      rollsForFullStrips: 9,
+      rollsForFullStrips: 10,
       shortPieces: 0,
       shortPiecesLength: 0,
       extraRollsForShortPieces: 0,
-      rolls: 9,
+      rolls: 10,
       patternRepeat: 0,
       trimAllowance: 10,
       totalCost: null,
@@ -68,11 +74,13 @@ describe('пример 2: раппорт', () => {
     expect(result.rolls).toBe(7);
   });
 
-  it('раппорт 64 см удлиняет полосу до 2,56 м — 3 полосы из рулона, 9 рулонов', () => {
+  // аудит: k = ⌊(10 050 − 640 − 2 400) / 2 560⌋ + 1 = 3; ⌈28 / 3⌉ = 10 (было ⌈27 / 3⌉ = 9)
+  it('раппорт 64 см удлиняет полосу до 2,56 м — 3 полосы из рулона, 10 рулонов', () => {
     const result = calc({ wallHeight: 2.3, patternRepeat: 64 });
     expect(result.stripLength).toBe(2.56);
+    expect(result.rollStartAllowance).toBe(0.64);
     expect(result.stripsPerRoll).toBe(3);
-    expect(result.rolls).toBe(9);
+    expect(result.rolls).toBe(10);
     expect(result.patternRepeat).toBe(64);
   });
 
@@ -83,16 +91,18 @@ describe('пример 2: раппорт', () => {
 });
 
 describe('пример 3: чувствительность к высоте', () => {
+  // ⌈28 / 4⌉ = 7 — не изменилось
   it('2,41 м → полоса 2,51 м, 4 из рулона, 7 рулонов', () => {
     const result = calc({ wallHeight: 2.41 });
     expect(result.stripsPerRoll).toBe(4);
     expect(result.rolls).toBe(7);
   });
 
-  it('2,42 м → полоса 2,52 м, 3 из рулона, 9 рулонов', () => {
+  // аудит: ⌈28 / 3⌉ = 10 (было ⌈27 / 3⌉ = 9)
+  it('2,42 м → полоса 2,52 м, 3 из рулона, 10 рулонов', () => {
     const result = calc({ wallHeight: 2.42 });
     expect(result.stripsPerRoll).toBe(3);
-    expect(result.rolls).toBe(9);
+    expect(result.rolls).toBe(10);
   });
 });
 
@@ -109,22 +119,25 @@ describe('пример 4: окна и двери', () => {
     doorHeight: 2,
   };
 
-  it('2 окна 1,5 × 1,4 и дверь 0,9 × 2 → 11 рулонов', () => {
+  // аудит: по стенам 2·⌈5000/530⌉ + 2·⌈4000/530⌉ = 2·10 + 2·8 = 36; −2 на окнах = 34; ⌈34/3⌉ = 12.
+  // Остатки: 11 × 1 650 и 7 250 → оба куска по 1 500 помещаются. Без проёмов ⌈36/3⌉ = 12 — проёмы не помогли.
+  it('2 окна 1,5 × 1,4 и дверь 0,9 × 2 → 12 рулонов', () => {
     expect(calc(openings)).toEqual({
       perimeter: 18,
       wallArea: 48.6,
       openingsArea: 6,
       netArea: 42.6,
-      stripsAroundPerimeter: 34,
+      stripsForWalls: 36,
       stripsSavedByOpenings: 2,
-      fullStrips: 32,
+      fullStrips: 34,
       stripLength: 2.8,
+      rollStartAllowance: 0,
       stripsPerRoll: 3,
-      rollsForFullStrips: 11,
+      rollsForFullStrips: 12,
       shortPieces: 2,
       shortPiecesLength: 3,
       extraRollsForShortPieces: 0,
-      rolls: 11,
+      rolls: 12,
       patternRepeat: 0,
       trimAllowance: 10,
       totalCost: null,
@@ -135,19 +148,21 @@ describe('пример 4: окна и двери', () => {
     expect(calc({ roomLength: 5, roomWidth: 4, wallHeight: 2.7 }).rolls).toBe(12);
   });
 
-  it('пример 4б: с раппортом 64 см куски 1,92 м не помещаются в остатки → 12 рулонов', () => {
+  // аудит: k = ⌊(10 050 − 640 − 2 800) / 3 200⌋ + 1 = 3; кусок окна ⌈1 500/640⌉·640 + 640 = 2 560 (было 1 920).
+  // 34 полосы → 12 рулонов; 11 остатков по 0 (10 050 − 640 − 9 600 < 0) и 6 210 → оба куска входят (6 210 − 5 120).
+  it('пример 4б: с раппортом 64 см куски по 2,56 м помещаются в остаток последнего рулона → 12 рулонов', () => {
     const result = calc({ ...openings, patternRepeat: 64 });
     expect(result.stripLength).toBe(3.2);
-    expect(result.rollsForFullStrips).toBe(11);
-    expect(result.shortPiecesLength).toBe(3.84);
-    expect(result.extraRollsForShortPieces).toBe(1);
+    expect(result.rollsForFullStrips).toBe(12);
+    expect(result.shortPiecesLength).toBe(5.12);
+    expect(result.extraRollsForShortPieces).toBe(0);
     expect(result.rolls).toBe(12);
   });
 
   it('узкая дверь (уже двух полос) не уменьшает расход', () => {
     const result = calc({ doorCount: 1, doorWidth: 0.9, doorHeight: 2 });
     expect(result.stripsSavedByOpenings).toBe(0);
-    expect(result.rolls).toBe(9);
+    expect(result.rolls).toBe(10); // аудит: ⌈28 / 3⌉ (было ⌈27 / 3⌉ = 9)
   });
 
   it('проём высотой со стену не требует коротких кусков', () => {
@@ -155,21 +170,22 @@ describe('пример 4: окна и двери', () => {
     // ⌊1600 / 530⌋ − 1 = 2 полосы сэкономлено, куски не нужны
     expect(result.stripsSavedByOpenings).toBe(2);
     expect(result.shortPieces).toBe(0);
-    expect(result.fullStrips).toBe(25);
-    expect(result.rolls).toBe(9); // ⌈25 / 3⌉
+    expect(result.fullStrips).toBe(26); // аудит: 28 − 2 (было 27 − 2 = 25)
+    expect(result.rolls).toBe(9); // ⌈26 / 3⌉
   });
 });
 
 describe('пример 5: границы округления', () => {
   it('периметр ровно 24 ширины рулона → 24 полосы и 8 рулонов (не 25 и 9)', () => {
     const result = calc({ roomLength: 3.18, roomWidth: 3.18 });
-    expect(result.stripsAroundPerimeter).toBe(24);
+    expect(result.stripsForWalls).toBe(24);
     expect(result.rolls).toBe(8);
   });
 
-  it('на 1 см больше → 25 полос и 9 рулонов', () => {
+  // аудит: по стенам 2·6 + 2·⌈3190/530⌉ = 12 + 14 = 26 (было ⌈12 740/530⌉ = 25); ⌈26/3⌉ = 9
+  it('на 1 см больше → 26 полос по стенам и 9 рулонов', () => {
     const result = calc({ roomLength: 3.18, roomWidth: 3.19 });
-    expect(result.stripsAroundPerimeter).toBe(25);
+    expect(result.stripsForWalls).toBe(26);
     expect(result.rolls).toBe(9);
   });
 
@@ -179,20 +195,36 @@ describe('пример 5: границы округления', () => {
     expect(result.rolls).toBe(6);
   });
 
-  it('2,22 × 5,73 м: периметр ровно 30 ширин рулона → 30 полос, а не 31', () => {
+  // аудит: при счёте по стенам 2·⌈2220/530⌉ + 2·⌈5730/530⌉ = 2·5 + 2·11 = 32 → ⌈32/3⌉ = 11.
+  // Периметр по-прежнему считается точно; ловушка двоичных дробей для стен — в тесте ниже.
+  it('2,22 × 5,73 м: периметр точно 15,9 м, по стенам 32 полосы', () => {
     // В метрах: 2 · (2.22 + 5.73) = 15.900000000000002, и Math.ceil(… / 0.53) дал бы 31.
     // Расчёт в целых миллиметрах: 15 900 / 530 = 30 ровно.
     expect(2 * (2.22 + 5.73)).not.toBe(15.9);
     const result = calc({ roomLength: 2.22, roomWidth: 5.73 });
     expect(result.perimeter).toBe(15.9);
-    expect(result.stripsAroundPerimeter).toBe(30);
-    expect(result.rolls).toBe(10); // ⌈30 / 3⌉
+    expect(result.stripsForWalls).toBe(32);
+    expect(result.rolls).toBe(11);
+  });
+
+  it('стена 4,2 м при рулоне 0,7 м — ровно 6 полос (в метрах 4.2 / 0.7 = 6.000000000000001 → 7)', () => {
+    expect(Math.ceil(4.2 / 0.7)).toBe(7); // ловушка существует
+    const result = calc({ roomLength: 4.2, roomWidth: 2.1, rollWidth: 0.7 });
+    expect(result.stripsForWalls).toBe(18); // 2·6 + 2·3
+    expect(result.rolls).toBe(6); // ⌈18 / 3⌉
   });
 });
 
 describe('пример 6: стоимость', () => {
+  // аудит: комната 4 × 3 теперь даёт 10 рулонов; для проверки копеек взята комната 3,18 × 3,19 (9 рулонов)
   it('9 рулонов по 1 299,90 ₽ = 11 699,10 ₽', () => {
-    expect(calc({ rollPrice: 1299.9 }).totalCost).toBe(11699.1);
+    const result = calc({ roomLength: 3.18, roomWidth: 3.19, rollPrice: 1299.9 });
+    expect(result.rolls).toBe(9);
+    expect(result.totalCost).toBe(11699.1);
+  });
+
+  it('10 рулонов по 1 299,90 ₽ = 12 999 ₽', () => {
+    expect(calc({ rollPrice: 1299.9 }).totalCost).toBe(12999);
   });
 
   it('нулевая цена даёт стоимость 0, а не «не указано»', () => {
@@ -208,7 +240,9 @@ describe('пример 7: куски не помещаются в остатки
   it('4 ленточных окна 2,0 × 0,3 → 7 + 2 = 9 рулонов', () => {
     const result = calc({ windowCount: 4, windowWidth: 2, windowHeight: 0.3 });
     expect(result.stripsSavedByOpenings).toBe(8);
-    expect(result.fullStrips).toBe(19);
+    // аудит: 28 − 8 = 20 (было 27 − 8 = 19); 6 рулонов по 3 + 1 рулон с 2 полосами (остаток 4 850 — 2 куска),
+    // ещё 6 кусков по 2,4 м — в 2 новых рулона (4 + 2). Итог тот же: 7 + 2 = 9 (без окон было бы 10).
+    expect(result.fullStrips).toBe(20);
     expect(result.rollsForFullStrips).toBe(7);
     expect(result.shortPieces).toBe(8);
     expect(result.shortPiecesLength).toBe(19.2);
@@ -225,8 +259,10 @@ describe('подрезка', () => {
     expect(result.stripsPerRoll).toBe(4); // ⌊10 050 / 2 500⌋
   });
 
-  it('короткий кусок не длиннее полной полосы', () => {
-    // окно 0,1 м, подрезка 100 см: (2,5 − 0,1) + 2 · 1 = 4,4 м > полосы 3,5 м → кусок 3,5 м
+  // аудит: если куски над и под проёмом не короче полной полосы, колонка остаётся полной полосой
+  // (раньше кусок обрезался до 3,5 м и раскладывался отдельно — это могло только увеличить расход).
+  it('если куски не короче полной полосы, экономии на проёме нет', () => {
+    // окно 0,1 м, подрезка 100 см: (2,5 − 0,1) + 2 · 1 = 4,4 м ≥ полосы 3,5 м
     const result = calc({
       trimAllowance: 100,
       windowCount: 1,
@@ -234,7 +270,9 @@ describe('подрезка', () => {
       windowHeight: 0.1,
     });
     expect(result.stripLength).toBe(3.5);
-    expect(result.shortPiecesLength).toBe(7); // 2 куска по 3,5 м
+    expect(result.stripsSavedByOpenings).toBe(0);
+    expect(result.shortPieces).toBe(0);
+    expect(result.rolls).toBe(14); // ⌈28 / ⌊10 050 / 3 500⌋⌉ = ⌈28 / 2⌉
   });
 });
 
@@ -284,11 +322,11 @@ describe('проверка ввода (пример 8)', () => {
     expect(errorsOf({ patternRepeat: -5 }).patternRepeat).toBe(
       'Значение не может быть отрицательным.',
     );
-    // 200 см допустим, но полоса 2,6 → 4 м; из рулона 10,05 м выходит 2 полосы
+    // 200 см допустим: шаг 4 м, подгонка до 2 м; ⌊(10 050 − 2 000 − 2 600) / 4 000⌋ + 1 = 2 полосы
     expect(calc({ patternRepeat: 200 }).stripsPerRoll).toBe(2);
-    // рулон 3 м короче полосы 4 м
+    // аудит: рулон 3 м — 2,6 м полосы + до 2 м подгонки = 4,6 м не помещаются
     expect(errorsOf({ patternRepeat: 200, rollLength: 3 }).rollLength).toBe(
-      'Полоса (4 м с подрезкой и раппортом) длиннее рулона.',
+      'Полоса (2,6 м с подрезкой) вместе с подгонкой рисунка (до 2 м) длиннее рулона.',
     );
   });
 
@@ -315,7 +353,7 @@ describe('проверка ввода (пример 8)', () => {
   });
 
   it('размеры проёмов игнорируются, если проёмов нет', () => {
-    expect(calc({ windowCount: 0, windowWidth: -5, windowHeight: 99 }).rolls).toBe(9);
+    expect(calc({ windowCount: 0, windowWidth: -5, windowHeight: 99 }).rolls).toBe(10);
   });
 
   it('окно шире самой длинной стены или выше стены', () => {
