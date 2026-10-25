@@ -1,0 +1,132 @@
+---
+interface Option {
+  value: string;
+  label: string;
+}
+
+interface Props {
+  name: string;
+  idPrefix: string;
+  label: string;
+  options: readonly Option[];
+  /** Выбранное значение по умолчанию. */
+  value: string;
+  hint?: string;
+}
+
+const { name, idPrefix, label, options, value, hint } = Astro.props;
+const id = `${idPrefix}-${name}`;
+const hintId = `${id}-hint`;
+const errorId = `${id}-error`;
+const describedBy = [hint ? hintId : null, errorId].filter(Boolean).join(' ');
+---
+
+<div class="field">
+  <label class="field__label" for={id}>
+    {label}
+  </label>
+  <div class="field__control">
+    <select
+      class="field__select"
+      id={id}
+      name={name}
+      aria-describedby={describedBy}
+      aria-required="true"
+      data-label={label}
+    >
+      {options.map((option) => (
+        <option value={option.value} selected={option.value === value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  </div>
+  {hint && (
+    <p class="field__hint" id={hintId}>
+      {hint}
+    </p>
+  )}
+  <p class="field__error" id={errorId} data-error-for={name} hidden></p>
+</div>
+
+<style>
+  .field {
+    display: grid;
+    align-content: start;
+    gap: var(--space-1);
+    min-width: 0;
+  }
+
+  .field__label {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text);
+  }
+
+  .field__control {
+    position: relative;
+  }
+
+  /* Стрелка выпадающего списка — CSS-треугольник, без изображений. */
+  .field__control::after {
+    content: '';
+    position: absolute;
+    right: var(--space-3);
+    top: 50%;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-right: 2px solid var(--color-text-muted);
+    border-bottom: 2px solid var(--color-text-muted);
+    transform: translateY(-70%) rotate(45deg);
+    pointer-events: none;
+  }
+
+  .field__select {
+    width: 100%;
+    min-height: var(--tap-target-min);
+    padding: var(--space-2) 2.5rem var(--space-2) var(--space-3);
+    background: var(--color-surface);
+    border: var(--border-strong);
+    border-radius: var(--radius-md);
+    font: inherit;
+    font-size: var(--font-size-md);
+    color: var(--color-text);
+    appearance: none;
+    cursor: pointer;
+    transition:
+      border-color var(--transition-fast),
+      box-shadow var(--transition-fast);
+  }
+
+  .field__select:hover {
+    border-color: var(--color-text-muted);
+  }
+
+  .field__select:focus-visible {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px var(--color-accent-soft-hover);
+  }
+
+  .field__select[aria-invalid='true'] {
+    border-color: var(--color-danger);
+    background: var(--color-danger-soft);
+  }
+
+  .field__hint {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    line-height: var(--line-height-snug);
+  }
+
+  .field__error {
+    color: var(--color-danger);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    line-height: var(--line-height-snug);
+  }
+
+  .field__error[hidden] {
+    display: none;
+  }
+</style>

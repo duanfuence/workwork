@@ -1,0 +1,519 @@
+---
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import CalculatorResult from '../../components/calculator/CalculatorResult.astro';
+import NumberField from '../../components/calculator/NumberField.astro';
+import SelectField from '../../components/calculator/SelectField.astro';
+import { calculators } from '../../data/calculators';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import '../../styles/calculator.css';
+
+const entry = calculators.find((item) => item.id === 'laminate');
+if (!entry) throw new Error('В каталоге нет калькулятора ламината (id: laminate)');
+
+const id = 'lm';
+---
+
+<BaseLayout title={entry.seo.title} description={entry.seo.description}>
+  <div class="container calc-page">
+    <Breadcrumbs
+      items={[
+        { label: 'Главная', href: '/' },
+        { label: 'Калькуляторы', href: '/#catalog' },
+        { label: entry.title },
+      ]}
+    />
+
+    <header class="calc-intro">
+      <h1 class="calc-intro__title">{entry.title}</h1>
+      <p class="calc-intro__lead">
+        Посчитайте, сколько досок и упаковок ламината нужно на прямоугольную комнату. Калькулятор
+        раскладывает доски по рядам с выбранной схемой смещения стыков и учитывает, какие обрезки
+        можно пустить в дело. Результат — план для идеального прямоугольника: неровные стены, трубы
+        и пороги покрывает запас.
+      </p>
+    </header>
+
+    <noscript>
+      <p class="calc-noscript">
+        Для расчёта нужен включённый JavaScript. Способ расчёта описан ниже — по нему можно
+        посчитать вручную.
+      </p>
+    </noscript>
+
+    <div class="calc-layout">
+      <form class="calc-form" data-laminate-form novalidate aria-labelledby="calc-form-title">
+        <h2 class="visually-hidden" id="calc-form-title">
+          Параметры расчёта
+        </h2>
+
+        <fieldset class="calc-group">
+          <legend class="calc-group__title">Комната</legend>
+          <p class="calc-group__hint">
+            Измеряйте от стены до стены по полу, не вычитая зазор у стен.
+          </p>
+          <div class="calc-group__fields">
+            <NumberField name="roomLength" idPrefix={id} label="Длина комнаты" unit="м" />
+            <NumberField name="roomWidth" idPrefix={id} label="Ширина комнаты" unit="м" />
+          </div>
+        </fieldset>
+
+        <fieldset class="calc-group">
+          <legend class="calc-group__title">Доска и упаковка</legend>
+          <p class="calc-group__hint">
+            Размеры доски — с этикетки, в миллиметрах. Проверка: длина × ширина × число досок
+            совпадает с площадью упаковки.
+          </p>
+          <div class="calc-group__fields">
+            <NumberField
+              name="boardLength"
+              idPrefix={id}
+              label="Длина доски"
+              unit="мм"
+              inputmode="numeric"
+              placeholder="например, 1380"
+            />
+            <NumberField
+              name="boardWidth"
+              idPrefix={id}
+              label="Ширина доски"
+              unit="мм"
+              inputmode="numeric"
+              placeholder="например, 193"
+            />
+            <NumberField
+              name="boardsPerPack"
+              idPrefix={id}
+              label="Досок в упаковке"
+              unit="шт."
+              inputmode="numeric"
+              placeholder="например, 8"
+            />
+          </div>
+        </fieldset>
+
+        <fieldset class="calc-group">
+          <legend class="calc-group__title">Укладка</legend>
+          <div class="calc-group__fields">
+            <SelectField
+              name="direction"
+              idPrefix={id}
+              label="Доски вдоль"
+              value="length"
+              options={[
+                { value: 'length', label: 'длины комнаты' },
+                { value: 'width', label: 'ширины комнаты' },
+              ]}
+              hint="Длинная сторона доски параллельна выбранной стороне."
+            />
+            <SelectField
+              name="scheme"
+              idPrefix={id}
+              label="Смещение стыков"
+              value="half"
+              options={[
+                { value: 'half', label: 'на 1/2 доски' },
+                { value: 'third', label: 'на 1/3 доски' },
+                { value: 'offcut', label: 'от обрезка предыдущего ряда' },
+              ]}
+              hint="Допустимые схемы — в инструкции к покрытию."
+            />
+          </div>
+        </fieldset>
+
+        <fieldset class="calc-group">
+          <legend class="calc-group__title">
+            Требования производителя <span class="calc-group__optional">необязательно</span>
+          </legend>
+          <p class="calc-group__hint">
+            Указаны в инструкции к ламинату. По умолчанию — строгие 400 мм: такой план подойдёт и
+            покрытиям с требованием 200–300 мм.
+          </p>
+          <div class="calc-group__fields">
+            <NumberField
+              name="minPiece"
+              idPrefix={id}
+              label="Минимальный отрезок"
+              unit="мм"
+              inputmode="numeric"
+              value="400"
+              optional
+              hint="Самый короткий кусок доски в начале или конце ряда."
+            />
+            <NumberField
+              name="minOffset"
+              idPrefix={id}
+              label="Минимальное смещение стыков"
+              unit="мм"
+              inputmode="numeric"
+              value="400"
+              optional
+              hint="Между торцевыми стыками соседних рядов."
+            />
+          </div>
+        </fieldset>
+
+        <fieldset class="calc-group">
+          <legend class="calc-group__title">
+            Запас и цена <span class="calc-group__optional">необязательно</span>
+          </legend>
+          <div class="calc-group__fields">
+            <NumberField
+              name="reserve"
+              idPrefix={id}
+              label="Запас"
+              unit="%"
+              value="5"
+              optional
+              hint="На брак, ошибки резки и неровные стены. Подрезка уже учтена в плане."
+            />
+            <NumberField
+              name="packPrice"
+              idPrefix={id}
+              label="Цена упаковки"
+              unit="₽"
+              optional
+              hint="Укажите, чтобы посчитать стоимость."
+            />
+          </div>
+        </fieldset>
+
+        <div class="calc-actions">
+          <button class="button button--primary" type="submit">
+            Рассчитать
+          </button>
+          <button class="button button--secondary" type="reset">
+            Сбросить
+          </button>
+        </div>
+      </form>
+
+      <CalculatorResult
+        headingId="calc-result-title"
+        placeholder="Заполните размеры комнаты и доски и нажмите «Рассчитать». После первого расчёта результат обновляется сразу при изменении параметров."
+      >
+        <p class="calc-result__main" role="status">
+          <span class="calc-result__number" data-out="packs"></span>
+          <span class="calc-result__unit" data-out="packsWord"></span>
+        </p>
+        <p class="calc-result__cost" data-row="totalCost" hidden>
+          Стоимость: <strong data-out="totalCost"></strong>
+        </p>
+
+        <dl class="calc-result__list">
+          <div>
+            <dt>Досок по плану раскладки</dt>
+            <dd data-out="boards"></dd>
+          </div>
+          <div>
+            <dt>
+              С запасом <span data-out="reserve"></span> %
+            </dt>
+            <dd data-out="boardsWithReserve"></dd>
+          </div>
+          <div>
+            <dt>К покупке</dt>
+            <dd>
+              <span data-out="boardsToBuy"></span> шт., <span data-out="areaToBuy"></span> м²
+            </dd>
+          </div>
+          <div>
+            <dt>Площадь комнаты</dt>
+            <dd>
+              <span data-out="roomArea"></span> м²
+            </dd>
+          </div>
+          <div>
+            <dt>Рядов</dt>
+            <dd data-out="rows"></dd>
+          </div>
+          <div>
+            <dt>Длина ряда</dt>
+            <dd>
+              <span data-out="rowLength"></span> мм
+            </dd>
+          </div>
+          <div>
+            <dt>Ширина последнего ряда</dt>
+            <dd>
+              <span data-out="lastRowWidth"></span> мм
+            </dd>
+          </div>
+          <div data-row="shift">
+            <dt>Сдвиг схемы</dt>
+            <dd>
+              <span data-out="shift"></span> мм
+            </dd>
+          </div>
+          <div>
+            <dt>Отходы плана</dt>
+            <dd>
+              <span data-out="wastePercent"></span> %
+            </dd>
+          </div>
+        </dl>
+
+        <div class="calc-result__section">
+          <h3 class="calc-result__subtitle">Ряды</h3>
+          <ul class="calc-result__rows" data-out-list="rowTypes"></ul>
+          <p class="calc-result__note" data-out="pieces"></p>
+        </div>
+
+        <div class="calc-result__section">
+          <h3 class="calc-result__subtitle">По площади</h3>
+          <p class="calc-result__note">
+            <span data-out="areaBoards"></span>
+            {' → с тем же запасом '}
+            <span data-out="areaBoardsWithReserve"></span>
+            {' → '}
+            <span data-out="areaPacks"></span>.
+          </p>
+          <p class="calc-result__note" data-out="difference"></p>
+        </div>
+
+        <p class="calc-result__note" data-row="narrowLastRow" data-out="narrowLastRow"></p>
+        <p class="calc-result__note">
+          Расчёт — для выбранных направления и схемы. Другая раскладка может потребовать другого
+          количества; лучший вариант калькулятор не ищет.
+        </p>
+      </CalculatorResult>
+    </div>
+
+    <article class="calc-article">
+      <section aria-labelledby="method-title">
+        <h2 id="method-title">Как считается</h2>
+        <p>
+          Калькулятор не делит площадь на площадь доски, а строит план раскладки: так видно, сколько
+          материала уходит в обрезки.
+        </p>
+        <ol>
+          <li>
+            Комната делится на ряды шириной доски. Последний ряд обычно уже доски, но собирается из
+            целых досок, распиленных вдоль.
+          </li>
+          <li>
+            Каждый ряд: отрезок у одной стены, целые доски, отрезок у другой. Начала рядов задаёт
+            схема смещения: при 1/2 и 1/3 они чередуются по циклу, при «от обрезка» ряд начинается
+            куском, оставшимся от конца предыдущего.
+          </li>
+          <li>
+            Отрезок короче минимального не ставится: если схема даёт такой кусок, все ряды
+            сдвигаются на одно и то же расстояние. Стыки соседних рядов не сходятся ближе
+            минимального смещения. Если так разложить нельзя, калькулятор сообщает об этом.
+          </li>
+          <li>
+            Из одной доски можно вырезать один отрезок для начала ряда (с замком справа) и один для
+            конца (с замком слева). Калькулятор подбирает наибольшее число таких пар — остальные
+            отрезки режутся из отдельных досок.
+          </li>
+          <li>К доскам плана добавляется запас, затем доски округляются до целых упаковок.</li>
+        </ol>
+      </section>
+
+      <section aria-labelledby="formula-title">
+        <h2 id="formula-title">Формулы</h2>
+        <dl class="formula-list">
+          <div>
+            <dt>Ряды</dt>
+            <dd>
+              <code>N = ⌈поперечный размер ÷ ширина доски⌉</code>, длина ряда <code>R</code> —
+              сторона вдоль досок
+            </dd>
+          </div>
+          <div>
+            <dt>Ряд с началом s</dt>
+            <dd>
+              целых досок <code>⌊(R − s) ÷ l⌋</code>, конечный отрезок
+              <code>e = (R − s) mod l</code>; <code>s</code> и <code>e</code> — не короче
+              минимального отрезка (или <code>e = 0</code>)
+            </dd>
+          </div>
+          <div>
+            <dt>Доски</dt>
+            <dd>
+              <code>целые + начала + концы − пары</code>, пара — начало и конец с суммой не больше
+              длины доски
+            </dd>
+          </div>
+          <div>
+            <dt>С запасом z и упаковки</dt>
+            <dd>
+              <code>⌈доски × (1 + z ÷ 100)⌉</code>, упаковок
+              <code>⌈доски с запасом ÷ досок в упаковке⌉</code>
+            </dd>
+          </div>
+        </dl>
+        <p>
+          <strong>Пример.</strong> Комната 2,5 × 1,0 м, доска 1200 × 200 мм, смещение 1/2, минимум
+          300 мм: 5 рядов по 2,5 м. Чтобы концы рядов были не короче 300 мм, ряды сдвигаются на 200
+          мм: 1000 + 1200 + 300 и 400 + 1200 + 900 мм. Целых досок 5, начал 5, концов 5, пар (400 +
+          300) — две: 5 + 5 + 5 − 2 = 13 досок. По площади вышло бы 2,5 ÷ 0,24 = 10,4 → 11.
+        </p>
+      </section>
+
+      <section aria-labelledby="limits-title">
+        <h2 id="limits-title">Что калькулятор не учитывает</h2>
+        <ul>
+          <li>Ниши, выступы, трубы, колонны, дверные проёмы и пороги.</li>
+          <li>
+            Компенсационный зазор у стен и ширину пропила — они примерно уравновешивают друг друга.
+          </li>
+          <li>Перенос обрезков в другую комнату.</li>
+          <li>
+            Лучшую раскладку: другая схема, направление или стена, от которой начинать, могут дать
+            меньше досок.
+          </li>
+          <li>Диагональную укладку, ёлочку и доски разной длины.</li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="faq-title">
+        <h2 id="faq-title">Частые вопросы</h2>
+        <div class="faq">
+          <h3>Почему досок больше, чем по площади?</h3>
+          <p>
+            Площадь не знает, что последний ряд собирается из целых досок, что короткие обрезки
+            нельзя ставить и что отрезок с одной стороны доски годится только для одного конца ряда.
+            В узкой или маленькой комнате разница доходит до трети.
+          </p>
+
+          <h3>Какую схему смещения выбрать?</h3>
+          <p>
+            Ту, которую разрешает инструкция к покрытию. «От обрезка» обычно даёт меньше отходов,
+            1/2 и 1/3 — ровный рисунок стыков. Можно посчитать несколько вариантов и сравнить.
+          </p>
+
+          <h3>Что такое минимальный отрезок и смещение?</h3>
+          <p>
+            Самый короткий допустимый кусок доски у стены и наименьшее расстояние между торцевыми
+            стыками соседних рядов. Их задаёт производитель, обычно 200–400 мм. Если не знаете —
+            оставьте 400 мм.
+          </p>
+
+          <h3>Зачем запас, если подрезка уже посчитана?</h3>
+          <p>
+            Доска может оказаться с дефектом, рез — неудачным, стена — неровной. Обычно хватает 3–5
+            %; при первой укладке или сложной комнате — больше.
+          </p>
+
+          <h3>Почему результат изменился от одного миллиметра?</h3>
+          <p>
+            Если ряд оказывается на миллиметр длиннее, пара отрезков перестаёт помещаться в одну
+            доску. На практике этот миллиметр уходит в зазор у стены — калькулятор его не вычитает,
+            чтобы не занизить расход.
+          </p>
+        </div>
+      </section>
+    </article>
+  </div>
+</BaseLayout>
+
+<script>
+  import { initCalculatorForm } from '../../client/calculator-form';
+  import { evaluateLaminateForm, laminateFields } from '../../lib/calculators/laminate-form';
+  import { formatNumber, formatRubles } from '../../lib/format';
+  import { boardWordForms, packWordForms, pluralizeRu } from '../../lib/plural';
+
+  const form = document.querySelector<HTMLFormElement>('[data-laminate-form]');
+  const result = document.querySelector<HTMLElement>('[data-calculator-result]');
+
+  const boardsText = (count: number) => `${count} ${pluralizeRu(count, boardWordForms)}`;
+  const packsText = (count: number) => `${count} ${pluralizeRu(count, packWordForms)}`;
+
+  if (form && result) {
+    initCalculatorForm({
+      form,
+      result,
+      fields: laminateFields,
+      evaluate: evaluateLaminateForm,
+      render(value, view) {
+        const l = value.boardLength;
+        const w = value.boardWidth;
+
+        view.text('packs', String(value.packs));
+        view.text('packsWord', pluralizeRu(value.packs, packWordForms));
+        view.show('totalCost', value.totalCost !== null);
+        if (value.totalCost !== null) view.text('totalCost', formatRubles(value.totalCost));
+        view.text('boards', String(value.boards));
+        view.text('reserve', formatNumber(value.reserve, 1));
+        view.text('boardsWithReserve', String(value.boardsWithReserve));
+        view.text('boardsToBuy', String(value.boardsToBuy));
+        view.text('areaToBuy', formatNumber(value.areaToBuy, 2));
+        view.text('roomArea', formatNumber(value.roomArea, 2));
+        view.text('rows', String(value.rows));
+        view.text('rowLength', String(value.rowLength));
+        view.text('lastRowWidth', String(value.lastRowWidth));
+        view.text('wastePercent', formatNumber(value.wastePercent, 1));
+
+        const shift = value.layout.kind === 'rows' ? value.layout.shift : null;
+        view.show('shift', shift !== null && shift > 0);
+        if (shift !== null) view.text('shift', String(shift));
+
+        if (value.layout.kind === 'short') {
+          view.list('rowTypes', [
+            `Все ${value.rows}: отрезок ${value.rowLength} мм без стыков, из доски — ${value.layout.piecesPerBoard}`,
+          ]);
+          view.text(
+            'pieces',
+            'Ряд короче доски: стыков нет, схема смещения и минимальные значения не применяются.',
+          );
+        } else {
+          const types = value.layout.rowTypes;
+          const items = types.slice(0, 6).map((type) => {
+            const parts: string[] = [];
+            if (type.start < l) parts.push(String(type.start));
+            const whole = type.full + (type.start === l ? 1 : 0);
+            if (whole > 0) parts.push(`${whole} × ${l}`);
+            if (type.end > 0) parts.push(String(type.end));
+            const rows = `${type.firstRows.join(', ')}${type.count > type.firstRows.length ? ', …' : ''}`;
+            return `Ряды ${rows} (×${type.count}): ${parts.join(' + ')} мм`;
+          });
+          if (types.length > 6) items.push(`…и ещё ${types.length - 6} типов рядов`);
+          view.list('rowTypes', items);
+          const { full, starts, ends, pairs } = value.layout.count;
+          view.text(
+            'pieces',
+            `Целых досок ${full}, отрезков в начале рядов ${starts}, в конце ${ends}; ${pairs.length} пар вырезаются из одной доски: ${full} + ${starts} + ${ends} − ${pairs.length} = ${value.boards}.`,
+          );
+        }
+
+        view.text('areaBoards', boardsText(value.areaBoards));
+        view.text('areaBoardsWithReserve', boardsText(value.areaBoardsWithReserve));
+        view.text('areaPacks', packsText(value.areaPacks));
+
+        const difference = value.boards - value.areaBoards;
+        if (difference === 0) {
+          view.text(
+            'difference',
+            'План совпадает с расчётом по площади: обрезки почти полностью идут в дело.',
+          );
+        } else {
+          const reasons: string[] = [];
+          if (value.lastRowWidth < w) {
+            reasons.push(
+              `последний ряд шириной ${value.lastRowWidth} мм собирается из целых досок`,
+            );
+          }
+          if (value.layout.kind === 'short') {
+            reasons.push('из доски выходит целое число отрезков, остаток уходит в отход');
+          } else {
+            reasons.push(
+              `отрезки у стен, которые нельзя объединить в одну доску, режутся из отдельных досок — остаток короче ${value.minPiece} мм или годится только для другого конца ряда`,
+            );
+          }
+          view.text(
+            'difference',
+            `План больше расчёта по площади на ${boardsText(difference)}: ${reasons.join('; ')}.`,
+          );
+        }
+
+        view.show('narrowLastRow', value.narrowLastRow);
+        if (value.narrowLastRow) {
+          view.text(
+            'narrowLastRow',
+            `Последний ряд узкий (${value.lastRowWidth} мм). Обычно первый и последний ряды выравнивают — по ${Math.round((w + value.lastRowWidth) / 2)} мм; число досок от этого не меняется.`,
+          );
+        }
+      },
+    });
+  }
+</script>

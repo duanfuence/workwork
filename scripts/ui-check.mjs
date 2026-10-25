@@ -25,6 +25,7 @@ const outDir = path.resolve(process.argv[2] ?? '.ui-check');
 const port = 4329;
 const baseUrl = `http://localhost:${port}`;
 const calcPath = '/kalkulyatory/oboi/';
+const laminatePath = '/kalkulyatory/laminat/';
 const viewports = [
   { name: '320', width: 320, height: 640, isMobile: true },
   { name: '390', width: 390, height: 844, isMobile: true },
@@ -122,19 +123,19 @@ async function checkHome(page, viewport) {
     return;
   }
 
-  // Каталог: обои опубликованы, остальные — «Скоро» без ссылок
+  // Каталог: обои и ламинат опубликованы, остальные — «Скоро» без ссылок
   const cards = page.locator('#catalog-list > li');
   check((await cards.count()) === 6, `${label}: 6 карточек калькуляторов`);
   const cardLinks = await page
     .locator('#catalog-list a')
     .evaluateAll((links) => links.map((a) => a.getAttribute('href')));
   check(
-    cardLinks.length === 1 && cardLinks[0] === calcPath,
-    `${label}: ссылка только у калькулятора обоев (${cardLinks.join(', ')})`,
+    cardLinks.join(',') === [calcPath, laminatePath].join(','),
+    `${label}: ссылки только у калькуляторов обоев и ламината (${cardLinks.join(', ')})`,
   );
   check(
-    (await page.locator('#catalog-list .badge--soon').count()) === 5,
-    `${label}: 5 карточек со статусом «Скоро»`,
+    (await page.locator('#catalog-list .badge--soon').count()) === 4,
+    `${label}: 4 карточки со статусом «Скоро»`,
   );
   check(
     plain(await page.locator('#catalog-list > li').first().textContent()).includes(
@@ -478,6 +479,233 @@ async function checkCalculator(page, viewport) {
   await checkLinks(page, label);
 }
 
+async function checkLaminate(page, viewport) {
+  const label = `ламинат ${viewport.name}`;
+  // С главной — по карточке
+  await page.goto(baseUrl + '/', { waitUntil: 'networkidle' });
+  await page.locator(`#catalog-list a[href="${laminatePath}"]`).click();
+  await page.waitForURL(`**${laminatePath}`);
+  check(
+    new URL(page.url()).pathname === laminatePath,
+    `${label}: карточка ламината ведёт на калькулятор`,
+  );
+  await page.waitForLoadState('networkidle');
+
+  const meta = await checkCommon(page, label);
+  check(
+    meta.title === 'Калькулятор ламината — расчёт упаковок на комнату — ДомРасчёт',
+    `${label}: title «${meta.title}»`,
+  );
+  check(
+    (meta.description ?? '').startsWith('Рассчитайте, сколько досок и упаковок ламината'),
+    `${label}: уникальный description без подложки`,
+  );
+  check(plain(await page.textContent('h1')) === 'Калькулятор ламината', `${label}: h1`);
+  await checkOverflow(page, `${label}, пустая форма`);
+
+  const field = (name) => page.locator(`[name="${name}"]`);
+  const error = (name) => page.locator(`[data-error-for="${name}"]`);
+  const state = () => page.locator('[data-calculator-result]').getAttribute('data-state');
+  const out = async (name) => plain(await page.locator(`[data-out="${name}"]`).textContent());
+  const submit = page.locator('form[data-laminate-form] button[type="submit"]');
+  const fill = async (values) => {
+    for (const [name, value] of Object.entries(values)) await field(name).fill(value);
+  };
+  const k13 = {
+    roomLength: '4',
+    roomWidth: '3,5',
+    boardLength: '1380',
+    boardWidth: '193',
+    boardsPerPack: '8',
+  };
+
+  check(
+    (await field('minPiece').inputValue()) === '400' &&
+      (await field('minOffset').inputValue()) === '400' &&
+      (await field('reserve').inputValue()) === '5' &&
+      (await field('direction').inputValue()) === 'length' &&
+      (await field('scheme').inputValue()) === 'half',
+    `${label}: значения по умолчанию — 400 / 400 мм, запас 5 %, вдоль длины, 1/2`,
+  );
+
+  // Пустая форма
+  await submit.click();
+  check((await state()) === 'invalid', `${label}: пустая форма → ошибки`);
+  check(
+    (await page.locator('[data-error-summary] li').count()) === 5,
+    `${label}: сводка — 5 обязательных полей`,
+  );
+  check(
+    await page.evaluate(() => document.activeElement?.getAttribute('name') === 'roomLength'),
+    `${label}: фокус на первом поле с ошибкой`,
+  );
+
+  if (viewport.name !== '390' && viewport.name !== '1440') {
+    await fill(k13);
+    await submit.click();
+    check((await out('packs')) === '8', `${label}: К13 → 8 упаковок`);
+    await checkOverflow(page, `${label}, с результатом`);
+    await page.screenshot({
+      path: path.join(outDir, `laminate-${viewport.name}.png`),
+      fullPage: true,
+    });
+    return;
+  }
+
+  // К13 через форму: ввод, Enter в последнем поле
+  await fill({ roomLength: '4', roomWidth: '3,5', boardLength: '1380', boardWidth: '193' });
+  await field('boardsPerPack').focus();
+  await page.keyboard.type('8');
+  await page.keyboard.press('Enter');
+  check((await state()) === 'ready', `${label}: Enter выполняет расчёт`);
+  check((await out('packs')) === '8', `${label}: К13 → 8 упаковок (${await out('packs')})`);
+  check((await out('packsWord')) === 'упаковок', `${label}: «8 упаковок»`);
+  check((await out('boards')) === '57', `${label}: 57 досок по плану`);
+  check((await out('boardsWithReserve')) === '60', `${label}: 60 досок с запасом 5 %`);
+  check((await out('rows')) === '19', `${label}: 19 рядов`);
+  check((await out('lastRowWidth')) === '26', `${label}: последний ряд 26 мм`);
+  check((await out('areaBoards')) === '53 доски', `${label}: по площади 53 доски`);
+  check((await out('areaPacks')) === '7 упаковок', `${label}: по площади 7 упаковок`);
+  check(
+    (await out('pieces')).includes('38 + 9 + 19 − 9 = 57'),
+    `${label}: формула досок 38 + 9 + 19 − 9 = 57`,
+  );
+  check(
+    (await out('difference')).startsWith('План больше расчёта по площади на 4 доски'),
+    `${label}: объяснение расхождения — «${(await out('difference')).slice(0, 50)}…»`,
+  );
+  check(
+    await page.locator('[data-row="narrowLastRow"]').isVisible(),
+    `${label}: подсказка про узкий последний ряд`,
+  );
+  check(
+    (await page.locator('[data-out-list="rowTypes"] li').count()) === 2,
+    `${label}: два типа рядов`,
+  );
+
+  // Направление и схема — без кнопки. При строгих 400 мм поперёк обе строгие схемы невыполнимы
+  // (концы рядов 740 и 50 мм не сдвигаются в допустимые), при условиях §8 (300 мм, запас 0) — К13 поперёк по 1/3.
+  await field('direction').selectOption('width');
+  await field('scheme').selectOption('third');
+  check(
+    (await state()) === 'invalid' &&
+      plain(await error('scheme').textContent()).startsWith('Схема 1/3 невыполнима'),
+    `${label}: поперёк по 1/3 при 400 мм — невыполнимо, с объяснением`,
+  );
+  await fill({ minPiece: '300', minOffset: '300', reserve: '0' });
+  check(
+    (await state()) === 'ready' && (await out('boards')) === '56' && (await out('packs')) === '7',
+    `${label}: поперёк по 1/3 при 300 мм и запасе 0 → 56 досок, 7 упаковок (К13, §10)`,
+  );
+  await field('direction').selectOption('length');
+  await field('scheme').selectOption('half');
+  await fill({ minPiece: '400', minOffset: '400', reserve: '5' });
+  check((await out('packs')) === '8', `${label}: обратно вдоль по 1/2 → 8 упаковок`);
+  await fill({ packPrice: '1849,90' });
+  check(
+    (await out('totalCost')) === '14 799,20 ₽',
+    `${label}: 8 × 1 849,90 = «${await out('totalCost')}»`,
+  );
+  await checkOverflow(page, `${label}, с результатом`);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({
+    path: path.join(outDir, `laminate-${viewport.name}.png`),
+    fullPage: true,
+  });
+
+  // К7б: строгая 1/3 невыполнима
+  await fill({ roomLength: '2,5', roomWidth: '1', boardLength: '1200', boardWidth: '200' });
+  await fill({ minPiece: '300', minOffset: '300' });
+  await field('scheme').selectOption('third');
+  check(
+    (await state()) === 'invalid' &&
+      plain(await error('scheme').textContent()).startsWith(
+        'Схема 1/3 невыполнима для этих размеров',
+      ),
+    `${label}: К7б → ошибка у поля «Смещение стыков»`,
+  );
+  check(
+    (await field('scheme').getAttribute('aria-invalid')) === 'true',
+    `${label}: поле схемы отмечено как ошибочное`,
+  );
+  if (viewport.name === '390') {
+    await page.locator('[data-calculator-result]').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: path.join(outDir, `laminate-${viewport.name}-infeasible.png`) });
+  }
+  await field('scheme').selectOption('half');
+  check(
+    (await out('boards')) === '13' && (await out('packs')) === '2',
+    `${label}: те же размеры по 1/2 → 13 досок, 2 упаковки`,
+  );
+
+  // Ошибки ввода
+  const expectError = async (values, name, message, title) => {
+    await fill(values);
+    check(
+      (await state()) === 'invalid' && plain(await error(name).textContent()) === message,
+      `${label}: ${title} → «${plain(await error(name).textContent())}»`,
+    );
+  };
+  await expectError(
+    { boardsPerPack: '8,5' },
+    'boardsPerPack',
+    'Введите целое число.',
+    'дробное число досок',
+  );
+  await fill({ boardsPerPack: '8' });
+  await expectError(
+    { minPiece: '1300' },
+    'minPiece',
+    'Не больше длины доски (1200 мм).',
+    'отрезок длиннее доски',
+  );
+  await fill({ minPiece: '300' });
+  await expectError(
+    { reserve: '5,55' },
+    'reserve',
+    'Не больше одного знака после запятой.',
+    'запас 5,55 %',
+  );
+  await expectError(
+    { roomWidth: '-1' },
+    'roomWidth',
+    'Значение должно быть больше нуля.',
+    'отрицательная ширина',
+  );
+  await fill({ reserve: '5', roomWidth: '1' });
+  check((await state()) === 'ready', `${label}: после исправления — результат`);
+  await checkOverflow(page, `${label}, после ошибок`);
+
+  // Порядок Tab: поля и выпадающие списки
+  await field('roomLength').focus();
+  const order = [];
+  for (let i = 0; i < 12; i += 1) {
+    order.push(
+      await page.evaluate(
+        () => document.activeElement?.getAttribute('name') ?? document.activeElement?.textContent,
+      ),
+    );
+    await page.keyboard.press('Tab');
+  }
+  check(
+    order.join(',') ===
+      'roomLength,roomWidth,boardLength,boardWidth,boardsPerPack,direction,scheme,minPiece,minOffset,reserve,packPrice,Рассчитать',
+    `${label}: порядок Tab (${order.join(',')})`,
+  );
+
+  // Сброс
+  await page.locator('form[data-laminate-form] button[type="reset"]').click();
+  await page.waitForTimeout(100);
+  check(
+    (await state()) === 'empty' &&
+      (await field('roomLength').inputValue()) === '' &&
+      (await field('minPiece').inputValue()) === '400' &&
+      (await field('scheme').inputValue()) === 'half',
+    `${label}: «Сбросить» — результат пуст, значения по умолчанию`,
+  );
+  await checkLinks(page, label);
+}
+
 const server = spawn('npx', ['astro', 'preview', '--port', String(port)], {
   stdio: 'ignore',
   detached: true,
@@ -506,13 +734,14 @@ try {
 
     await checkHome(page, viewport);
     await checkCalculator(page, viewport);
+    await checkLaminate(page, viewport);
     check(
       consoleErrors.length === 0,
       `${viewport.name}: нет ошибок в консоли (${consoleErrors.join(' | ') || '0'})`,
     );
 
     // 404 — после проверки консоли: браузер сам пишет в неё об ответе 404.
-    const notFound = await page.goto(baseUrl + '/kalkulyatory/laminat/');
+    const notFound = await page.goto(baseUrl + '/kalkulyatory/kraska/');
     check(notFound?.status() === 404, `${viewport.name}: неготовый калькулятор отдаёт 404`);
     await context.close();
   }

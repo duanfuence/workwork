@@ -72,9 +72,10 @@ describe('целостность каталога', () => {
     expect([...calculatorPagePaths].sort()).toEqual([...availablePaths].sort());
   });
 
-  it('калькулятор обоев опубликован, остальные пока в статусе «Скоро»', () => {
+  it('опубликованы калькуляторы обоев и ламината, остальные пока в статусе «Скоро»', () => {
     expect(calculators.filter((entry) => entry.status === 'available').map((e) => e.id)).toEqual([
       'wallpaper',
+      'laminate',
     ]);
   });
 });

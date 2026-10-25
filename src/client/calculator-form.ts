@@ -4,10 +4,11 @@
  *
  * Модуль не знает ни формул, ни состава результата: расчёт (`evaluate`) и вывод чисел
  * (`render`) передаёт страница калькулятора. Контракт разметки:
- * - поля `<input name="…">` внутри формы, у каждого `data-label` и `[data-error-for="…"]`
- *   (это даёт компонент NumberField);
+ * - поля `<input name="…">` или `<select name="…">` внутри формы, у каждого `data-label`
+ *   и `[data-error-for="…"]` (это дают компоненты NumberField и SelectField);
  * - блок результата из компонента CalculatorResult: `[data-state-panel]`, `[data-error-summary]`,
- *   заголовок `[data-result-heading]`, места вывода `[data-out]` и строки `[data-row]`.
+ *   заголовок `[data-result-heading]`, места вывода `[data-out]`, списки `[data-out-list]`
+ *   и строки `[data-row]`.
  */
 import type { Calculation, FieldErrors } from '../lib/form';
 
@@ -19,7 +20,11 @@ export interface ResultView {
   text(name: string, value: string): void;
   /** Показать или скрыть все `[data-row="name"]`. */
   show(row: string, visible: boolean): void;
+  /** Заменить пункты списка `[data-out-list="name"]`. */
+  list(name: string, items: readonly string[]): void;
 }
+
+type Control = HTMLInputElement | HTMLSelectElement;
 
 export interface CalculatorFormOptions<F extends string, R> {
   form: HTMLFormElement;
@@ -39,9 +44,9 @@ export function initCalculatorForm<F extends string, R>({
 }: CalculatorFormOptions<F, R>): void {
   const heading = result.querySelector<HTMLElement>('[data-result-heading]');
   const summary = result.querySelector<HTMLUListElement>('[data-error-summary]');
-  const inputs = new Map<F, HTMLInputElement>();
+  const inputs = new Map<F, Control>();
   for (const field of fields) {
-    const input = form.querySelector<HTMLInputElement>(`input[name="${field}"]`);
+    const input = form.querySelector<Control>(`input[name="${field}"], select[name="${field}"]`);
     if (input) inputs.set(field, input);
   }
   // До первой отправки ошибки не показываются; после — пересчёт при каждом вводе.
@@ -57,10 +62,20 @@ export function initCalculatorForm<F extends string, R>({
         element.hidden = !visible;
       }
     },
+    list(name, items) {
+      const element = result.querySelector<HTMLElement>(`[data-out-list="${name}"]`);
+      element?.replaceChildren(
+        ...items.map((text) => {
+          const item = document.createElement('li');
+          item.textContent = text;
+          return item;
+        }),
+      );
+    },
   };
 
   // Явная прокрутка: при обычном focus() поле может оказаться под липкой шапкой.
-  const focusField = (input: HTMLInputElement) => {
+  const focusField = (input: Control) => {
     input.focus({ preventScroll: true });
     (input.closest('.field') ?? input).scrollIntoView({ block: 'center' });
   };
