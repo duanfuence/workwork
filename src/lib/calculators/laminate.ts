@@ -232,9 +232,46 @@ export function findFixedLayout(
   return { ok: false, reason: 'shift' };
 }
 
-export type OffcutLayout = { ok: true; rows: Row[] } | { ok: false; row: number };
+/** Отказ «от обрезка»: нет ни одного допустимого начала (`piece`) или двух со смещением `≥ o` (`pair`). */
+export type OffcutLayout = { ok: true; rows: Row[] } | { ok: false; reason: 'piece' | 'pair' };
 
-/** «От обрезка»: естественный обрезок предыдущего ряда, иначе первое подходящее из `l…m` (§4.3). */
+/**
+ * Начало первого ряда «от обрезка» (§4.3): наибольшее допустимое начало, к которому есть второе
+ * допустимое начало со смещением `≥ o` (при одном ряде — просто наибольшее допустимое).
+ * Без такой пары не собрать и двух соседних рядов, поэтому отказ здесь точен.
+ */
+function firstOffcutStart(
+  rowLength: number,
+  rows: number,
+  l: number,
+  m: number,
+  o: number,
+): number | 'piece' | 'pair' {
+  // Начала по остатку mod l (начало l — остаток 0); счётчик допустимых на удвоенном круге.
+  const valid = Array.from({ length: l }, (_, x) =>
+    isRowValid(buildRow(rowLength, x === 0 ? l : x, l), m),
+  );
+  const prefix = [0];
+  for (let k = 0; k < 2 * l; k += 1) prefix.push((prefix[k] ?? 0) + (valid[k % l] ? 1 : 0));
+  // Смещение с началом x не меньше o — остатки x + o … x + l − o.
+  const hasPair = (x: number) =>
+    2 * o <= l && (prefix[x + l - o + 1] ?? 0) - (prefix[x + o] ?? 0) > 0;
+
+  let anyValid = false;
+  for (let start = l; start >= m; start -= 1) {
+    const x = start % l;
+    if (!valid[x]) continue;
+    anyValid = true;
+    if (rows === 1 || hasPair(x)) return start;
+  }
+  return anyValid ? 'pair' : 'piece';
+}
+
+/**
+ * «От обрезка»: первый ряд — `firstOffcutStart`, далее естественный обрезок предыдущего ряда,
+ * иначе первое подходящее из `l…m` (§4.3). Для ряда i ≥ 2 всегда подходит начало ряда i − 2,
+ * поэтому после первого ряда раскладка не обрывается.
+ */
 export function buildOffcutLayout(
   rowLength: number,
   rows: number,
@@ -242,8 +279,10 @@ export function buildOffcutLayout(
   m: number,
   o: number,
 ): OffcutLayout {
-  const result: Row[] = [];
-  for (let i = 0; i < rows; i += 1) {
+  const first = firstOffcutStart(rowLength, rows, l, m, o);
+  if (typeof first !== 'number') return { ok: false, reason: first };
+  const result: Row[] = [buildRow(rowLength, first, l)];
+  for (let i = 1; i < rows; i += 1) {
     const prev: Row | undefined = result[i - 1];
     const fits = (start: number): Row | null => {
       const row = buildRow(rowLength, start, l);
@@ -253,7 +292,8 @@ export function buildOffcutLayout(
     };
     let row: Row | null = prev && prev.end > 0 ? fits(l - prev.end) : null;
     for (let start = l; row === null && start >= m; start -= 1) row = fits(start);
-    if (row === null) return { ok: false, row: i };
+    // Не достигается (см. выше); оставлено, чтобы ошибка правила не стала молчаливым числом.
+    if (row === null) return { ok: false, reason: 'pair' };
     result.push(row);
   }
   return { ok: true, rows: result };
@@ -350,8 +390,10 @@ function infeasibleMessage(
   if ('reason' in layout && layout.reason === 'shift') {
     return `${schemeTitles[scheme]} невыполнима для этих размеров: при любом сдвиге в ряду остаётся отрезок короче ${m} мм. ${hint}`;
   }
-  const row = 'row' in layout ? layout.row + 1 : 0;
-  return `Укладка «от обрезка» не собирается: для ряда ${row} нет начала, при котором отрезки не короче ${m} мм и стыки смещены не меньше чем на ${o} мм. ${hint}`;
+  if ('reason' in layout && layout.reason === 'piece') {
+    return `${schemeTitles[scheme]} невыполнима для этих размеров: при любом начале в ряду остаётся отрезок короче ${m} мм. ${hint}`;
+  }
+  return `${schemeTitles[scheme]} невыполнима для этих размеров: нет двух начал ряда, при которых отрезки не короче ${m} мм, а стыки соседних рядов смещены не меньше чем на ${o} мм. ${hint}`;
 }
 
 export function calculateLaminate(input: LaminateInput): LaminateCalculation {

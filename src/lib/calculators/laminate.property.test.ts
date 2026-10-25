@@ -156,6 +156,88 @@ describe('свойства раскладки на сетке размеров',
   });
 });
 
+/**
+ * Эталон для «от обрезка»: существует ли хоть какая-то последовательность из `rows` допустимых рядов
+ * со смещением соседних `≥ o`. Перебор по рядам: множество начал, до которых можно дойти к ряду i.
+ * Не использует ни правило выбора начала, ни теорему о паре начал (§13).
+ */
+function offcutLayoutExists(rowLength: number, rows: number, l: number, m: number, o: number) {
+  const valid: number[] = [];
+  for (let s = m; s <= l; s += 1) {
+    const end = (rowLength - s) % l;
+    if (end === 0 || end >= m) valid.push(s);
+  }
+  let reach = valid;
+  for (let i = 1; i < rows && reach.length > 0; i += 1) {
+    const previous = reach;
+    reach = valid.filter((s) => previous.some((p) => jointOffset(s, p, l) >= o));
+  }
+  return reach.length > 0;
+}
+
+describe('«от обрезка» против перебора по рядам (§4.3, §13)', () => {
+  it('отказ только когда раскладки нет; при m < o, m = o, m > o', () => {
+    const seen = { less: 0, equal: 0, greater: 0, refused: 0 };
+    for (const l of [100, 151, 240])
+      for (let m = 50; m <= l; m += 25)
+        for (let o = 50; o <= l / 2; o += 10)
+          for (let rowLength = l + 1; rowLength <= 2 * l; rowLength += 3)
+            for (const rows of [1, 2, 4]) {
+              const label = `l=${l} m=${m} o=${o} R=${rowLength} N=${rows}`;
+              const calculation = calculateLaminate({
+                ...base,
+                roomLength: rowLength / 1000,
+                roomWidth: rows / 10,
+                boardLength: l,
+                boardWidth: 100,
+                scheme: 'offcut',
+                minPiece: m,
+                minOffset: o,
+              });
+              const exists = offcutLayoutExists(rowLength, rows, l, m, o);
+              expect(calculation.ok, label).toBe(exists);
+              if (m < o) seen.less += 1;
+              else if (m === o) seen.equal += 1;
+              else seen.greater += 1;
+              if (!calculation.ok) {
+                seen.refused += 1;
+                expect(calculation.errors.scheme, label).toMatch(
+                  /^Укладка «от обрезка» невыполнима/,
+                );
+                continue;
+              }
+              const layout = calculation.result.layout;
+              if (layout.kind !== 'rows') throw new Error(label);
+              expect(layout.rows, label).toHaveLength(rows);
+              layout.rows.forEach((row, i) => {
+                expect(row.start + row.full * l + row.end, label).toBe(rowLength);
+                expect(row.start >= m && (row.end === 0 || row.end >= m), label).toBe(true);
+                const next = layout.rows[i + 1];
+                if (next)
+                  expect(jointOffset(row.start, next.start, l), label).toBeGreaterThanOrEqual(o);
+              });
+            }
+    expect(seen.less).toBeGreaterThan(1000);
+    expect(seen.equal).toBeGreaterThan(100);
+    expect(seen.greater).toBeGreaterThan(1000);
+    expect(seen.refused).toBeGreaterThan(100);
+  });
+
+  it('К15-полоса: доска 1200, m = 300, o = 500, R = 3101…3199 — совпадает с перебором', () => {
+    for (let rowLength = 3101; rowLength <= 3199; rowLength += 1) {
+      const calculation = calculateLaminate({
+        ...base,
+        roomLength: rowLength / 1000,
+        scheme: 'offcut',
+        minOffset: 500,
+      });
+      expect(calculation.ok, `R=${rowLength}`).toBe(
+        offcutLayoutExists(rowLength, 5, 1200, 300, 500),
+      );
+    }
+  });
+});
+
 describe('паросочетание совпадает с полным перебором', () => {
   it('на 300 псевдослучайных наборах рядов', () => {
     let seed = 12345;

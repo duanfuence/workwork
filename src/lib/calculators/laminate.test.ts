@@ -344,6 +344,64 @@ describe('К14: ряд короче доски', () => {
   });
 });
 
+describe('К15: «от обрезка» при m < o (§13)', () => {
+  const room = { roomLength: 3.15, scheme: 'offcut', minOffset: 500 } as const;
+
+  it('3,15 × 1,0 м, m = 300, o = 500: раскладка находится — 15 досок, 2 упаковки', () => {
+    const result = calc(room);
+    expect(result.rows).toBe(5);
+    expect(rowsLayout(result).rows.map((r) => r.start)).toEqual([1150, 450, 1150, 450, 1150]);
+    expect(rowsOf(result)).toEqual([
+      [1150, 1, 800, 3],
+      [450, 2, 300, 2],
+    ]);
+    expect(result.boards).toBe(15);
+    expect(result.packs).toBe(2);
+    expect(result.areaBoards).toBe(14);
+  });
+
+  it('подсчёт: F = 7, |S| = 5, |E| = 5, пары — только 450 + 300, M = 2; отход 2250 мм', () => {
+    const count = rowsLayout(calc(room)).count;
+    expect(count).toMatchObject({ full: 7, starts: 5, ends: 5, boards: 15 });
+    expect(count.pairs.map((p) => [p.start, p.end])).toEqual([
+      [450, 300],
+      [450, 300],
+    ]);
+    expect(15 * 1200 - 5 * 3150).toBe(2250);
+  });
+
+  it('ряды аудита 300 | 2×1200 | 450 и 800 | 1200 | 1150 тоже дают 15 досок с учётом замка', () => {
+    const rows = [0, 1, 2, 3, 4].map((i) =>
+      i % 2 === 0 ? { start: 300, full: 2, end: 450 } : { start: 800, full: 1, end: 1150 },
+    );
+    rows.forEach((row) => {
+      expect(row.start + row.full * 1200 + row.end).toBe(3150);
+      expect(isRowValid(row, 300)).toBe(true);
+    });
+    const count = countBoards(rows, 1200);
+    // 800 + 450 = 1250 и 300 + 1150 = 1450 не помещаются в доску; пары — только 300 + 450.
+    expect(count).toMatchObject({ full: 8, starts: 5, ends: 5, boards: 15 });
+    expect(count.pairs).toHaveLength(3);
+  });
+
+  it('та же комната: 1/2 — d = 150, 15 досок; 1/3 — смещение 400 мм меньше 500', () => {
+    const half = calc({ ...room, scheme: 'half' });
+    expect(rowsLayout(half).shift).toBe(150);
+    expect(half.boards).toBe(15);
+    expect(errorsOf({ ...room, scheme: 'third' }).scheme).toMatch(/смещение стыков 400 мм/);
+  });
+
+  it('m > o (m = 400, o = 300) — раскладка как в К9, 9 досок', () => {
+    const result = calc({ roomLength: 2, scheme: 'offcut', minPiece: 400, minOffset: 300 });
+    expect(rowsOf(result)).toEqual([
+      [1200, 0, 800, 2],
+      [400, 1, 400, 2],
+      [800, 1, 0, 1],
+    ]);
+    expect(result.boards).toBe(9);
+  });
+});
+
 describe('минимальная длина отрезка: границы', () => {
   it('конец ровно m допустим, на 1 мм короче — нет', () => {
     expect(isRowValid({ start: 1000, full: 1, end: 300 }, 300)).toBe(true);
@@ -391,9 +449,9 @@ describe('смещение стыков', () => {
     expect(result.boards).toBe(2);
   });
 
-  it('«от обрезка» не собирается — ошибка с номером ряда', () => {
+  it('«от обрезка» невыполнима: нет двух допустимых начал со смещением ≥ o', () => {
     // m = 600, R = 2300: допустимы только начала 1100–1200 мм (иначе конец короче 600 мм);
-    // смещение 600 мм от начала первого ряда (1200) требует начала 600 — второй ряд собрать нельзя.
+    // любые два из них смещены меньше чем на 600 мм — соседние ряды собрать нельзя.
     const message = errorsOf({
       roomLength: 2.3,
       scheme: 'offcut',
@@ -401,8 +459,16 @@ describe('смещение стыков', () => {
       minOffset: 600,
     }).scheme;
     expect(message).toBe(
-      'Укладка «от обрезка» не собирается: для ряда 2 нет начала, при котором отрезки не короче 600 мм и стыки смещены не меньше чем на 600 мм. Выберите другую схему или направление либо проверьте требования производителя.',
+      'Укладка «от обрезка» невыполнима для этих размеров: нет двух начал ряда, при которых отрезки не короче 600 мм, а стыки соседних рядов смещены не меньше чем на 600 мм. Выберите другую схему или направление либо проверьте требования производителя.',
     );
+  });
+
+  it('«от обрезка» невыполнима: ни одного допустимого начала ряда', () => {
+    // m = 700, R = 2500: начало 1200 даёт конец 100, начала 700–1199 — концы 101–600 мм.
+    expect(errorsOf({ roomLength: 2.5, scheme: 'offcut', minPiece: 700 }).scheme).toBe(
+      'Укладка «от обрезка» невыполнима для этих размеров: при любом начале в ряду остаётся отрезок короче 700 мм. Выберите другую схему или направление либо проверьте требования производителя.',
+    );
+    expect(errorsOf({ roomLength: 2.5, minPiece: 700 }).scheme).toMatch(/^Схема 1\/2 невыполнима/);
   });
 });
 
