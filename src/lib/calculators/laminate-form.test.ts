@@ -27,6 +27,13 @@ describe('evaluateLaminateForm', () => {
     }
   });
 
+  it('полей зазора и пропила на странице пока нет — форма считает с g = k = 0 (как модель 1.2)', () => {
+    const calculation = evaluateLaminateForm(filled);
+    if (!calculation.ok) throw new Error('ожидался расчёт');
+    expect([calculation.result.gap, calculation.result.kerf]).toEqual([0, 0]);
+    expect([calculation.result.rowLength, calculation.result.fieldWidth]).toEqual([4000, 3500]);
+  });
+
   it('текст вместо числа — «Введите число.», а не «Заполните поле.»', () => {
     expect(evaluateLaminateForm({ ...filled, boardLength: 'длинная' })).toEqual({
       ok: false,

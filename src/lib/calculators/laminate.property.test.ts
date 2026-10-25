@@ -25,6 +25,9 @@ const base: LaminateInput = {
   minOffset: 300,
   reserve: 0,
   packPrice: null,
+  // К1–К15 и свойства модели 1.2 — без зазора и пропила (§15.4: при g = k = 0 модель 2.0-а совпадает с 1.2).
+  gap: 0,
+  kerf: 0,
 };
 
 /** Наибольшее число пар «начало + конец ≤ l» полным перебором (для малых наборов). */
@@ -273,5 +276,144 @@ describe('упаковки и запас', () => {
       expect(packs).toBeGreaterThanOrEqual(previous);
       previous = packs;
     }
+  });
+});
+
+describe('зазор и пропил: баланс материала и ограничения (§15)', () => {
+  const tenths = (value: number) => Math.round(value * 10);
+  /** Эталон для ряда короче доски: укладываем куски по одному, пока помещаются с пропилом между ними. */
+  const piecesByPacking = (l: number, rowLength: number, kerf: number) => {
+    let used = 0;
+    let pieces = 0;
+    while (used + rowLength * 10 + (pieces > 0 ? kerf : 0) <= l * 10) {
+      used += rowLength * 10 + (pieces > 0 ? kerf : 0);
+      pieces += 1;
+    }
+    return pieces;
+  };
+
+  it('баланс, отрезки, смещение, пары и короткие ряды на сетке с зазором 0/8/30 и пропилом 0/2,3/3/5', () => {
+    const seen = { rows: 0, short: 0, refused: 0, belowArea: 0 };
+    for (const [boardLength, boardWidth] of [
+      [1200, 200],
+      [1380, 193],
+    ] as const)
+      for (const roomLength of [0.55, 1.3, 2.413, 3.15, 4.05])
+        for (const roomWidth of [0.4, 1.01, 2.6])
+          for (const scheme of schemes)
+            for (const [m, o] of [
+              [300, 300],
+              [400, 400],
+              [300, 500],
+            ] as const)
+              for (const direction of ['length', 'width'] as const)
+                for (const gap of [0, 8, 30]) {
+                  let previous = 0;
+                  for (const kerf of [0, 2.3, 3, 5]) {
+                    const input: LaminateInput = {
+                      ...base,
+                      roomLength,
+                      roomWidth,
+                      boardLength,
+                      boardWidth,
+                      scheme,
+                      direction,
+                      minPiece: m,
+                      minOffset: o,
+                      gap,
+                      kerf,
+                    };
+                    const label = JSON.stringify(input);
+                    const calculation = calculateLaminate(input);
+                    if (!calculation.ok) {
+                      seen.refused += 1;
+                      expect(Object.keys(calculation.errors), label).toEqual(['scheme']);
+                      continue;
+                    }
+                    const result = calculation.result;
+                    const l = boardLength;
+                    const [R, D] =
+                      direction === 'length' ? [roomLength, roomWidth] : [roomWidth, roomLength];
+                    expect(result.rowLength, label).toBe(Math.round(R * 1000) - 2 * gap);
+                    expect(result.fieldWidth, label).toBe(Math.round(D * 1000) - 2 * gap);
+                    expect(result.rows, label).toBe(Math.ceil(result.fieldWidth / boardWidth));
+                    expect(result.lastRowWidth, label).toBeGreaterThan(0);
+                    expect(result.lastRowWidth, label).toBeLessThanOrEqual(boardWidth);
+
+                    // Баланс длины: доски = ряды + пропил между частями + обрезки; ничего не отрицательно.
+                    expect(result.kerfLength, label).toBeGreaterThanOrEqual(0);
+                    expect(result.offcutLength, label).toBeGreaterThanOrEqual(-1e-9);
+                    expect(
+                      tenths(
+                        result.rows * result.rowLength + result.kerfLength + result.offcutLength,
+                      ),
+                      label,
+                    ).toBe(result.boards * l * 10);
+                    expect(result.wastePercent, label).toBeGreaterThanOrEqual(0);
+                    expect(result.boards, label).toBeGreaterThanOrEqual(result.materialBound);
+                    if (result.boards < result.areaBoards) seen.belowArea += 1;
+
+                    if (result.layout.kind === 'short') {
+                      seen.short += 1;
+                      expect(result.layout.piecesPerBoard, label).toBe(
+                        piecesByPacking(l, result.rowLength, tenths(kerf)),
+                      );
+                      expect(tenths(result.kerfLength), label).toBe(
+                        (result.rows - result.boards) * tenths(kerf),
+                      );
+                      continue;
+                    }
+                    seen.rows += 1;
+                    const { rows, count } = result.layout;
+                    rows.forEach((row, i) => {
+                      expect(tenths(row.start) + row.full * l * 10 + tenths(row.end), label).toBe(
+                        result.rowLength * 10,
+                      );
+                      expect(row.start, label).toBeGreaterThanOrEqual(m);
+                      expect(row.end === 0 || row.end >= m, label).toBe(true);
+                      const next = rows[i + 1];
+                      if (next) {
+                        expect(
+                          jointOffset(tenths(row.start), tenths(next.start), l * 10),
+                          label,
+                        ).toBeGreaterThanOrEqual(o * 10);
+                      }
+                    });
+                    // Пары: пропил между частями, каждая часть — в одной паре, число пар — наибольшее.
+                    expect(tenths(result.kerfLength), label).toBe(
+                      count.pairs.length * tenths(kerf),
+                    );
+                    expect(new Set(count.pairs.map((p) => p.startRow)).size, label).toBe(
+                      count.pairs.length,
+                    );
+                    expect(new Set(count.pairs.map((p) => p.endRow)).size, label).toBe(
+                      count.pairs.length,
+                    );
+                    for (const pair of count.pairs) {
+                      expect(
+                        tenths(pair.start) + tenths(pair.end) + tenths(kerf),
+                        label,
+                      ).toBeLessThanOrEqual(l * 10);
+                    }
+                    const starts = rows
+                      .filter((row) => row.start < l)
+                      .map((row) => tenths(row.start));
+                    const ends = rows.filter((row) => row.end > 0).map((row) => tenths(row.end));
+                    if (starts.length <= 8) {
+                      expect(count.pairs.length, label).toBe(
+                        bruteForcePairs(starts, ends, l * 10 - tenths(kerf)),
+                      );
+                    }
+                    // Для 1/2 и 1/3 ряды не зависят от пропила — расход с ростом пропила не убывает.
+                    if (scheme !== 'offcut') {
+                      expect(result.boards, label).toBeGreaterThanOrEqual(previous);
+                      previous = result.boards;
+                    }
+                  }
+                }
+    expect(seen.rows).toBeGreaterThan(1000);
+    expect(seen.short).toBeGreaterThan(100);
+    expect(seen.refused).toBeGreaterThan(10);
+    expect(seen.belowArea).toBeGreaterThan(10);
   });
 });

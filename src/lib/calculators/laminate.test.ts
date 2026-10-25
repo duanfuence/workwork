@@ -27,6 +27,9 @@ const base: LaminateInput = {
   minOffset: 300,
   reserve: 0,
   packPrice: null,
+  // К1–К15 и свойства модели 1.2 — без зазора и пропила (§15.4: при g = k = 0 модель 2.0-а совпадает с 1.2).
+  gap: 0,
+  kerf: 0,
 };
 
 function calc(overrides: Partial<LaminateInput>): LaminateResult {
@@ -552,5 +555,189 @@ describe('проверка ввода', () => {
   it('неизвестные направление и схема', () => {
     expect(errorsOf({ direction: 'diagonal' }).direction).toBe('Выберите направление.');
     expect(errorsOf({ scheme: null }).scheme).toBe('Выберите схему.');
+  });
+});
+
+describe('З1–З13: зазор у стен и пропил (§15.5)', () => {
+  const r = (start: number, full: number, end: number, count: number) => [start, full, end, count];
+
+  it('З1: без зазора и пропила — как К1, 10 досок, отход 0', () => {
+    const result = calc({});
+    expect(result.boards).toBe(10);
+    expect([result.kerfLength, result.offcutLength]).toEqual([0, 0]);
+  });
+
+  it('З2: пропил 3 мм ломает пару 600 + 600 — 12 досок, отход 2400 мм (рез по отходу)', () => {
+    const result = calc({ kerf: 3 });
+    expect(rowsLayout(result).count).toMatchObject({ full: 8, starts: 2, ends: 2, boards: 12 });
+    expect(rowsLayout(result).count.pairs).toHaveLength(0);
+    expect([result.kerfLength, result.offcutLength]).toEqual([0, 2400]);
+  });
+
+  it('З3: зазор 10, пропил 3 — поле 2380 × 980, 5 рядов, 10 досок, пропил 6 + обрезки 94', () => {
+    const result = calc({ gap: 10, kerf: 3 });
+    expect([result.rowLength, result.fieldWidth, result.rows, result.lastRowWidth]).toEqual([
+      2380, 980, 5, 180,
+    ]);
+    expect(rowsOf(result)).toEqual([r(1200, 0, 1180, 3), r(600, 1, 580, 2)]);
+    expect(rowsLayout(result).count.pairs.map((p) => [p.start, p.end])).toEqual([
+      [600, 580],
+      [600, 580],
+    ]);
+    expect(result.boards).toBe(10);
+    expect([result.kerfLength, result.offcutLength]).toEqual([6, 94]);
+    expect(result.areaBoards).toBe(10);
+  });
+
+  it('З4: 2,4 × 1,01 м — без зазора 6 рядов (последний 10 мм) и 12 досок, с зазором 8 — 5 рядов и 10', () => {
+    const without = calc({ roomWidth: 1.01 });
+    expect([without.rows, without.lastRowWidth, without.boards]).toEqual([6, 10, 12]);
+    const withGap = calc({ roomWidth: 1.01, gap: 8 });
+    expect([withGap.rows, withGap.lastRowWidth, withGap.boards]).toEqual([5, 194, 10]);
+    expect(rowsOf(withGap)).toEqual([r(1200, 0, 1184, 3), r(600, 1, 584, 2)]);
+    expect(withGap.offcutLength).toBe(80);
+    expect(withGap.areaBoards).toBe(11);
+    expect(calc({ roomWidth: 1.01, gap: 8, kerf: 3 }).boards).toBe(10);
+  });
+
+  it('З5: конец ровно m = 300 допустим — 13 досок, отход 2100', () => {
+    const result = calc({ roomLength: 2.7 });
+    expect(rowsOf(result)).toEqual([r(1200, 1, 300, 3), r(600, 1, 900, 2)]);
+    expect(result.boards).toBe(13);
+    expect(result.offcutLength).toBe(2100);
+  });
+
+  it('З6: зазор 8 делает конец 284 < 300 — сдвиг 16 мм, 13 досок', () => {
+    const result = calc({ roomLength: 2.7, gap: 8, kerf: 3 });
+    expect(rowsLayout(result).shift).toBe(16);
+    expect(rowsOf(result)).toEqual([r(1184, 1, 300, 3), r(584, 1, 900, 2)]);
+    expect(rowsLayout(result).count).toMatchObject({ full: 5, starts: 5, ends: 5, boards: 13 });
+    expect(result.kerfLength + result.offcutLength).toBe(2180);
+  });
+
+  it('З7: 2,413 м — пара 600 + 597 + 3 ровно 1200, 10 досок; 2,414 м — 1201, 12 досок', () => {
+    const exact = calc({ roomLength: 2.413, gap: 8, kerf: 3 });
+    expect(rowsOf(exact)).toEqual([r(1200, 0, 1197, 3), r(600, 1, 597, 2)]);
+    expect(exact.boards).toBe(10);
+    expect([exact.kerfLength, exact.offcutLength]).toEqual([6, 9]);
+    expect(exact.areaBoards).toBe(11);
+    const over = calc({ roomLength: 2.414, gap: 8, kerf: 3 });
+    expect(over.boards).toBe(12);
+    expect(over.kerfLength + over.offcutLength).toBe(2410);
+  });
+
+  it('пропил 0 / 2,3 / 3 / 3,1 / 5 мм в З7а: 10 / 10 / 10 / 12 / 12 досок (пара помещается при k ≤ 3)', () => {
+    const boards = [0, 2.3, 3, 3.1, 5].map(
+      (kerf) => calc({ roomLength: 2.413, gap: 8, kerf }).boards,
+    );
+    expect(boards).toEqual([10, 10, 10, 12, 12]);
+    const thin = calc({ roomLength: 2.413, gap: 8, kerf: 2.3 });
+    expect(thin.kerf).toBe(2.3);
+    expect(thin.kerfLength).toBeCloseTo(4.6, 10);
+    expect(thin.offcutLength).toBeCloseTo(10.4, 10);
+  });
+
+  it('З8: «от обрезка», пропил 3 — обрезок 397 используется, 794 — нет; 10 досок (без пропила 9)', () => {
+    const result = calc({ roomLength: 2, scheme: 'offcut', kerf: 3 });
+    expect(rowsOf(result)).toEqual([r(1200, 0, 800, 3), r(397, 1, 403, 2)]);
+    expect(rowsLayout(result).count.pairs.map((p) => [p.start, p.end])).toEqual([
+      [397, 800],
+      [397, 800],
+    ]);
+    expect(result.boards).toBe(10);
+    expect(result.kerfLength + result.offcutLength).toBe(2000);
+    expect(calc({ roomLength: 2, scheme: 'offcut' }).boards).toBe(9);
+  });
+
+  it('З9: «от обрезка», m = 300 < o = 500, зазор 10, пропил 3 — 15 досок', () => {
+    const result = calc({ roomLength: 3.15, scheme: 'offcut', minOffset: 500, gap: 10, kerf: 3 });
+    expect(rowsLayout(result).rows.map((row) => row.start)).toEqual([1130, 430, 1130, 430, 1130]);
+    expect(rowsOf(result)).toEqual([r(1130, 1, 800, 3), r(430, 2, 300, 2)]);
+    expect(rowsLayout(result).count).toMatchObject({ full: 7, starts: 5, ends: 5, boards: 15 });
+    expect(result.kerfLength + result.offcutLength).toBe(2350);
+    expect(calc({ roomLength: 3.15, scheme: 'offcut', minOffset: 500, kerf: 3 }).boards).toBe(15);
+  });
+
+  it('З10: ряд короче доски 400 мм — 3 куска (4 доски); с пропилом 3 — 2 (5); зазор 8 + пропил 3 — 3 (4)', () => {
+    const short = (overrides: Partial<LaminateInput>) =>
+      calc({ roomLength: 2, roomWidth: 0.4, direction: 'width', ...overrides });
+    expect(short({}).layout).toEqual({ kind: 'short', piecesPerBoard: 3 });
+    expect(short({}).boards).toBe(4);
+    expect(short({ kerf: 3 }).layout).toEqual({ kind: 'short', piecesPerBoard: 2 });
+    expect([short({ kerf: 3 }).boards, short({ kerf: 3 }).kerfLength]).toEqual([5, 15]);
+    const both = short({ gap: 8, kerf: 3 });
+    expect([both.rowLength, both.rows, both.boards]).toEqual([384, 10, 4]);
+    expect([both.kerfLength, both.offcutLength]).toEqual([18, 942]);
+    expect(short({ kerf: 2.3 }).boards).toBe(5);
+    expect(short({ gap: 8, kerf: 2.3 }).boards).toBe(4);
+  });
+
+  it('З11: естественный обрезок ровно m при пропиле 3 — используется; при 4 (299 мм) — нет; 10 досок', () => {
+    const k3 = calc({ roomLength: 2.097, scheme: 'offcut', kerf: 3 });
+    expect(rowsOf(k3)).toEqual([r(1200, 0, 897, 3), r(300, 1, 597, 2)]);
+    expect(k3.boards).toBe(10);
+    const k4 = calc({ roomLength: 2.097, scheme: 'offcut', kerf: 4 });
+    expect(rowsOf(k4)).toEqual([r(1200, 0, 897, 3), r(900, 0, 1197, 2)]);
+    expect(rowsLayout(k4).count.pairs).toHaveLength(0);
+    expect(k4.boards).toBe(10);
+    expect(calc({ roomLength: 2.097, scheme: 'offcut' }).boards).toBe(10);
+  });
+
+  it('З12: 2,42 м по 1/3 — без зазора невыполнима; с зазором 10 — 10 досок; плюс пропил 3 — 12', () => {
+    expect(errorsOf({ roomLength: 2.42, scheme: 'third' }).scheme).toMatch(
+      /^Схема 1\/3 невыполнима/,
+    );
+    const gap = calc({ roomLength: 2.42, scheme: 'third', gap: 10 });
+    expect(rowsOf(gap)).toEqual([r(1200, 1, 0, 2), r(800, 1, 400, 2), r(400, 1, 800, 1)]);
+    expect([gap.boards, gap.offcutLength]).toEqual([10, 0]);
+    const both = calc({ roomLength: 2.42, scheme: 'third', gap: 10, kerf: 3 });
+    expect(rowsLayout(both).count.pairs.map((p) => [p.start, p.end])).toEqual([[400, 400]]);
+    expect(both.boards).toBe(12);
+  });
+
+  it('З13: 4,0 × 3,48 м, доска 1380 × 193 — 19 рядов и 57 досок (8 уп.); зазор 8, пропил 3 — 18 и 54 (7 уп.)', () => {
+    const room = { roomLength: 4, roomWidth: 3.48, boardLength: 1380, boardWidth: 193 };
+    const without = calc(room);
+    expect([without.rows, without.lastRowWidth, without.boards, without.packs]).toEqual([
+      19, 6, 57, 8,
+    ]);
+    const withGap = calc({ ...room, gap: 8, kerf: 3 });
+    expect([withGap.rows, withGap.lastRowWidth, withGap.boards, withGap.packs]).toEqual([
+      18, 183, 54, 7,
+    ]);
+    expect(rowsOf(withGap)).toEqual([r(1380, 1, 1224, 9), r(690, 2, 534, 9)]);
+    expect(withGap.kerfLength + withGap.offcutLength).toBe(2808);
+    expect(withGap.areaBoards).toBe(53);
+    expect(calc({ ...room, gap: 8, kerf: 3, reserve: 5 }).packs).toBe(8);
+  });
+});
+
+describe('зазор и пропил: ввод и значения по умолчанию', () => {
+  it('пусто — зазор 8 мм и пропил 3 мм (расчётные предположения §15.7)', () => {
+    const result = calc({ gap: null, kerf: null });
+    expect([result.gap, result.kerf]).toEqual([8, 3]);
+    expect([result.rowLength, result.fieldWidth]).toEqual([2384, 984]);
+  });
+
+  it('границы: зазор 0 и 30, пропил 0 и 5 допустимы; 31, −1, 8,5, 5,1, 2,35 — ошибки поля', () => {
+    expect(calc({ gap: 30, kerf: 5 }).rowLength).toBe(2340);
+    expect(calc({ gap: 0, kerf: 0 }).rowLength).toBe(2400);
+    expect(errorsOf({ gap: 31 }).gap).toBe('Не больше 30 мм.');
+    expect(errorsOf({ gap: -1 }).gap).toBe('Значение не может быть отрицательным.');
+    expect(errorsOf({ gap: 8.5 }).gap).toBe('Введите целое число миллиметров.');
+    expect(errorsOf({ kerf: 5.1 }).kerf).toBe('Не больше 5 мм.');
+    expect(errorsOf({ kerf: 2.35 }).kerf).toBe('Не больше одного знака после запятой.');
+  });
+
+  it('самая маленькая комната 0,1 × 0,1 м при зазоре 30 — поле 40 × 40 мм, расчёт без ошибок', () => {
+    const result = calc({ roomLength: 0.1, roomWidth: 0.1, gap: 30 });
+    expect([result.rowLength, result.fieldWidth, result.rows]).toEqual([40, 40, 1]);
+    // Без пропила 1200 / 40 = 30 кусков; с пропилом 3: 27·40 + 26·3 = 1158 ≤ 1200, 28·40 + 27·3 = 1201.
+    expect(result.layout).toEqual({ kind: 'short', piecesPerBoard: 30 });
+    expect(calc({ roomLength: 0.1, roomWidth: 0.1, gap: 30, kerf: 3 }).layout).toEqual({
+      kind: 'short',
+      piecesPerBoard: 27,
+    });
+    expect(result.boards).toBe(1);
   });
 });
