@@ -182,3 +182,107 @@ describe('ошибки ввода', () => {
     });
   });
 });
+
+describe('режим «помещение» (модель 2): контрольные примеры Шп9–Шп14', () => {
+  const room: Partial<PuttyInput> = {
+    mode: 'room',
+    roomLength: 4,
+    roomWidth: 3,
+    wallLength: null,
+    wallCount: null,
+  };
+
+  it('Шп9: помещение 4 × 3 × 2,7 → 37,8 м²; 1 слой по 1,2 → 45,36 (45,4) кг; 2 упаковки по 25 кг', () => {
+    const result = calc(room);
+    expect(result.mode).toBe('room');
+    expect([result.wallArea, result.ceilingArea, result.puttyArea]).toEqual([37.8, 0, 37.8]);
+    expect([result.mass, result.massWithReserve]).toEqual([45.4, 45.4]);
+    expect([result.packs, result.massToBuy]).toEqual([2, 50]);
+  });
+
+  it('Шп10: проёмы 3,9 и потолок 12 → 45,9 м²; 2 слоя по 1,1 → 100,98 (101), с запасом 111,078 (111,1); 6 упаковок', () => {
+    const result = calc({
+      ...room,
+      openingsArea: 3.9,
+      ceiling: 'yes',
+      layers: 2,
+      consumption: 1.1,
+      reserve: 10,
+      packMass: 20,
+    });
+    expect([result.wallArea, result.openingsArea, result.ceilingArea]).toEqual([37.8, 3.9, 12]);
+    expect([result.puttyArea, result.ceilingIncluded]).toEqual([45.9, true]);
+    expect([result.mass, result.massWithReserve]).toEqual([101, 111.1]);
+    expect([result.packs, result.massToBuy]).toEqual([6, 120]);
+  });
+
+  it('Шп11: проёмы равны стенам без потолка или больше стен — ошибка', () => {
+    expect(errorsOf({ ...room, openingsArea: 37.8 })).toEqual({
+      openingsArea: 'Проёмы занимают всю площадь стен — шпаклевать нечего.',
+    });
+    expect(errorsOf({ ...room, openingsArea: 37.9 })).toEqual({
+      openingsArea: 'Больше площади стен (37,8 м²).',
+    });
+  });
+
+  it('Шп12: проёмы равны стенам, но с потолком — шпаклюется потолок 12 м² → 12 кг', () => {
+    const result = calc({
+      ...room,
+      openingsArea: 37.8,
+      ceiling: 'yes',
+      consumption: 1,
+      packMass: null,
+    });
+    expect([result.puttyArea, result.mass, result.massWithReserve]).toEqual([12, 12, 12]);
+    expect(result.packs).toBeNull();
+  });
+
+  it('Шп13: предел — 100 × 100 × 10 м с потолком, 10 слоёв по 5 кг → 700 000, с запасом 50 % — 1 050 000 кг', () => {
+    const result = calc({
+      ...room,
+      roomLength: 100,
+      roomWidth: 100,
+      wallHeight: 10,
+      ceiling: 'yes',
+      layers: 10,
+      consumption: 5,
+      reserve: 50,
+      packMass: 0.5,
+    });
+    expect([result.wallArea, result.ceilingArea, result.puttyArea]).toEqual([4000, 10_000, 14_000]);
+    expect([result.mass, result.massWithReserve]).toEqual([700_000, 1_050_000]);
+    expect(result.packs).toBe(2_100_000);
+  });
+
+  it('Шп14: помещение равно одной стене длиной в периметр (14 × 2,7 м)', () => {
+    const asWall = calc({ wallLength: 14 });
+    const asRoom = calc(room);
+    expect([asRoom.mass, asRoom.massWithReserve, asRoom.packs]).toEqual([
+      asWall.mass,
+      asWall.massWithReserve,
+      asWall.packs,
+    ]);
+  });
+
+  it('ошибки ввода помещения; поля стен в этом режиме не проверяются', () => {
+    expect(errorsOf({ ...room, roomLength: 0, roomWidth: 100.1, wallHeight: 10.1 })).toEqual({
+      roomLength: 'Значение должно быть больше нуля.',
+      roomWidth: 'Не больше 100 м.',
+      wallHeight: 'Не больше 10 м.',
+    });
+    expect(errorsOf({ ...room, roomLength: null }).roomLength).toBe('Заполните поле.');
+    expect(calc({ ...room, wallLength: -5, wallCount: 0.5 }).mode).toBe('room');
+  });
+
+  it('неизвестный режим или значение потолка — ошибка у выбора', () => {
+    expect(errorsOf({ mode: 'floor' })).toEqual({ mode: 'Выберите, что считать.' });
+    expect(errorsOf({ ...room, ceiling: 'maybe' })).toEqual({
+      ceiling: 'Выберите, шпаклевать ли потолок.',
+    });
+  });
+
+  it('в режиме «стены» выбор потолка не учитывается', () => {
+    const result = calc({ mode: 'walls', ceiling: 'yes' });
+    expect([result.mode, result.ceilingIncluded, result.puttyArea]).toEqual(['walls', false, 13.5]);
+  });
+});

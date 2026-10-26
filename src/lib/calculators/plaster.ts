@@ -9,8 +9,17 @@
 import { metersToMm } from '../number';
 import { type Range, checkOptional, checkRequired, fmt, hasPrecision } from '../validation';
 
-/** Входные данные. `null` — поле не заполнено. Размеры в метрах, площадь проёмов в м², мешок в кг. */
+/** Что считать: помещение целиком (без потолка) или отдельные стены (модель 2, PLASTER.md). */
+export type PlasterMode = 'room' | 'walls';
+
+/**
+ * Входные данные. `null` — поле не заполнено. Размеры в метрах, площадь проёмов в м², мешок в кг.
+ * Без `mode` считаются отдельные стены (модель 1); поля другого режима не проверяются.
+ */
 export interface PlasterInput {
+  mode?: string | null;
+  roomLength?: number | null;
+  roomWidth?: number | null;
   wallLength: number | null;
   wallHeight: number | null;
   wallCount: number | null;
@@ -25,6 +34,7 @@ export type PlasterField = keyof PlasterInput;
 export type PlasterErrors = Partial<Record<PlasterField, string>>;
 
 export interface PlasterResult {
+  mode: PlasterMode;
   /** Площади, м². */
   wallArea: number;
   openingsArea: number;
@@ -49,6 +59,8 @@ export type PlasterCalculation =
   { ok: true; result: PlasterResult } | { ok: false; errors: PlasterErrors };
 
 export const plasterLimits = {
+  roomLength: { min: 0.1, max: 100 },
+  roomWidth: { min: 0.1, max: 100 },
   wallLength: { min: 0.1, max: 100 },
   wallHeight: { min: 0.1, max: 10 },
   wallCount: { min: 1, max: 50 },
@@ -60,7 +72,7 @@ export const plasterLimits = {
 } as const satisfies Record<string, Range>;
 
 /** Значения формы по умолчанию. Толщина — только пример: её задают по замерам стены. */
-export const plasterDefaults = { wallCount: 1, thickness: 10, reserve: 10 } as const;
+export const plasterDefaults = { mode: 'room', wallCount: 1, thickness: 10, reserve: 10 } as const;
 
 const precisionMessage = (digits: number) =>
   digits === 1 ? 'Не больше одного знака после запятой.' : 'Не больше двух знаков после запятой.';
@@ -81,11 +93,22 @@ export function calculatePlaster(input: PlasterInput): PlasterCalculation {
     }
   };
 
-  setError('wallLength', checkRequired(input.wallLength, plasterLimits.wallLength, 'м'));
+  const mode: PlasterMode | null =
+    input.mode == null || input.mode === 'walls' ? 'walls' : input.mode === 'room' ? 'room' : null;
+  if (mode === null) setError('mode', 'Выберите, что считать.');
+
+  if (mode === 'room') {
+    setError('roomLength', checkRequired(input.roomLength ?? null, plasterLimits.roomLength, 'м'));
+    setError('roomWidth', checkRequired(input.roomWidth ?? null, plasterLimits.roomWidth, 'м'));
+  } else if (mode === 'walls') {
+    setError('wallLength', checkRequired(input.wallLength, plasterLimits.wallLength, 'м'));
+  }
   setError('wallHeight', checkRequired(input.wallHeight, plasterLimits.wallHeight, 'м'));
-  setError('wallCount', checkRequired(input.wallCount, plasterLimits.wallCount, 'шт'));
-  if (!errors.wallCount && !Number.isInteger(input.wallCount)) {
-    setError('wallCount', 'Введите целое число.');
+  if (mode === 'walls') {
+    setError('wallCount', checkRequired(input.wallCount, plasterLimits.wallCount, 'шт'));
+    if (!errors.wallCount && !Number.isInteger(input.wallCount)) {
+      setError('wallCount', 'Введите целое число.');
+    }
   }
   setError('openingsArea', checkOptional(input.openingsArea, plasterLimits.openingsArea, 'м²'));
   setError('thickness', checkRequired(input.thickness, plasterLimits.thickness, 'мм'));
@@ -100,12 +123,14 @@ export function calculatePlaster(input: PlasterInput): PlasterCalculation {
   setError('bagMass', checkOptional(input.bagMass, plasterLimits.bagMass, 'кг'));
   checkPrecision('bagMass', input.bagMass, 1);
 
-  if (Object.keys(errors).length > 0) return { ok: false, errors };
+  if (Object.keys(errors).length > 0 || mode === null) return { ok: false, errors };
 
-  const L = metersToMm(input.wallLength ?? 0);
   const H = metersToMm(input.wallHeight ?? 0);
-  const wallCount = input.wallCount ?? plasterDefaults.wallCount;
-  const wallArea = L * H * wallCount;
+  const room = mode === 'room';
+  const wallCount = room ? 1 : (input.wallCount ?? plasterDefaults.wallCount);
+  const wallArea = room
+    ? 2 * (metersToMm(input.roomLength ?? 0) + metersToMm(input.roomWidth ?? 0)) * H
+    : metersToMm(input.wallLength ?? 0) * H * wallCount;
   const openingsArea = Math.round((input.openingsArea ?? 0) * 1_000_000);
   const toM2 = (mm2: number) => mm2 / 1_000_000;
 
@@ -141,6 +166,7 @@ export function calculatePlaster(input: PlasterInput): PlasterCalculation {
   return {
     ok: true,
     result: {
+      mode,
       wallArea: toM2(wallArea),
       openingsArea: toM2(openingsArea),
       plasterArea: toM2(plasterArea),

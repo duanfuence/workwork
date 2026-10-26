@@ -558,6 +558,8 @@ async function checkPresets(page, viewport) {
       `${label}: по умолчанию «Своё значение», поле пустое`,
     );
 
+    // Штукатурка и шпаклёвка: ожидаемые числа — для одной стены 5 × 2,7 м (режим «стены»).
+    if (item.path !== paintPath) await page.selectOption('[name="mode"]', 'walls');
     for (const [name, value] of Object.entries(item.fill))
       await page.fill(`[name="${name}"]`, value);
     await select.focus();
@@ -1358,18 +1360,41 @@ async function checkPlaster(page, viewport) {
     for (const [name, value] of Object.entries(values)) await field(name).fill(value);
   };
   check(
-    (await field('wallCount').inputValue()) === '1' &&
+    (await field('mode').inputValue()) === 'room' &&
+      (await field('roomLength').isVisible()) &&
+      !(await field('wallLength').isVisible()) &&
+      !(await field('wallCount').isVisible()) &&
       (await field('thickness').inputValue()) === '10' &&
       (await field('consumption').inputValue()) === '' &&
       (await field('reserve').inputValue()) === '10',
-    `${label}: по умолчанию 1 стена, слой 10 мм, запас 10 %, расход пуст`,
+    `${label}: по умолчанию «помещение» (поля стены скрыты), слой 10 мм, запас 10 %, расход пуст`,
   );
   await page.locator('form[data-plaster-form] button[type="submit"]').click();
   check(
-    (await state()) === 'invalid' && (await page.locator('[data-error-summary] li').count()) === 3,
-    `${label}: пустая форма — 3 ошибки (длина, высота, расход)`,
+    (await state()) === 'invalid' && (await page.locator('[data-error-summary] li').count()) === 4,
+    `${label}: пустая форма — 4 ошибки (длина, ширина, высота, расход)`,
+  );
+  // Ш9 (PLASTER.md): помещение 4 × 3 × 2,7, проёмы 3,9, слой 15, расход 0,85, запас 10 %, мешок 25 кг.
+  await fill({ roomLength: '4', roomWidth: '3', wallHeight: '2,7', openingsArea: '3,9' });
+  await fill({ thickness: '15', consumption: '0,85', bagMass: '25' });
+  check(
+    (await state()) === 'ready' &&
+      (await out('wallArea')) === '37,8' &&
+      (await out('plasterArea')) === '33,9' &&
+      (await out('mass')) === '432,3' &&
+      (await out('massWithReserve')) === '475,5' &&
+      (await out('bags')) === '20' &&
+      (await out('massToBuy')) === '500',
+    `${label}: Ш9 (помещение) — 33,9 м², 432,3 кг, с запасом 475,5 кг, 20 мешков (500 кг)`,
   );
   // Ш2 (PLASTER.md): 4 стены 4 × 2,7, проёмы 3,9, слой 15, расход 0,85, запас 10 %, мешок 25 кг.
+  await field('mode').selectOption('walls');
+  check(
+    (await field('wallLength').isVisible()) &&
+      (await field('wallCount').isVisible()) &&
+      !(await field('roomLength').isVisible()),
+    `${label}: «отдельные стены» — видны длина стены и число стен, поля помещения скрыты`,
+  );
   await fill({ wallLength: '4', wallHeight: '2,7', wallCount: '4', openingsArea: '3,9' });
   await fill({ thickness: '15', consumption: '0,85', bagMass: '25' });
   check(
@@ -1408,6 +1433,16 @@ async function checkPlaster(page, viewport) {
   );
 }
 
+/** Шп10 (PUTTY.md): помещение 4 × 3 × 2,7, проёмы 3,9, потолок, 2 слоя по 1,1, упаковка 20 кг, и «Рассчитать». */
+async function fillPuttyRoom(page) {
+  const values = { roomLength: '4', roomWidth: '3', wallHeight: '2,7', openingsArea: '3,9' };
+  for (const [name, value] of Object.entries(values)) await page.fill(`[name="${name}"]`, value);
+  await page.selectOption('[name="ceiling"]', 'yes');
+  for (const [name, value] of Object.entries({ layers: '2', consumption: '1,1', packMass: '20' }))
+    await page.fill(`[name="${name}"]`, value);
+  await page.locator('form[data-putty-form] button[type="submit"]').click();
+}
+
 async function checkPutty(page, viewport) {
   const label = `шпаклёвка ${viewport.name}`;
   const response = await page.goto(baseUrl + puttyPath, { waitUntil: 'networkidle' });
@@ -1418,6 +1453,15 @@ async function checkPutty(page, viewport) {
     `${label}: title «${meta.title}»`,
   );
   await checkOverflow(page, label);
+  if (viewport.name === '1440') {
+    // Снимок режима «помещение» с результатом на широком экране.
+    await fillPuttyRoom(page);
+    await checkOverflow(page, `${label}, помещение с результатом`);
+    await page.screenshot({
+      path: path.join(outDir, `putty-room-${viewport.name}.png`),
+      fullPage: true,
+    });
+  }
   if (viewport.name !== '390') return;
 
   const field = (name) => page.locator(`[name="${name}"]`);
@@ -1429,18 +1473,43 @@ async function checkPutty(page, viewport) {
     for (const [name, value] of Object.entries(values)) await field(name).fill(value);
   };
   check(
-    (await field('wallCount').inputValue()) === '1' &&
+    (await field('mode').inputValue()) === 'room' &&
+      (await field('ceiling').inputValue()) === 'no' &&
+      (await field('roomWidth').isVisible()) &&
+      !(await field('wallLength').isVisible()) &&
       (await field('layers').inputValue()) === '1' &&
       (await field('consumption').inputValue()) === '' &&
       (await field('reserve').inputValue()) === '10',
-    `${label}: по умолчанию 1 стена, 1 слой, запас 10 %, расход пуст`,
+    `${label}: по умолчанию «помещение» без потолка, 1 слой, запас 10 %, расход пуст`,
   );
   await page.locator('form[data-putty-form] button[type="submit"]').click();
   check(
-    (await state()) === 'invalid' && (await page.locator('[data-error-summary] li').count()) === 3,
-    `${label}: пустая форма — 3 ошибки (длина, высота, расход)`,
+    (await state()) === 'invalid' && (await page.locator('[data-error-summary] li').count()) === 4,
+    `${label}: пустая форма — 4 ошибки (длина, ширина, высота, расход)`,
   );
+  await fillPuttyRoom(page);
+  check(
+    (await state()) === 'ready' &&
+      (await out('wallArea')) === '37,8' &&
+      (await out('ceilingArea')) === '12' &&
+      (await out('puttyArea')) === '45,9' &&
+      (await out('mass')) === '101' &&
+      (await out('massWithReserve')) === '111,1' &&
+      (await out('packs')) === '6' &&
+      (await out('massToBuy')) === '120',
+    `${label}: Шп10 (помещение с потолком) — 45,9 м², 101 кг, с запасом 111,1 кг, 6 упаковок (120 кг)`,
+  );
+  await checkOverflow(page, `${label}, помещение с результатом`);
+  await page.screenshot({
+    path: path.join(outDir, `putty-room-${viewport.name}.png`),
+    fullPage: true,
+  });
   // Шп2 (PUTTY.md): 4 стены 4 × 2,7, проёмы 3,9, 2 слоя по 1,1 кг/м², запас 10 %, упаковка 20 кг.
+  await field('mode').selectOption('walls');
+  check(
+    (await field('wallCount').isVisible()) && !(await field('ceiling').isVisible()),
+    `${label}: «отдельные стены» — число стен видно, выбор потолка скрыт`,
+  );
   await fill({ wallLength: '4', wallHeight: '2,7', wallCount: '4', openingsArea: '3,9' });
   await fill({ layers: '2', consumption: '1,1', packMass: '20' });
   check(

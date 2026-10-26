@@ -43,3 +43,22 @@ describe('evaluatePlasterForm', () => {
     });
   });
 });
+
+describe('evaluatePlasterForm: режим «помещение»', () => {
+  const room: PlasterFormValues = { ...filled, mode: 'room', roomLength: '4', roomWidth: '3' };
+
+  it('Ш9 через форму: 432,3 кг, с запасом 475,5 кг, 20 мешков по 25 кг', () => {
+    const calculation = evaluatePlasterForm(room);
+    if (!calculation.ok) throw new Error(JSON.stringify(calculation.errors));
+    expect([calculation.result.mass, calculation.result.massWithReserve]).toEqual([432.3, 475.5]);
+    expect(calculation.result.bags).toBe(20);
+  });
+
+  it('текст в скрытых полях стен не мешает; в поле помещения — «Введите число.»', () => {
+    expect(evaluatePlasterForm({ ...room, wallLength: 'abc' }).ok).toBe(true);
+    expect(evaluatePlasterForm({ ...room, roomLength: '4м' })).toEqual({
+      ok: false,
+      errors: { roomLength: 'Введите число.' },
+    });
+  });
+});

@@ -177,3 +177,77 @@ describe('ошибки ввода', () => {
     });
   });
 });
+
+describe('режим «помещение» (модель 2): контрольные примеры Ш8–Ш12', () => {
+  const room: Partial<PlasterInput> = {
+    mode: 'room',
+    roomLength: 4,
+    roomWidth: 3,
+    wallLength: null,
+    wallCount: null,
+  };
+
+  it('Ш8: помещение 4 × 3 × 2,7 → 37,8 м²; слой 10 мм по 0,9 → 340,2 кг; 12 мешков по 30 кг', () => {
+    const result = calc(room);
+    expect([result.mode, result.wallArea, result.plasterArea]).toEqual(['room', 37.8, 37.8]);
+    expect([result.mass, result.massWithReserve]).toEqual([340.2, 340.2]);
+    expect([result.bags, result.massToBuy]).toEqual([12, 360]);
+  });
+
+  it('Ш9: проёмы 3,9 → 33,9 м²; слой 15 по 0,85 → 432,225 (432,3), с запасом 475,4475 (475,5); 20 мешков', () => {
+    const result = calc({
+      ...room,
+      openingsArea: 3.9,
+      thickness: 15,
+      consumption: 0.85,
+      reserve: 10,
+      bagMass: 25,
+    });
+    expect(result.plasterArea).toBe(33.9);
+    expect([result.mass, result.massWithReserve]).toEqual([432.3, 475.5]);
+    expect([result.bags, result.massToBuy]).toEqual([20, 500]);
+  });
+
+  it('Ш10: проёмы равны стенам или больше — ошибка', () => {
+    expect(errorsOf({ ...room, openingsArea: 37.8 })).toEqual({
+      openingsArea: 'Проёмы занимают всю площадь стен — штукатурить нечего.',
+    });
+    expect(errorsOf({ ...room, openingsArea: 37.9 })).toEqual({
+      openingsArea: 'Больше площади стен (37,8 м²).',
+    });
+  });
+
+  it('Ш11: предел — 100 × 100 × 10 м, слой 100 по 5 → 2 000 000, с запасом 50 % — 3 000 000 кг', () => {
+    const result = calc({
+      ...room,
+      roomLength: 100,
+      roomWidth: 100,
+      wallHeight: 10,
+      thickness: 100,
+      consumption: 5,
+      reserve: 50,
+      bagMass: 1,
+    });
+    expect([result.wallArea, result.mass, result.massWithReserve]).toEqual([
+      4000, 2_000_000, 3_000_000,
+    ]);
+    expect(result.bags).toBe(3_000_000);
+  });
+
+  it('Ш12: помещение равно одной стене длиной в периметр (14 × 2,7 м)', () => {
+    const asWall = calc({ wallLength: 14 });
+    const asRoom = calc(room);
+    expect([asRoom.mass, asRoom.bags]).toEqual([asWall.mass, asWall.bags]);
+  });
+
+  it('ошибки ввода помещения; поля стен в этом режиме не проверяются', () => {
+    expect(errorsOf({ ...room, roomLength: 0, roomWidth: 100.1, wallHeight: 10.1 })).toEqual({
+      roomLength: 'Значение должно быть больше нуля.',
+      roomWidth: 'Не больше 100 м.',
+      wallHeight: 'Не больше 10 м.',
+    });
+    expect(errorsOf({ ...room, roomWidth: null }).roomWidth).toBe('Заполните поле.');
+    expect(calc({ ...room, wallLength: -5, wallCount: 0.5 }).mode).toBe('room');
+    expect(errorsOf({ mode: 'ceiling' })).toEqual({ mode: 'Выберите, что считать.' });
+  });
+});

@@ -43,3 +43,38 @@ describe('evaluatePuttyForm', () => {
     });
   });
 });
+
+describe('evaluatePuttyForm: режим «помещение»', () => {
+  const room: PuttyFormValues = {
+    ...filled,
+    mode: 'room',
+    roomLength: '4',
+    roomWidth: '3',
+    ceiling: 'yes',
+  };
+
+  it('Шп10 через форму: 101 кг, с запасом 111,1 кг, 6 упаковок по 20 кг', () => {
+    const calculation = evaluatePuttyForm(room);
+    if (!calculation.ok) throw new Error(JSON.stringify(calculation.errors));
+    expect([calculation.result.mass, calculation.result.massWithReserve]).toEqual([101, 111.1]);
+    expect(calculation.result.packs).toBe(6);
+  });
+
+  it('текст в скрытых полях стен не мешает расчёту помещения', () => {
+    const calculation = evaluatePuttyForm({ ...room, wallLength: 'abc', wallCount: 'x' });
+    expect(calculation.ok).toBe(true);
+  });
+
+  it('текст в поле помещения — «Введите число.»', () => {
+    expect(evaluatePuttyForm({ ...room, roomWidth: 'три' })).toEqual({
+      ok: false,
+      errors: { roomWidth: 'Введите число.' },
+    });
+  });
+
+  it('в режиме «стены» поля помещения не проверяются', () => {
+    const calculation = evaluatePuttyForm({ ...room, mode: 'walls', roomLength: 'abc' });
+    if (!calculation.ok) throw new Error(JSON.stringify(calculation.errors));
+    expect(calculation.result.mass).toBe(86.5);
+  });
+});

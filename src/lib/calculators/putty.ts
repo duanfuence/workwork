@@ -9,8 +9,19 @@
 import { metersToMm } from '../number';
 import { type Range, checkOptional, checkRequired, fmt, hasPrecision } from '../validation';
 
-/** Входные данные. `null` — поле не заполнено. Размеры в метрах, площадь проёмов в м², упаковка в кг. */
+/** Что считать: помещение целиком или отдельные стены (модель 2, PUTTY.md). */
+export type PuttyMode = 'room' | 'walls';
+
+/**
+ * Входные данные. `null` — поле не заполнено. Размеры в метрах, площадь проёмов в м², упаковка в кг.
+ * Без `mode` считаются отдельные стены (модель 1); поля другого режима не проверяются.
+ */
 export interface PuttyInput {
+  mode?: string | null;
+  roomLength?: number | null;
+  roomWidth?: number | null;
+  /** Потолок тоже (только «помещение»): `'yes'` / `'no'`; не задан — нет. */
+  ceiling?: string | null;
   wallLength: number | null;
   wallHeight: number | null;
   wallCount: number | null;
@@ -25,8 +36,11 @@ export type PuttyField = keyof PuttyInput;
 export type PuttyErrors = Partial<Record<PuttyField, string>>;
 
 export interface PuttyResult {
+  mode: PuttyMode;
   /** Площади, м². */
   wallArea: number;
+  ceilingArea: number;
+  ceilingIncluded: boolean;
   openingsArea: number;
   puttyArea: number;
   wallCount: number;
@@ -48,6 +62,8 @@ export type PuttyCalculation =
   { ok: true; result: PuttyResult } | { ok: false; errors: PuttyErrors };
 
 export const puttyLimits = {
+  roomLength: { min: 0.1, max: 100 },
+  roomWidth: { min: 0.1, max: 100 },
   wallLength: { min: 0.1, max: 100 },
   wallHeight: { min: 0.1, max: 10 },
   wallCount: { min: 1, max: 50 },
@@ -59,7 +75,13 @@ export const puttyLimits = {
 } as const satisfies Record<string, Range>;
 
 /** Значения формы по умолчанию. Расхода нет: его берут из инструкции к смеси. */
-export const puttyDefaults = { wallCount: 1, layers: 1, reserve: 10 } as const;
+export const puttyDefaults = {
+  mode: 'room',
+  ceiling: 'no',
+  wallCount: 1,
+  layers: 1,
+  reserve: 10,
+} as const;
 
 const precisionMessage = (digits: number) =>
   digits === 1 ? 'Не больше одного знака после запятой.' : 'Не больше двух знаков после запятой.';
@@ -83,11 +105,25 @@ export function calculatePutty(input: PuttyInput): PuttyCalculation {
     }
   };
 
-  setError('wallLength', checkRequired(input.wallLength, puttyLimits.wallLength, 'м'));
+  const mode: PuttyMode | null =
+    input.mode == null || input.mode === 'walls' ? 'walls' : input.mode === 'room' ? 'room' : null;
+  if (mode === null) setError('mode', 'Выберите, что считать.');
+  const ceiling =
+    input.ceiling == null || input.ceiling === 'no' ? false : input.ceiling === 'yes' ? true : null;
+
+  if (mode === 'room') {
+    setError('roomLength', checkRequired(input.roomLength ?? null, puttyLimits.roomLength, 'м'));
+    setError('roomWidth', checkRequired(input.roomWidth ?? null, puttyLimits.roomWidth, 'м'));
+  } else if (mode === 'walls') {
+    setError('wallLength', checkRequired(input.wallLength, puttyLimits.wallLength, 'м'));
+  }
   setError('wallHeight', checkRequired(input.wallHeight, puttyLimits.wallHeight, 'м'));
-  setError('wallCount', checkRequired(input.wallCount, puttyLimits.wallCount, 'шт'));
-  checkInteger('wallCount', input.wallCount);
+  if (mode === 'walls') {
+    setError('wallCount', checkRequired(input.wallCount, puttyLimits.wallCount, 'шт'));
+    checkInteger('wallCount', input.wallCount);
+  }
   setError('openingsArea', checkOptional(input.openingsArea, puttyLimits.openingsArea, 'м²'));
+  if (mode === 'room' && ceiling === null) setError('ceiling', 'Выберите, шпаклевать ли потолок.');
   // Целое — до диапазона: для 0,5 «Введите целое число.», а не «Не меньше 1 слоёв.».
   if (input.layers !== null && Number.isFinite(input.layers)) checkInteger('layers', input.layers);
   setError('layers', checkRequired(input.layers, puttyLimits.layers, 'слоёв'));
@@ -98,12 +134,16 @@ export function calculatePutty(input: PuttyInput): PuttyCalculation {
   setError('packMass', checkOptional(input.packMass, puttyLimits.packMass, 'кг'));
   checkPrecision('packMass', input.packMass, 1);
 
-  if (Object.keys(errors).length > 0) return { ok: false, errors };
+  if (Object.keys(errors).length > 0 || mode === null) return { ok: false, errors };
 
-  const L = metersToMm(input.wallLength ?? 0);
   const H = metersToMm(input.wallHeight ?? 0);
-  const wallCount = input.wallCount ?? puttyDefaults.wallCount;
-  const wallArea = L * H * wallCount;
+  const room = mode === 'room';
+  const A = room ? metersToMm(input.roomLength ?? 0) : 0;
+  const B = room ? metersToMm(input.roomWidth ?? 0) : 0;
+  const wallCount = room ? 1 : (input.wallCount ?? puttyDefaults.wallCount);
+  const wallArea = room ? 2 * (A + B) * H : metersToMm(input.wallLength ?? 0) * H * wallCount;
+  const ceilingIncluded = room && ceiling === true;
+  const ceilingArea = ceilingIncluded ? A * B : 0;
   const openingsArea = Math.round((input.openingsArea ?? 0) * 1_000_000);
   const toM2 = (mm2: number) => mm2 / 1_000_000;
 
@@ -113,13 +153,13 @@ export function calculatePutty(input: PuttyInput): PuttyCalculation {
       errors: { openingsArea: `Больше площади стен (${fmt(toM2(wallArea))} м²).` },
     };
   }
-  if (openingsArea === wallArea) {
+  if (openingsArea === wallArea && ceilingArea === 0) {
     return {
       ok: false,
       errors: { openingsArea: 'Проёмы занимают всю площадь стен — шпаклевать нечего.' },
     };
   }
-  const puttyArea = wallArea - openingsArea;
+  const puttyArea = wallArea - openingsArea + ceilingArea;
 
   const layers = input.layers ?? puttyDefaults.layers;
   const consumptionHundredths = Math.round((input.consumption ?? 0) * 100);
@@ -139,7 +179,10 @@ export function calculatePutty(input: PuttyInput): PuttyCalculation {
   return {
     ok: true,
     result: {
+      mode,
       wallArea: toM2(wallArea),
+      ceilingArea: toM2(ceilingArea),
+      ceilingIncluded,
       openingsArea: toM2(openingsArea),
       puttyArea: toM2(puttyArea),
       wallCount,

@@ -12,6 +12,8 @@
  * - необязательно: выбор ориентира `select[data-preset-for="<id поля>"]` (компонент PresetSelect) —
  *   подставляет значение варианта (`data-field-value`) в поле; строка-пометка `[data-preset-note="<name поля>"]`
  *   в результате видна, пока расчёт идёт по ориентиру (текст — `data-note` варианта);
+ * - необязательно: поля одного режима `[data-show-when="<name>=<value>"]` (NumberField, SelectField с `showWhen`) —
+ *   видны, пока в выборе `<name>` значение `<value>`; скрытые поля `evaluate` страницы не разбирает;
  * - главный итог `.calc-result__main` и короткий итог `view.summary(…)` из `render` — для панели итога
  *   `[data-result-bar]` (на экране уже 960 px, когда итог не виден) и для объявления диктору
  *   `[data-result-announce]` (по «Рассчитать» и после паузы ввода, D-024). Оба элемента даёт CalculatorResult.
@@ -72,6 +74,17 @@ export function initCalculatorForm<F extends string, R>({
     const input = form.querySelector<Control>(`input[name="${field}"], select[name="${field}"]`);
     if (input) inputs.set(field, input);
   }
+  // Поля одного режима: видны, пока в выборе нужное значение («Считать: помещение / отдельные стены»).
+  const conditional = [...form.querySelectorAll<HTMLElement>('[data-show-when]')];
+  const applyVisibility = () => {
+    for (const element of conditional) {
+      const [name = '', value = ''] = (element.dataset['showWhen'] ?? '').split('=');
+      const control = form.elements.namedItem(name);
+      element.hidden = !(control instanceof HTMLSelectElement && control.value === value);
+    }
+  };
+  applyVisibility();
+
   // До первой отправки ошибки не показываются; после — пересчёт при каждом вводе.
   let live = false;
   let state: State = 'empty';
@@ -334,6 +347,7 @@ export function initCalculatorForm<F extends string, R>({
 
   // Раньше пересчёта: при живом пересчёте уже видно подставленное значение. Фокус не переносится.
   form.addEventListener('input', (event) => {
+    if (event.target instanceof HTMLSelectElement) applyVisibility();
     for (const { select, input, choices } of presets) {
       if (event.target === select) {
         const text = fieldTextForChoice(choices, select.value);
@@ -363,6 +377,7 @@ export function initCalculatorForm<F extends string, R>({
     announce('');
     // Значения полей сбрасываются после события reset.
     requestAnimationFrame(() => {
+      applyVisibility();
       showErrors({});
       showPresetNotes();
       setState('empty');

@@ -21,16 +21,33 @@ interface Props {
    * не участвует в расчёте и не бывает ошибочным: без aria-required и места для ошибки.
    */
   presetFor?: string;
+  /**
+   * Поле одного режима формы: `"mode=room"` — видно, пока в выборе `mode` значение `room`
+   * (src/client/calculator-form.ts). Скрытое поле не разбирается и не проверяется.
+   */
+  showWhen?: string;
+  /** Скрыто при загрузке: режим по умолчанию — другой. */
+  hidden?: boolean;
 }
 
-const { name, idPrefix, label, options, value, hint, presetFor } = Astro.props;
+const {
+  name,
+  idPrefix,
+  label,
+  options,
+  value,
+  hint,
+  presetFor,
+  showWhen,
+  hidden = false,
+} = Astro.props;
 const id = `${idPrefix}-${name}`;
 const hintId = `${id}-hint`;
 const errorId = `${id}-error`;
 const describedBy = [hint ? hintId : null, presetFor ? null : errorId].filter(Boolean).join(' ');
 ---
 
-<div class="field">
+<div class="field" data-show-when={showWhen} hidden={hidden}>
   <label class="field__label" for={id}>
     {label}
   </label>
@@ -73,6 +90,10 @@ const describedBy = [hint ? hintId : null, presetFor ? null : errorId].filter(Bo
     align-content: start;
     gap: var(--space-1);
     min-width: 0;
+  }
+
+  .field[hidden] {
+    display: none;
   }
 
   /* Поле, подсказка и ошибка — одна строка сетки: в ряду формы выравниваются по подписи (calculator.css). */

@@ -5,6 +5,7 @@ import CalculatorResult from '../../components/calculator/CalculatorResult.astro
 import NumberField from '../../components/calculator/NumberField.astro';
 import PresetSelect from '../../components/calculator/PresetSelect.astro';
 import PresetTable from '../../components/calculator/PresetTable.astro';
+import SelectField from '../../components/calculator/SelectField.astro';
 import { calculators } from '../../data/calculators';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { calculatorCrumbs } from '../../lib/breadcrumbs';
@@ -43,10 +44,42 @@ const id = 'pt';
         </h2>
 
         <fieldset class="calc-group">
-          <legend class="calc-group__title">Стены</legend>
+          <legend class="calc-group__title">Стены и потолок</legend>
           <div class="calc-group__fields">
-            <NumberField name="wallLength" idPrefix={id} label="Длина стены" unit="м" />
-            <NumberField name="wallHeight" idPrefix={id} label="Высота стены" unit="м" />
+            <SelectField
+              name="mode"
+              idPrefix={id}
+              label="Считать"
+              value="room"
+              options={[
+                { value: 'room', label: 'помещение' },
+                { value: 'walls', label: 'отдельные стены' },
+              ]}
+              hint="Помещение — все стены комнаты по длине и ширине; отдельные стены — по размеру одной стены."
+            />
+            <NumberField
+              name="roomLength"
+              idPrefix={id}
+              label="Длина помещения"
+              unit="м"
+              showWhen="mode=room"
+            />
+            <NumberField
+              name="roomWidth"
+              idPrefix={id}
+              label="Ширина помещения"
+              unit="м"
+              showWhen="mode=room"
+            />
+            <NumberField
+              name="wallLength"
+              idPrefix={id}
+              label="Длина стены"
+              unit="м"
+              showWhen="mode=walls"
+              hidden
+            />
+            <NumberField name="wallHeight" idPrefix={id} label="Высота стен" unit="м" />
             <NumberField
               name="wallCount"
               idPrefix={id}
@@ -55,6 +88,8 @@ const id = 'pt';
               inputmode="numeric"
               value="1"
               hint="Стены разного размера посчитайте по отдельности."
+              showWhen="mode=walls"
+              hidden
             />
             <NumberField
               name="openingsArea"
@@ -63,6 +98,18 @@ const id = 'pt';
               unit="м²"
               optional
               hint="Суммарно на все стены, вычитается. Пусто — 0."
+            />
+            <SelectField
+              name="ceiling"
+              idPrefix={id}
+              label="Потолок"
+              value="no"
+              showWhen="mode=room"
+              options={[
+                { value: 'no', label: 'не шпаклевать' },
+                { value: 'yes', label: 'шпаклевать' },
+              ]}
+              hint="Добавляется площадь потолка (длина × ширина) с теми же слоями и расходом."
             />
           </div>
         </fieldset>
@@ -153,6 +200,12 @@ const id = 'pt';
               <span data-out="wallArea"></span> м²
             </dd>
           </div>
+          <div data-row="ceilingArea">
+            <dt>Плюс потолок</dt>
+            <dd>
+              <span data-out="ceilingArea"></span> м²
+            </dd>
+          </div>
           <div>
             <dt>Окна и двери</dt>
             <dd>
@@ -196,8 +249,14 @@ const id = 'pt';
       <section aria-labelledby="method-title">
         <h2 id="method-title">Как считается</h2>
         <ol>
-          <li>Площадь стен: длина × высота × число одинаковых стен.</li>
-          <li>Из неё вычитается площадь окон и дверей — получается площадь шпаклевания.</li>
+          <li>
+            Площадь стен: для помещения — периметр × высота, 2 × (длина + ширина) × высота; для
+            отдельных стен — длина × высота × число одинаковых стен.
+          </li>
+          <li>
+            Из неё вычитается площадь окон и дверей; если выбран потолок, прибавляется его площадь
+            (длина × ширина) — получается площадь шпаклевания.
+          </li>
           <li>Расход: площадь × расход на один слой × число слоёв.</li>
           <li>
             К расходу добавляется запас; упаковки округляются вверх до целой упаковки. Массы
@@ -212,6 +271,7 @@ const id = 'pt';
           <div>
             <dt>Площадь</dt>
             <dd>
+              помещение: <code>2 × (длина + ширина) × высота − окна и двери + потолок</code>; стены:
               <code>длина × высота × число стен − окна и двери</code>
             </dd>
           </div>
@@ -230,9 +290,9 @@ const id = 'pt';
           </div>
         </dl>
         <p>
-          <strong>Пример.</strong> 4 стены 4 × 2,7 м, окна и двери 3,9 м²: шпаклевать 43,2 − 3,9 =
-          39,3 м². 2 слоя по 1,1 кг/м²: 39,3 × 1,1 × 2 = 86,46 кг. С запасом 10 % — 95,106 кг,
-          упаковок по 20 кг — ⌈4,76⌉ = 5, это 100 кг.
+          <strong>Пример (отдельные стены).</strong> 4 стены 4 × 2,7 м, окна и двери 3,9 м²:
+          шпаклевать 43,2 − 3,9 = 39,3 м². 2 слоя по 1,1 кг/м²: 39,3 × 1,1 × 2 = 86,46 кг. С запасом
+          10 % — 95,106 кг, упаковок по 20 кг — ⌈4,76⌉ = 5, это 100 кг.
         </p>
       </section>
 
@@ -313,6 +373,8 @@ const id = 'pt';
         view.text('wallArea', formatNumber(value.wallArea, 2));
         view.text('openingsArea', formatNumber(value.openingsArea, 2));
         view.text('puttyArea', formatNumber(value.puttyArea, 2));
+        view.show('ceilingArea', value.ceilingIncluded);
+        view.text('ceilingArea', formatNumber(value.ceilingArea, 2));
 
         view.show('packs', value.packs !== null);
         if (value.packs !== null && value.packMass !== null && value.massToBuy !== null) {
@@ -325,9 +387,17 @@ const id = 'pt';
           value.packs === null
             ? ''
             : `; упаковок по ${formatNumber(value.packMass ?? 0, 1)} кг — ${value.packs} ${pluralizeRu(value.packs, packWords)} (вверх до целой)`;
+        const ceiling = value.ceilingIncluded
+          ? ` + потолок ${formatNumber(value.ceilingArea, 2)}`
+          : '';
+        // Для помещения — откуда площадь: стены − проёмы (+ потолок).
+        const areaText =
+          value.mode === 'room'
+            ? `${formatNumber(value.wallArea, 2)} − ${formatNumber(value.openingsArea, 2)}${ceiling} = ${formatNumber(value.puttyArea, 2)} м²; `
+            : '';
         view.text(
           'formula',
-          `${formatNumber(value.puttyArea, 2)} м² × ${formatNumber(value.consumption, 2)} кг/м² × ${value.layers} ${pluralizeRu(value.layers, layerWords)} ≈ ${formatNumber(value.mass, 1)} кг; с запасом ${formatNumber(value.reserve, 1)} % — ${formatNumber(value.massWithReserve, 1)} кг${packs}.`,
+          `${areaText}${formatNumber(value.puttyArea, 2)} м² × ${formatNumber(value.consumption, 2)} кг/м² × ${value.layers} ${pluralizeRu(value.layers, layerWords)} ≈ ${formatNumber(value.mass, 1)} кг; с запасом ${formatNumber(value.reserve, 1)} % — ${formatNumber(value.massWithReserve, 1)} кг${packs}.`,
         );
       },
     });

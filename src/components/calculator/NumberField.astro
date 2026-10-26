@@ -20,6 +20,13 @@ interface Props {
   inputmode?: 'decimal' | 'numeric';
   /** Необязательное поле (без aria-required). Пометка «необязательно» ставится у группы. */
   optional?: boolean;
+  /**
+   * Поле одного режима формы: `"mode=room"` — видно, пока в выборе `mode` значение `room`
+   * (src/client/calculator-form.ts). Скрытое поле не разбирается и не проверяется.
+   */
+  showWhen?: string;
+  /** Скрыто при загрузке: режим по умолчанию — другой. */
+  hidden?: boolean;
 }
 
 const {
@@ -32,6 +39,8 @@ const {
   placeholder,
   inputmode = 'decimal',
   optional = false,
+  showWhen,
+  hidden = false,
 } = Astro.props;
 
 const id = `${idPrefix}-${name}`;
@@ -40,7 +49,7 @@ const errorId = `${id}-error`;
 const describedBy = [hint ? hintId : null, errorId].filter(Boolean).join(' ');
 ---
 
-<div class="field">
+<div class="field" data-show-when={showWhen} hidden={hidden}>
   <label class="field__label" for={id}>
     {label}
     {unit && <span class="visually-hidden">{` (${spokenUnit(unit)})`}</span>}
@@ -82,6 +91,10 @@ const describedBy = [hint ? hintId : null, errorId].filter(Boolean).join(' ');
     align-content: start;
     gap: var(--space-1);
     min-width: 0;
+  }
+
+  .field[hidden] {
+    display: none;
   }
 
   /* Поле, подсказка и ошибка — одна строка сетки: в ряду формы выравниваются по подписи (calculator.css). */
