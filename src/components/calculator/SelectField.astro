@@ -2,6 +2,10 @@
 interface Option {
   value: string;
   label: string;
+  /** Для выбора ориентира: что подставить в связанное поле («1,3»). */
+  fieldValue?: string;
+  /** Для выбора ориентира: строка-пометка в результате. */
+  note?: string;
 }
 
 interface Props {
@@ -12,13 +16,18 @@ interface Props {
   /** Выбранное значение по умолчанию. */
   value: string;
   hint?: string;
+  /**
+   * id поля, в которое выбор подставляет ориентир (src/client/calculator-form.ts). Такой выбор
+   * не участвует в расчёте и не бывает ошибочным: без aria-required и места для ошибки.
+   */
+  presetFor?: string;
 }
 
-const { name, idPrefix, label, options, value, hint } = Astro.props;
+const { name, idPrefix, label, options, value, hint, presetFor } = Astro.props;
 const id = `${idPrefix}-${name}`;
 const hintId = `${id}-hint`;
 const errorId = `${id}-error`;
-const describedBy = [hint ? hintId : null, errorId].filter(Boolean).join(' ');
+const describedBy = [hint ? hintId : null, presetFor ? null : errorId].filter(Boolean).join(' ');
 ---
 
 <div class="field">
@@ -31,12 +40,19 @@ const describedBy = [hint ? hintId : null, errorId].filter(Boolean).join(' ');
         class="field__select"
         id={id}
         name={name}
-        aria-describedby={describedBy}
-        aria-required="true"
+        aria-describedby={describedBy || undefined}
+        aria-required={presetFor ? undefined : 'true'}
+        aria-controls={presetFor}
+        data-preset-for={presetFor}
         data-label={label}
       >
         {options.map((option) => (
-          <option value={option.value} selected={option.value === value}>
+          <option
+            value={option.value}
+            selected={option.value === value}
+            data-field-value={option.fieldValue}
+            data-note={option.note}
+          >
             {option.label}
           </option>
         ))}
@@ -47,7 +63,7 @@ const describedBy = [hint ? hintId : null, errorId].filter(Boolean).join(' ');
         {hint}
       </p>
     )}
-    <p class="field__error" id={errorId} data-error-for={name} hidden></p>
+    {!presetFor && <p class="field__error" id={errorId} data-error-for={name} hidden></p>}
   </div>
 </div>
 
@@ -64,6 +80,7 @@ const describedBy = [hint ? hintId : null, errorId].filter(Boolean).join(' ');
     display: grid;
     align-content: start;
     gap: var(--space-1);
+    min-width: 0;
   }
 
   .field__label {
@@ -92,6 +109,9 @@ const describedBy = [hint ? hintId : null, errorId].filter(Boolean).join(' ');
 
   .field__select {
     width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    text-overflow: ellipsis;
     min-height: var(--tap-target-min);
     padding: var(--space-2) 2.5rem var(--space-2) var(--space-3);
     background: var(--color-surface);

@@ -3,6 +3,8 @@ import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import RelatedCalculators from '../../components/RelatedCalculators.astro';
 import CalculatorResult from '../../components/calculator/CalculatorResult.astro';
 import NumberField from '../../components/calculator/NumberField.astro';
+import PresetSelect from '../../components/calculator/PresetSelect.astro';
+import PresetTable from '../../components/calculator/PresetTable.astro';
 import { calculators } from '../../data/calculators';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { calculatorCrumbs } from '../../lib/breadcrumbs';
@@ -76,13 +78,19 @@ const id = 'pl';
               value="10"
               hint="10 мм — пример. Задайте по замерам отклонений стены, в пределах инструкции к смеси."
             />
+            <PresetSelect
+              calculator="plaster"
+              field="consumption"
+              idPrefix={id}
+              label="Тип штукатурки"
+            />
             <NumberField
               name="consumption"
               idPrefix={id}
               label="Расход на 1 м² при слое 1 мм"
               unit="кг"
-              placeholder="из инструкции"
-              hint="Указан на мешке или в инструкции к смеси; у гипсовых и цементных смесей он разный."
+              placeholder="с мешка"
+              hint="Точное значение — на мешке. Без него выберите тип материала: ориентир по данным производителей."
             />
             <NumberField
               name="bagMass"
@@ -130,6 +138,7 @@ const id = 'pl';
           <span class="calc-result__number" data-out="massWithReserve"></span>
           <span class="calc-result__unit">кг смеси</span>
         </p>
+        <p class="calc-result__preset" data-preset-note="consumption" hidden></p>
         <p class="calc-result__cost" data-row="bags" hidden>
           Мешков по <span data-out="bagMass"></span> кг: <strong data-out="bags"></strong>
           {' — это '}
@@ -226,6 +235,8 @@ const id = 'pl';
           551,1825 кг, мешков по 25 кг — ⌈22,05⌉ = 23, это 575 кг.
         </p>
       </section>
+
+      <PresetTable calculator="plaster" valueUnit="кг/м² на 1 мм" valueTitle="Расход" />
 
       <section aria-labelledby="limits-title">
         <h2 id="limits-title">Что калькулятор не учитывает</h2>

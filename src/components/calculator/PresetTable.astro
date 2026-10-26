@@ -1,0 +1,123 @@
+---
+/**
+ * Таблица ориентиров расхода для статьи калькулятора — из тех же данных, что выбор «Тип материала»;
+ * видна без JavaScript.
+ */
+import { presetsCheckedAt, presetsFor, type PresetCalculator } from '../../data/material-presets';
+import { presetFieldText } from '../../lib/presets';
+
+interface Props {
+  calculator: PresetCalculator;
+  /** Единица значений в подписи таблицы: «м²/л», «кг/м² на 1 мм». */
+  valueUnit: string;
+  /** Заголовок колонки значения: «Укрывистость», «Расход». */
+  valueTitle: string;
+}
+
+const { calculator, valueUnit, valueTitle } = Astro.props;
+const presets = presetsFor(calculator);
+const checkedAt = presetsCheckedAt.split('-').reverse().join('.');
+const rule =
+  calculator === 'paint'
+    ? 'Ориентир — нижняя граница укрывистости: так литров не окажется меньше нужного.'
+    : 'Ориентир — верхняя граница расхода: так смеси не окажется меньше нужного.';
+const caption = `${valueTitle}, ${valueUnit}`;
+const intro =
+  `Типовые значения по техническим описаниям производителей (проверено ${checkedAt}). ${rule} ` +
+  'Точное значение — на упаковке выбранного материала: у конкретного продукта оно может быть заметно другим.';
+---
+
+<section aria-labelledby="presets-title">
+  <h2 id="presets-title">Ориентиры, если упаковки ещё нет</h2>
+  <p>{intro}</p>
+  <div class="preset-table">
+    <table>
+      <caption class="preset-table__caption">{caption}</caption>
+      <colgroup>
+        <col class="preset-table__type" />
+        <col />
+        <col />
+      </colgroup>
+      <thead>
+        <tr>
+          <th scope="col">Тип</th>
+          <th scope="col">Ориентир</th>
+          <th scope="col">Разброс</th>
+        </tr>
+      </thead>
+      <tbody>
+        {presets.map((preset) => (
+          <tr>
+            <th scope="row">{preset.label}</th>
+            <td>{presetFieldText(preset.value)}</td>
+            <td>{`${presetFieldText(preset.range.min)}–${presetFieldText(preset.range.max)}`}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+  <ul class="preset-notes">
+    {presets.map((preset) => (
+      <li>
+        <strong>{`${preset.label}.`}</strong>
+        {` ${preset.note} По данным: ${preset.sources.join(', ')}.`}
+      </li>
+    ))}
+  </ul>
+</section>
+
+<style>
+  .preset-table {
+    max-width: 100%;
+    margin-block: var(--space-4);
+  }
+
+  /* Фиксированная раскладка: таблица не шире статьи даже на 320 px, длинные слова переносятся. */
+  .preset-table table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    font-size: var(--font-size-sm);
+  }
+
+  .preset-table__type {
+    width: 40%;
+  }
+
+  .preset-table__caption {
+    padding-bottom: var(--space-2);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    text-align: left;
+  }
+
+  .preset-table th,
+  .preset-table td {
+    padding: var(--space-2) var(--space-3);
+    border-bottom: var(--border);
+    text-align: left;
+    vertical-align: top;
+    overflow-wrap: anywhere;
+    hyphens: auto;
+  }
+
+  .preset-table thead th {
+    color: var(--color-text-muted);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .preset-table tbody th {
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .preset-table td {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .preset-notes {
+    display: grid;
+    gap: var(--space-2);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+  }
+</style>

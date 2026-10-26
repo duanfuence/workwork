@@ -8,9 +8,18 @@
  *   и `[data-error-for="…"]` (это дают компоненты NumberField и SelectField);
  * - блок результата из компонента CalculatorResult: `[data-state-panel]`, `[data-error-summary]`,
  *   заголовок `[data-result-heading]`, места вывода `[data-out]`, списки `[data-out-list]`
- *   и строки `[data-row]`.
+ *   и строки `[data-row]`;
+ * - необязательно: выбор ориентира `select[data-preset-for="<id поля>"]` (компонент PresetSelect) —
+ *   подставляет значение варианта (`data-field-value`) в поле; строка-пометка `[data-preset-note="<name поля>"]`
+ *   в результате видна, пока расчёт идёт по ориентиру (текст — `data-note` варианта).
  */
 import type { Calculation, FieldErrors } from '../lib/form';
+import {
+  activeChoice,
+  choiceAfterEdit,
+  fieldTextForChoice,
+  type PresetChoice,
+} from '../lib/presets';
 
 type State = 'empty' | 'invalid' | 'ready';
 
@@ -51,6 +60,28 @@ export function initCalculatorForm<F extends string, R>({
   }
   // До первой отправки ошибки не показываются; после — пересчёт при каждом вводе.
   let live = false;
+
+  // Выбор ориентира: подставляет значение в поле; правка поля переключает выбор на «Своё значение».
+  const presets = [...form.querySelectorAll<HTMLSelectElement>('select[data-preset-for]')].flatMap(
+    (select) => {
+      const input = document.getElementById(select.dataset['presetFor'] ?? '');
+      if (!(input instanceof HTMLInputElement)) return [];
+      const choices: PresetChoice[] = [...select.options]
+        .filter((option) => option.dataset['fieldValue'] !== undefined)
+        .map((option) => ({ id: option.value, fieldText: option.dataset['fieldValue'] ?? '' }));
+      const note = result.querySelector<HTMLElement>(`[data-preset-note="${input.name}"]`);
+      return [{ select, input, choices, note }];
+    },
+  );
+
+  const showPresetNotes = () => {
+    for (const { select, input, choices, note } of presets) {
+      if (!note) continue;
+      const active = activeChoice(choices, select.value, input.value);
+      note.textContent = active ? (select.selectedOptions[0]?.dataset['note'] ?? '') : '';
+      note.hidden = !active;
+    }
+  };
 
   const view: ResultView = {
     text(name, value) {
@@ -131,6 +162,7 @@ export function initCalculatorForm<F extends string, R>({
     if (calculation.ok) {
       showErrors({});
       render(calculation.result, view);
+      showPresetNotes();
       setState('ready');
       if (moveFocus && heading) {
         heading.focus({ preventScroll: true });
@@ -148,6 +180,18 @@ export function initCalculatorForm<F extends string, R>({
     }
   };
 
+  // Раньше пересчёта: при живом пересчёте уже видно подставленное значение. Фокус не переносится.
+  form.addEventListener('input', (event) => {
+    for (const { select, input, choices } of presets) {
+      if (event.target === select) {
+        const text = fieldTextForChoice(choices, select.value);
+        if (text !== null) input.value = text;
+      } else if (event.target === input) {
+        select.value = choiceAfterEdit(choices, select.value, input.value);
+      }
+    }
+  });
+
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     live = true;
@@ -163,6 +207,7 @@ export function initCalculatorForm<F extends string, R>({
     // Значения полей сбрасываются после события reset.
     requestAnimationFrame(() => {
       showErrors({});
+      showPresetNotes();
       setState('empty');
     });
   });

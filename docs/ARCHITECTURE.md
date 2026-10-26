@@ -25,6 +25,7 @@ src/
   data/
     catalog.types.ts      типы каталога: Category, CalculatorEntry, CalculatorStatus, CalculatorSeo
     categories.ts         4 категории
+    material-presets.ts   ориентиры расхода краски, штукатурки, шпаклёвки (docs/research/MATERIAL_PRESETS.md)
     calculators.ts        калькуляторы (6: обои и ламинат — available, остальные planned)
     catalog.test.ts       проверки целостности каталога
   lib/
@@ -41,6 +42,7 @@ src/
     seo-files.mjs         SITE_URL из окружения; хук сборки пишет robots.txt и (с адресом) sitemap.xml
     format.ts             числа и рубли по-русски (Intl, ru-RU)
     form.ts               общий разбор текстовых полей в числа и объединение ошибок (без DOM)
+    presets.ts            связь «тип материала ↔ значение поля» для ориентиров расхода (без DOM)
     calculators/
       wallpaper.ts        расчёт обоев: проверка ввода + алгоритм (чистая функция)
       wallpaper-form.ts   поля формы обоев: разбор (через form.ts) и вызов расчёта
@@ -52,6 +54,8 @@ src/
                           RelatedCalculators («Другие калькуляторы» на страницах калькуляторов)
     calculator/NumberField.astro       поле ввода числа: label, единица, подсказка, место для ошибки
     calculator/SelectField.astro       выпадающий список с подписью, подсказкой и местом для ошибки
+    calculator/PresetSelect.astro      выбор «Тип материала»: подставляет ориентир расхода в поле
+    calculator/PresetTable.astro       таблица ориентиров расхода в статье калькулятора
     calculator/CalculatorResult.astro  блок результата: заголовок, состояния «до расчёта / ошибки / результат»
   client/
     calculator-form.ts    поведение формы калькулятора в браузере (общее для всех калькуляторов)

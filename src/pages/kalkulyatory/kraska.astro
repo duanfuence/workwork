@@ -3,6 +3,8 @@ import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import RelatedCalculators from '../../components/RelatedCalculators.astro';
 import CalculatorResult from '../../components/calculator/CalculatorResult.astro';
 import NumberField from '../../components/calculator/NumberField.astro';
+import PresetSelect from '../../components/calculator/PresetSelect.astro';
+import PresetTable from '../../components/calculator/PresetTable.astro';
 import SelectField from '../../components/calculator/SelectField.astro';
 import { calculators } from '../../data/calculators';
 import BaseLayout from '../../layouts/BaseLayout.astro';
@@ -92,13 +94,14 @@ const id = 'pt';
               value="2"
               hint="Обычно 2: первый слой выравнивает цвет, второй — окончательный."
             />
+            <PresetSelect calculator="paint" field="coverage" idPrefix={id} label="Тип краски" />
             <NumberField
               name="coverage"
               idPrefix={id}
               label="Укрывистость на один слой"
               unit="м²/л"
-              placeholder="например, 10"
-              hint="Сколько квадратных метров покрывает литр краски за один слой — с этикетки."
+              placeholder="с этикетки"
+              hint="Сколько м² покрывает литр за слой. Точное значение — на этикетке; без неё выберите тип материала: ориентир по данным производителей."
             />
             <NumberField
               name="canVolume"
@@ -146,6 +149,7 @@ const id = 'pt';
           <span class="calc-result__number" data-out="litersWithReserve"></span>
           <span class="calc-result__unit">л краски</span>
         </p>
+        <p class="calc-result__preset" data-preset-note="coverage" hidden></p>
         <p class="calc-result__cost" data-row="cans" hidden>
           Банок по <span data-out="canVolume"></span> л: <strong data-out="cans"></strong>
           {' — это '}
@@ -255,6 +259,8 @@ const id = 'pt';
           (вверх до 0,1 л); банок по 2,7 л — ⌈12,6225 ÷ 2,7⌉ = 5.
         </p>
       </section>
+
+      <PresetTable calculator="paint" valueUnit="м²/л" valueTitle="Укрывистость" />
 
       <section aria-labelledby="limits-title">
         <h2 id="limits-title">Что калькулятор не учитывает</h2>

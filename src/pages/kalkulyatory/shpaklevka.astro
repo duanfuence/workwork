@@ -3,6 +3,8 @@ import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import RelatedCalculators from '../../components/RelatedCalculators.astro';
 import CalculatorResult from '../../components/calculator/CalculatorResult.astro';
 import NumberField from '../../components/calculator/NumberField.astro';
+import PresetSelect from '../../components/calculator/PresetSelect.astro';
+import PresetTable from '../../components/calculator/PresetTable.astro';
 import { calculators } from '../../data/calculators';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { calculatorCrumbs } from '../../lib/breadcrumbs';
@@ -77,13 +79,19 @@ const id = 'pt';
               value="1"
               hint="Целое число, 1–10. Сколько слоёв нужно, зависит от поверхности и смеси."
             />
+            <PresetSelect
+              calculator="putty"
+              field="consumption"
+              idPrefix={id}
+              label="Тип шпаклёвки"
+            />
             <NumberField
               name="consumption"
               idPrefix={id}
               label="Расход на один слой"
               unit="кг/м²"
-              placeholder="из инструкции"
-              hint="Указан на упаковке или в инструкции; у стартовых и финишных смесей он разный."
+              placeholder="с упаковки"
+              hint="Точное значение — на упаковке. Без неё выберите тип материала: ориентир по данным производителей для слоя 1 мм (для 2 мм — вдвое больше)."
             />
             <NumberField
               name="packMass"
@@ -131,6 +139,7 @@ const id = 'pt';
           <span class="calc-result__number" data-out="massWithReserve"></span>
           <span class="calc-result__unit">кг шпаклёвки</span>
         </p>
+        <p class="calc-result__preset" data-preset-note="consumption" hidden></p>
         <p class="calc-result__cost" data-row="packs" hidden>
           Упаковок по <span data-out="packMass"></span> кг: <strong data-out="packs"></strong>
           {' — это '}
@@ -226,6 +235,8 @@ const id = 'pt';
           упаковок по 20 кг — ⌈4,76⌉ = 5, это 100 кг.
         </p>
       </section>
+
+      <PresetTable calculator="putty" valueUnit="кг/м² при слое 1 мм" valueTitle="Расход" />
 
       <section aria-labelledby="limits-title">
         <h2 id="limits-title">Что калькулятор не учитывает</h2>

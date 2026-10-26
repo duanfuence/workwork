@@ -483,6 +483,122 @@ async function crawlSite() {
   );
 }
 
+/**
+ * Ориентиры расхода (выбор «Тип материала»): подстановка в поле, результат по ориентиру, пометка в результате,
+ * переключение на «Своё значение» при ручной правке, сброс. Ожидаемые числа посчитаны вручную по формулам
+ * PAINT.md, PLASTER.md, PUTTY.md.
+ */
+async function checkPresets(page, viewport) {
+  const cases = [
+    {
+      path: paintPath,
+      field: 'coverage',
+      preset: 'paint-interior',
+      fieldText: '7',
+      fill: { roomLength: '4', roomWidth: '3', wallHeight: '2,7' },
+      // 37,8 м² × 2 слоя ÷ 7 м²/л = 10,8 л; с запасом 10 % — 11,88 → 11,9.
+      out: ['litersWithReserve', '11,9'],
+      note: 'водно-дисперсионной интерьерной краски',
+    },
+    {
+      path: plasterPath,
+      field: 'consumption',
+      preset: 'plaster-gypsum',
+      fieldText: '1,3',
+      fill: { wallLength: '5', wallHeight: '2,7' },
+      // 13,5 м² × 10 мм × 1,3 = 175,5 кг; с запасом 10 % — 193,05 → 193,1.
+      out: ['massWithReserve', '193,1'],
+      note: 'гипсовой штукатурки',
+    },
+    {
+      path: puttyPath,
+      field: 'consumption',
+      preset: 'putty-gypsum-finish',
+      fieldText: '1',
+      fill: { wallLength: '5', wallHeight: '2,7' },
+      // 13,5 м² × 1 кг/м² × 1 слой = 13,5 кг; с запасом 10 % — 14,85 → 14,9.
+      out: ['massWithReserve', '14,9'],
+      note: 'гипсовой финишной шпаклёвки',
+    },
+  ];
+  for (const item of cases) {
+    const label = `ориентир ${item.path.split('/')[2]} ${viewport.name}`;
+    await page.goto(baseUrl + item.path, { waitUntil: 'networkidle' });
+    const select = page.locator(`select[name="${item.field}Preset"]`);
+    const input = page.locator(`input[name="${item.field}"]`);
+    const note = page.locator(`[data-preset-note="${item.field}"]`);
+    const state = () => page.locator('[data-calculator-result]').getAttribute('data-state');
+    const out = async (name) => plain(await page.locator(`[data-out="${name}"]`).textContent());
+
+    const wiring = await page.evaluate((field) => {
+      const sel = document.querySelector(`select[name="${field}Preset"]`);
+      const inp = document.querySelector(`input[name="${field}"]`);
+      const hint = document.getElementById(
+        (inp?.getAttribute('aria-describedby') ?? '').split(' ')[0],
+      );
+      return {
+        controls: sel?.getAttribute('aria-controls') === inp?.id,
+        label: Boolean(sel?.labels?.length),
+        hint: (hint?.textContent ?? '').includes('ориентир'),
+        height: Math.round(sel?.getBoundingClientRect().height ?? 0),
+      };
+    }, item.field);
+    check(
+      wiring.controls && wiring.label && wiring.hint && wiring.height >= 44,
+      `${label}: выбор с подписью связан с полем (aria-controls), подсказка поля об ориентире, высота ${wiring.height} px`,
+    );
+    check(
+      (await select.inputValue()) === '' && (await input.inputValue()) === '',
+      `${label}: по умолчанию «Своё значение», поле пустое`,
+    );
+
+    for (const [name, value] of Object.entries(item.fill))
+      await page.fill(`[name="${name}"]`, value);
+    await select.focus();
+    await select.selectOption(item.preset);
+    const focused = await page.evaluate(() => document.activeElement?.getAttribute('name'));
+    check(
+      (await input.inputValue()) === item.fieldText && focused === `${item.field}Preset`,
+      `${label}: выбор подставил ${item.fieldText}, фокус остался на выборе`,
+    );
+    await page.locator('form button[type="submit"]').click();
+    check(
+      (await state()) === 'ready' && (await out(item.out[0])) === item.out[1],
+      `${label}: результат по ориентиру — ${item.out[1]}`,
+    );
+    check(
+      (await note.isVisible()) && plain(await note.textContent()).includes(item.note),
+      `${label}: пометка «ориентир для ${item.note} — сверьте с упаковкой»`,
+    );
+
+    await input.fill('0,9');
+    check(
+      (await select.inputValue()) === '' &&
+        !(await note.isVisible()) &&
+        (await state()) === 'ready',
+      `${label}: ручная правка — «Своё значение», пометки нет`,
+    );
+    await select.selectOption(item.preset);
+    check(
+      (await input.inputValue()) === item.fieldText && (await note.isVisible()),
+      `${label}: повторный выбор снова подставляет ориентир и пересчитывает`,
+    );
+    await checkOverflow(page, label);
+    if (item.path === plasterPath) {
+      await page.locator(`select[name="${item.field}Preset"]`).scrollIntoViewIfNeeded();
+      await page.screenshot({ path: path.join(outDir, `preset-plaster-${viewport.name}.png`) });
+    }
+    await page.locator('form button[type="reset"]').click();
+    await page.waitForTimeout(100);
+    check(
+      (await select.inputValue()) === '' &&
+        (await input.inputValue()) === '' &&
+        (await state()) === 'empty',
+      `${label}: «Сбросить» — исходное состояние`,
+    );
+  }
+}
+
 async function checkLinks(page, label) {
   const hrefs = await page.$$eval('a[href]', (links) => links.map((a) => a.getAttribute('href')));
   const broken = [];
@@ -1502,6 +1618,7 @@ try {
     await checkFormFields(page, viewport);
     await checkCatalogPage(page, viewport);
     await checkRelated(page, viewport);
+    if (fullCheckViewports.has(viewport.name)) await checkPresets(page, viewport);
     check(
       consoleErrors.length === 0,
       `${viewport.name}: нет ошибок в консоли (${consoleErrors.join(' | ') || '0'})`,
