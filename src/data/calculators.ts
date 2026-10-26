@@ -108,7 +108,7 @@ export const calculators: readonly CalculatorEntry[] = [
     category: 'repair',
     description: 'Расход штукатурки и количество мешков по площади и средней толщине слоя.',
     path: '/kalkulyatory/shtukaturka/',
-    status: 'planned',
+    status: 'available',
     popular: true,
     searchTerms: [
       'штукатурка',
