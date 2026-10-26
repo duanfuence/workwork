@@ -72,9 +72,9 @@ export const calculators: readonly CalculatorEntry[] = [
     slug: 'plitka',
     title: 'Калькулятор плитки',
     category: 'repair',
-    description: 'Количество плитки для пола и стен с учётом швов, подрезки и запаса.',
+    description: 'Количество плитки и упаковок для пола и стен по сетке с учётом швов и запаса.',
     path: '/kalkulyatory/plitka/',
-    status: 'planned',
+    status: 'available',
     popular: true,
     searchTerms: ['плитка', 'кафель', 'керамогранит', 'ванная', 'пол', 'стены', 'затирка', 'швы'],
     seo: {

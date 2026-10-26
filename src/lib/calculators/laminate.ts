@@ -451,10 +451,7 @@ export function calculateLaminate(input: LaminateInput): LaminateCalculation {
   setError('roomWidth', checkRequired(input.roomWidth, laminateLimits.roomWidth, 'м'));
   setError('boardLength', checkRequired(input.boardLength, laminateLimits.boardLength, 'мм'));
   setError('boardWidth', checkRequired(input.boardWidth, laminateLimits.boardWidth, 'мм'));
-  setError(
-    'boardsPerPack',
-    checkRequired(input.boardsPerPack, laminateLimits.boardsPerPack, 'шт.'),
-  );
+  setError('boardsPerPack', checkRequired(input.boardsPerPack, laminateLimits.boardsPerPack, 'шт'));
   if (!errors.boardsPerPack && !Number.isInteger(input.boardsPerPack)) {
     setError('boardsPerPack', 'Введите целое число.');
   }

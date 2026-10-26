@@ -27,6 +27,7 @@ const baseUrl = `http://localhost:${port}`;
 const calcPath = '/kalkulyatory/oboi/';
 const laminatePath = '/kalkulyatory/laminat/';
 const paintPath = '/kalkulyatory/kraska/';
+const tilePath = '/kalkulyatory/plitka/';
 const viewports = [
   { name: '320', width: 320, height: 640, isMobile: true },
   { name: '390', width: 390, height: 844, isMobile: true },
@@ -124,19 +125,19 @@ async function checkHome(page, viewport) {
     return;
   }
 
-  // Каталог: обои, ламинат и краска опубликованы, остальные — «Скоро» без ссылок
+  // Каталог: обои, ламинат, краска и плитка опубликованы, остальные — «Скоро» без ссылок
   const cards = page.locator('#catalog-list > li');
   check((await cards.count()) === 6, `${label}: 6 карточек калькуляторов`);
   const cardLinks = await page
     .locator('#catalog-list a')
     .evaluateAll((links) => links.map((a) => a.getAttribute('href')));
   check(
-    cardLinks.join(',') === [calcPath, laminatePath, paintPath].join(','),
-    `${label}: ссылки только у калькуляторов обоев, ламината и краски (${cardLinks.join(', ')})`,
+    cardLinks.join(',') === [calcPath, laminatePath, paintPath, tilePath].join(','),
+    `${label}: ссылки только у готовых калькуляторов (${cardLinks.join(', ')})`,
   );
   check(
-    (await page.locator('#catalog-list .badge--soon').count()) === 3,
-    `${label}: 3 карточки со статусом «Скоро»`,
+    (await page.locator('#catalog-list .badge--soon').count()) === 2,
+    `${label}: 2 карточки со статусом «Скоро»`,
   );
   check(
     plain(await page.locator('#catalog-list > li').first().textContent()).includes(
@@ -547,6 +548,74 @@ async function checkPaint(page, viewport) {
   );
 }
 
+async function checkTile(page, viewport) {
+  const label = `плитка ${viewport.name}`;
+  const response = await page.goto(baseUrl + tilePath, { waitUntil: 'networkidle' });
+  check(response?.status() === 200, `${label}: ответ 200`);
+  const meta = await checkCommon(page, label);
+  check(
+    meta.title === 'Калькулятор плитки — расчёт для пола и стен — ДомРасчёт',
+    `${label}: title «${meta.title}»`,
+  );
+  await checkOverflow(page, label);
+  if (viewport.name !== '390') return;
+
+  const field = (name) => page.locator(`[name="${name}"]`);
+  const error = async (name) =>
+    plain(await page.locator(`[data-error-for="${name}"]`).textContent());
+  const state = () => page.locator('[data-calculator-result]').getAttribute('data-state');
+  const out = async (name) => plain(await page.locator(`[data-out="${name}"]`).textContent());
+  const fill = async (values) => {
+    for (const [name, value] of Object.entries(values)) await field(name).fill(value);
+  };
+  check(
+    (await field('surface').inputValue()) === 'floor' &&
+      (await field('surfaceCount').inputValue()) === '1' &&
+      (await field('joint').inputValue()) === '2' &&
+      (await field('reserve').inputValue()) === '10',
+    `${label}: по умолчанию пол, 1 поверхность, шов 2 мм, запас 10 %`,
+  );
+  await page.locator('form[data-tile-form] button[type="submit"]').click();
+  check(
+    (await state()) === 'invalid' && (await page.locator('[data-error-summary] li').count()) === 4,
+    `${label}: пустая форма — 4 ошибки (размеры поверхности и плитки)`,
+  );
+  // Т3 (TILE.md): 2 стены 2,5 × 2,7 м, 600 × 200, шов 2 — 5 × 14 × 2 = 140, с запасом 154, по 8 — 20 упаковок.
+  await field('surface').selectOption('wall');
+  await fill({ surfaceLength: '2,5', surfaceWidth: '2,7', surfaceCount: '2' });
+  await fill({ tileLength: '600', tileWidth: '200', tilesPerPack: '8' });
+  check(
+    (await state()) === 'ready' &&
+      (await out('tiles')) === '140' &&
+      (await out('tilesWithReserve')) === '154' &&
+      (await out('tilesWord')) === 'плитки' &&
+      (await out('packs')) === '20' &&
+      (await out('tilesToBuy')) === '160' &&
+      (await out('grid')) === '5 × 14 × 2' &&
+      (await out('area')) === '13,5',
+    `${label}: Т3 — 140 плиток, 154 с запасом, 20 упаковок по 8`,
+  );
+  await fill({ joint: '21' });
+  check(
+    (await state()) === 'invalid' && (await error('joint')) === 'Не больше 20 мм.',
+    `${label}: шов 21 мм — ошибка у поля`,
+  );
+  await fill({ joint: '2', tileLength: '0' });
+  check(
+    (await error('tileLength')) === 'Значение должно быть больше нуля.',
+    `${label}: нулевая плитка — ошибка у поля`,
+  );
+  await fill({ tileLength: '600' });
+  await checkOverflow(page, `${label}, с результатом`);
+  await page.screenshot({ path: path.join(outDir, `tile-${viewport.name}.png`), fullPage: true });
+  await page.locator('form[data-tile-form] button[type="reset"]').click();
+  await page.waitForTimeout(100);
+  check(
+    (await state()) === 'empty' && (await field('surface').inputValue()) === 'floor',
+    `${label}: «Сбросить» — результат пуст, значения по умолчанию`,
+  );
+}
+
 async function checkLaminate(page, viewport) {
   const label = `ламинат ${viewport.name}`;
   // С главной — по карточке
@@ -875,13 +944,14 @@ try {
     await checkCalculator(page, viewport);
     await checkLaminate(page, viewport);
     await checkPaint(page, viewport);
+    await checkTile(page, viewport);
     check(
       consoleErrors.length === 0,
       `${viewport.name}: нет ошибок в консоли (${consoleErrors.join(' | ') || '0'})`,
     );
 
     // 404 — после проверки консоли: браузер сам пишет в неё об ответе 404.
-    const notFound = await page.goto(baseUrl + '/kalkulyatory/plitka/');
+    const notFound = await page.goto(baseUrl + '/kalkulyatory/shpaklevka/');
     check(notFound?.status() === 404, `${viewport.name}: неготовый калькулятор отдаёт 404`);
     await context.close();
   }

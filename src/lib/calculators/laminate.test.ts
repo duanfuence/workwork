@@ -537,6 +537,10 @@ describe('проверка ввода', () => {
     expect(errorsOf({ reserve: 60 }).reserve).toBe('Не больше 50 %.');
   });
 
+  it('досок в упаковке больше 200 — «Не больше 200 шт.» (без двойной точки)', () => {
+    expect(errorsOf({ boardsPerPack: 201 }).boardsPerPack).toBe('Не больше 200 шт.');
+  });
+
   it('досок в упаковке — целое число', () => {
     expect(errorsOf({ boardsPerPack: 8.5 }).boardsPerPack).toBe('Введите целое число.');
     expect(errorsOf({ boardsPerPack: 0 }).boardsPerPack).toBe('Значение должно быть больше нуля.');
