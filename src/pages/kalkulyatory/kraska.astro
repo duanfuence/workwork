@@ -145,7 +145,7 @@ const id = 'pt';
         headingId="calc-result-title"
         placeholder="Заполните размеры помещения и укрывистость краски и нажмите «Рассчитать». После первого расчёта результат обновляется сразу при изменении параметров."
       >
-        <p class="calc-result__main" role="status">
+        <p class="calc-result__main">
           <span class="calc-result__number" data-out="litersWithReserve"></span>
           <span class="calc-result__unit">л краски</span>
         </p>
@@ -308,11 +308,13 @@ const id = 'pt';
   import { initCalculatorForm } from '../../client/calculator-form';
   import { evaluatePaintForm, paintFields } from '../../lib/calculators/paint-form';
   import { formatNumber } from '../../lib/format';
+  import { pluralizeRu } from '../../lib/plural';
 
   const form = document.querySelector<HTMLFormElement>('[data-paint-form]');
   const result = document.querySelector<HTMLElement>('[data-calculator-result]');
   const area = (value: number) => formatNumber(value, 2);
   const liters = (value: number) => formatNumber(value, 1);
+  const canWords = ['банка', 'банки', 'банок'] as const;
 
   if (form && result) {
     initCalculatorForm({
@@ -321,6 +323,9 @@ const id = 'pt';
       fields: paintFields,
       evaluate: evaluatePaintForm,
       render(value, view) {
+        const cans =
+          value.cans === null ? '' : ` · ${value.cans} ${pluralizeRu(value.cans, canWords)}`;
+        view.summary(`${liters(value.litersWithReserve)} л краски${cans}`);
         view.text('litersWithReserve', liters(value.litersWithReserve));
         view.text('litersWithReserve2', liters(value.litersWithReserve));
         view.text('liters', liters(value.liters));

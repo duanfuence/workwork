@@ -3,6 +3,12 @@
  * Блок результата калькулятора: заголовок и три состояния — до расчёта, ошибки, результат.
  * Содержимое состояния «результат» (числа, строки, пояснения) передаётся через слот.
  * Переключением состояний управляет src/client/calculator-form.ts.
+ *
+ * Ещё два элемента для того же механизма (D-024):
+ * - `[data-result-announce]` — скрытая область для диктора: итог объявляется по «Рассчитать» и после паузы
+ *   ввода, а не на каждое нажатие клавиши;
+ * - панель итога `[data-result-bar]` — на экране уже 960 px, когда итог вне экрана: короткий итог
+ *   и переход «К результату». Не live-регион: объявляет только область выше.
  */
 interface Props {
   /** id заголовка; на него переходит фокус после расчёта. */
@@ -31,4 +37,11 @@ const { headingId, placeholder } = Astro.props;
   <div data-state-panel="ready" hidden>
     <slot />
   </div>
+
+  <p class="visually-hidden" role="status" data-result-announce></p>
 </section>
+
+<button type="button" class="result-bar" data-result-bar hidden>
+  <span class="result-bar__text" data-result-bar-text></span>{' '}
+  <span class="result-bar__action">К результату</span>
+</button>

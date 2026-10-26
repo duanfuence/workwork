@@ -135,7 +135,7 @@ const id = 'pt';
         headingId="calc-result-title"
         placeholder="Заполните размеры стен и расход шпаклёвки и нажмите «Рассчитать». После первого расчёта результат обновляется сразу при изменении параметров."
       >
-        <p class="calc-result__main" role="status">
+        <p class="calc-result__main">
           <span class="calc-result__number" data-out="massWithReserve"></span>
           <span class="calc-result__unit">кг шпаклёвки</span>
         </p>
@@ -303,6 +303,9 @@ const id = 'pt';
       fields: puttyFields,
       evaluate: evaluatePuttyForm,
       render(value, view) {
+        const packCount =
+          value.packs === null ? '' : ` · ${value.packs} ${pluralizeRu(value.packs, packWords)}`;
+        view.summary(`${formatNumber(value.massWithReserve, 1)} кг шпаклёвки${packCount}`);
         view.text('massWithReserve', formatNumber(value.massWithReserve, 1));
         view.text('massWithReserve2', formatNumber(value.massWithReserve, 1));
         view.text('mass', formatNumber(value.mass, 1));

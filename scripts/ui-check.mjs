@@ -607,6 +607,198 @@ async function checkPresets(page, viewport) {
   }
 }
 
+/**
+ * Панель итога на телефоне (UX-1, D-024) — общий механизм форм, проверяется на краске; на 390 px ещё
+ * снимок ламината с панелью. На 1440 px панели нет.
+ */
+async function checkResultBar(page, viewport) {
+  const label = `панель итога ${viewport.name}`;
+  await page.goto(baseUrl + paintPath, { waitUntil: 'networkidle' });
+  const bar = page.locator('[data-result-bar]');
+  const barText = async () => plain(await page.locator('[data-result-bar-text]').textContent());
+  const announced = async () => plain(await page.locator('[data-result-announce]').textContent());
+  const field = (name) => page.locator(`form [name="${name}"]`);
+  const toTop = async () => {
+    await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+    // Кадр на пересчёт и 200 мс анимации появления.
+    await page.waitForTimeout(350);
+  };
+
+  await field('roomLength').fill('4');
+  await field('roomWidth').fill('3');
+  await field('wallHeight').fill('2,7');
+  await field('coverage').fill('8');
+  await field('canVolume').fill('2,7');
+  await toTop();
+  check(!(await bar.isVisible()), `${label}: до расчёта панели нет`);
+
+  await page.locator('form button[type="submit"]').click();
+  await page.waitForTimeout(150);
+  check(
+    !(await bar.isVisible()) &&
+      (await page.evaluate(() => document.activeElement?.hasAttribute('data-result-heading'))),
+    `${label}: сразу после «Рассчитать» результат на экране — панели нет`,
+  );
+  // Не live-регион: объявляет только скрытая область результата.
+  const roles = await page.evaluate(() => ({
+    bar: document.querySelector('[data-result-bar]')?.closest('[role="status"], [aria-live]'),
+    main: document.querySelector('.calc-result__main')?.getAttribute('role'),
+  }));
+  check(
+    !roles.bar && roles.main === null,
+    `${label}: панель и число — не live-регионы (объявляет [data-result-announce])`,
+  );
+  // 37,8 м² × 2 слоя ÷ 8 = 9,45 л; с запасом 10 % — 10,395 → 10,4 л; банок по 2,7 л — ⌈3,85⌉ = 4.
+  check(
+    (await announced()) === 'Результат: 10,4 л краски · 4 банки',
+    `${label}: по «Рассчитать» объявлен итог («${await announced()}»)`,
+  );
+
+  await toTop();
+  if (viewport.name === '1440') {
+    check(
+      !(await bar.isVisible()) &&
+        !(await page.evaluate(() =>
+          document.documentElement.hasAttribute('data-result-bar-shown'),
+        )),
+      `${label}: на широком экране панели нет`,
+    );
+    return;
+  }
+  check(
+    (await bar.isVisible()) && (await barText()) === '10,4 л краски · 4 банки',
+    `${label}: после расчёта и прокрутки вверх — панель «${await barText()}»`,
+  );
+  const size = await bar.evaluate((element) => ({
+    bar: element.getBoundingClientRect().height,
+    action: element.querySelector('.result-bar__action')?.getBoundingClientRect().height ?? 0,
+    bottom: Math.round(element.getBoundingClientRect().bottom),
+    text: element.textContent?.replace(/\s+/g, ' ').trim(),
+  }));
+  check(
+    size.bar >= 44 && size.action >= 44 && size.bottom === viewport.height,
+    `${label}: панель у нижнего края, высота ${size.bar} px, «К результату» ${size.action} px`,
+  );
+  check(
+    size.text === '10,4 л краски · 4 банки К результату',
+    `${label}: подпись кнопки «${size.text}»`,
+  );
+  await page.screenshot({ path: path.join(outDir, `result-bar-paint-${viewport.name}.png`) });
+  await checkOverflow(page, `${label}, панель видна`);
+
+  // Правка параметра: итог в панели меняется сразу, диктор — после паузы ввода.
+  await field('coverage').fill('7');
+  await page.waitForTimeout(150);
+  // 37,8 × 2 ÷ 7 = 10,8 л; с запасом — 11,88 → 11,9 л; банок ⌈4,4⌉ = 5.
+  check(
+    (await bar.isVisible()) && (await barText()) === '11,9 л краски · 5 банок',
+    `${label}: правка укрывистости — в панели «${await barText()}»`,
+  );
+  check(
+    (await announced()) === 'Результат: 10,4 л краски · 4 банки',
+    `${label}: во время ввода диктор не объявляет новый итог`,
+  );
+  await page.waitForTimeout(1100);
+  check(
+    (await announced()) === 'Результат: 11,9 л краски · 5 банок',
+    `${label}: после паузы ввода ~1 с объявлен новый итог`,
+  );
+
+  await field('coverage').fill('');
+  await page.waitForTimeout(150);
+  check(
+    (await bar.isVisible()) &&
+      (await barText()) === 'Исправьте значения в полях' &&
+      (await bar.getAttribute('data-tone')) === 'invalid',
+    `${label}: ошибка в поле — «${await barText()}»`,
+  );
+  await field('coverage').fill('7');
+  await page.waitForTimeout(150);
+
+  // Экранная клавиатура (эмуляция старого Android: окно уменьшается) — панель прячется.
+  await field('coverage').focus();
+  await page.setViewportSize({ width: viewport.width, height: Math.round(viewport.height * 0.5) });
+  await page.waitForTimeout(200);
+  const hiddenWithKeyboard = !(await bar.isVisible());
+  await page.setViewportSize({ width: viewport.width, height: viewport.height });
+  await page.waitForTimeout(200);
+  check(
+    hiddenWithKeyboard && (await bar.isVisible()),
+    `${label}: окно ниже 75 % при фокусе в поле (клавиатура) — панели нет, после — снова есть`,
+  );
+
+  // Фокус с клавиатуры по всем полям и кнопкам формы: ничто не уходит под панель.
+  await toTop();
+  await field('roomLength').focus();
+  const covered = [];
+  const visited = [];
+  for (let step = 0; step < 30; step += 1) {
+    await page.waitForTimeout(60);
+    const hit = await page.evaluate(() => {
+      const active = document.activeElement;
+      const panel = document.querySelector('[data-result-bar]');
+      if (!(active instanceof HTMLElement) || !active.closest('form')) return { done: true };
+      const name = active.getAttribute('name') ?? active.textContent?.trim() ?? '';
+      if (!panel || panel.hidden) return { done: false, name, covered: false };
+      const top = panel.getBoundingClientRect().top;
+      return { done: false, name, covered: active.getBoundingClientRect().bottom > top };
+    });
+    if (hit.done) break;
+    visited.push(hit.name);
+    if (hit.covered) covered.push(hit.name);
+    await page.keyboard.press('Tab');
+  }
+  check(
+    covered.length === 0 && visited.length >= 12 && visited.at(-1) === 'Сбросить',
+    `${label}: Tab по ${visited.length} элементам формы до «Сбросить» — ни один не под панелью ${covered.join(', ')}`,
+  );
+
+  // Нажатие: плавная прокрутка к результату и фокус на заголовке.
+  await toTop();
+  await bar.click();
+  await page.waitForTimeout(900);
+  const landed = await page.evaluate(() => {
+    const heading = document.querySelector('[data-result-heading]');
+    const rect = heading?.getBoundingClientRect();
+    return {
+      focused: document.activeElement === heading,
+      inView: rect ? rect.top >= 0 && rect.bottom <= window.innerHeight : false,
+    };
+  });
+  check(
+    landed.focused && landed.inView && !(await bar.isVisible()),
+    `${label}: «К результату» — заголовок результата на экране и в фокусе, панель скрыта`,
+  );
+
+  await page.locator('form button[type="reset"]').click();
+  await page.waitForTimeout(150);
+  await toTop();
+  check(
+    !(await bar.isVisible()) &&
+      !(await page.evaluate(() =>
+        document.documentElement.hasAttribute('data-result-bar-shown'),
+      )) &&
+      (await announced()) === '',
+    `${label}: «Сбросить» скрывает панель и очищает объявление`,
+  );
+
+  if (viewport.name !== '390') return;
+  // Снимок ламината с панелью (К13 → 8 упаковок).
+  await page.goto(baseUrl + laminatePath, { waitUntil: 'networkidle' });
+  const values = { roomLength: '4', roomWidth: '3,5', boardLength: '1380', boardWidth: '193' };
+  for (const [name, value] of Object.entries({ ...values, boardsPerPack: '8' }))
+    await field(name).fill(value);
+  await page.locator('form button[type="submit"]').click();
+  await page.waitForTimeout(150);
+  await toTop();
+  check(
+    (await bar.isVisible()) && (await barText()) === '8 упаковок',
+    `ламинат ${viewport.name}: панель итога «${await barText()}»`,
+  );
+  await checkOverflow(page, `ламинат ${viewport.name}, панель видна`);
+  await page.screenshot({ path: path.join(outDir, `result-bar-laminate-${viewport.name}.png`) });
+}
+
 async function checkLinks(page, label) {
   const hrefs = await page.$$eval('a[href]', (links) => links.map((a) => a.getAttribute('href')));
   const broken = [];
@@ -1627,6 +1819,7 @@ try {
     await checkCatalogPage(page, viewport);
     await checkRelated(page, viewport);
     if (fullCheckViewports.has(viewport.name)) await checkPresets(page, viewport);
+    if (viewport.name !== '768') await checkResultBar(page, viewport);
     check(
       consoleErrors.length === 0,
       `${viewport.name}: нет ошибок в консоли (${consoleErrors.join(' | ') || '0'})`,

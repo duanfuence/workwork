@@ -323,3 +323,118 @@
 .calc-result__preset[hidden] {
   display: none;
 }
+
+/*
+ * Панель итога (UX-1, D-024): закреплена внизу экрана уже 960 px, пока главный итог вне экрана.
+ * Вся панель — кнопка «К результату». Пока она видна, у страницы отступ снизу и scroll-padding-bottom,
+ * чтобы конец страницы, поле в фокусе и кнопки формы не оказались под ней.
+ */
+/* Высота панели; `--result-bar-space` — фактическая, с зоной жестов (ставит calculator-form.ts). */
+:root {
+  --result-bar-height: 4rem;
+}
+
+@media (max-width: 59.99rem) {
+  :root[data-result-bar-shown] {
+    scroll-padding-bottom: calc(
+      var(--result-bar-space, calc(var(--result-bar-height) + env(safe-area-inset-bottom, 0px))) +
+        var(--space-4)
+    );
+  }
+
+  :root[data-result-bar-shown] body {
+    padding-bottom: var(
+      --result-bar-space,
+      calc(var(--result-bar-height) + env(safe-area-inset-bottom, 0px))
+    );
+  }
+}
+
+.result-bar {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 5; /* под шапкой и её меню (10) */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: var(--result-bar-height);
+  margin: 0;
+  padding: var(--space-2) var(--container-gutter)
+    calc(var(--space-2) + env(safe-area-inset-bottom, 0px));
+  background: var(--color-surface);
+  border: 0;
+  border-top: 4px solid var(--color-accent);
+  box-shadow: var(--shadow-up);
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  animation: result-bar-in var(--transition-base);
+}
+
+.result-bar[hidden] {
+  display: none;
+}
+
+/* Кольцо фокуса внутри: снаружи у края экрана его не видно. */
+.result-bar:focus-visible {
+  border-radius: 0;
+  box-shadow:
+    var(--shadow-up),
+    inset 0 0 0 3px var(--color-focus-ring);
+}
+
+.result-bar__text {
+  min-width: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-snug);
+  font-variant-numeric: tabular-nums;
+}
+
+.result-bar__part {
+  white-space: nowrap;
+}
+
+.result-bar[data-tone='invalid'] {
+  border-top-color: var(--color-danger);
+}
+
+.result-bar[data-tone='invalid'] .result-bar__text {
+  color: var(--color-danger);
+  font-size: var(--font-size-md);
+}
+
+.result-bar__action {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-target-min);
+  padding-inline: var(--space-3);
+  background: var(--color-accent-soft);
+  border-radius: var(--radius-pill);
+  color: var(--color-accent);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+}
+
+.result-bar:hover .result-bar__action {
+  background: var(--color-accent-soft-hover);
+}
+
+@keyframes result-bar-in {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+}
+
+@media (min-width: 60rem) {
+  .result-bar {
+    display: none;
+  }
+}

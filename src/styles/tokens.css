@@ -98,6 +98,8 @@
   --border-control: var(--border-width) solid var(--color-border-control);
   --shadow-sm: 0 1px 2px rgb(28 31 29 / 0.06);
   --shadow-md: 0 4px 16px rgb(28 31 29 / 0.08);
+  /* Тень панели у нижнего края экрана — вверх */
+  --shadow-up: 0 -4px 16px rgb(28 31 29 / 0.12);
 
   /* Состояния интерактивных элементов */
   --focus-ring: 0 0 0 3px var(--color-surface), 0 0 0 5px var(--color-focus-ring);

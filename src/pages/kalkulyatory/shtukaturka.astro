@@ -134,7 +134,7 @@ const id = 'pl';
         headingId="calc-result-title"
         placeholder="Заполните размеры стен и расход смеси и нажмите «Рассчитать». После первого расчёта результат обновляется сразу при изменении параметров."
       >
-        <p class="calc-result__main" role="status">
+        <p class="calc-result__main">
           <span class="calc-result__number" data-out="massWithReserve"></span>
           <span class="calc-result__unit">кг смеси</span>
         </p>
@@ -302,6 +302,9 @@ const id = 'pl';
       fields: plasterFields,
       evaluate: evaluatePlasterForm,
       render(value, view) {
+        const bagCount =
+          value.bags === null ? '' : ` · ${value.bags} ${pluralizeRu(value.bags, bagWords)}`;
+        view.summary(`${formatNumber(value.massWithReserve, 1)} кг смеси${bagCount}`);
         view.text('massWithReserve', formatNumber(value.massWithReserve, 1));
         view.text('massWithReserve2', formatNumber(value.massWithReserve, 1));
         view.text('mass', formatNumber(value.mass, 1));

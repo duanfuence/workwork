@@ -11,7 +11,10 @@
  *   и строки `[data-row]`;
  * - необязательно: выбор ориентира `select[data-preset-for="<id поля>"]` (компонент PresetSelect) —
  *   подставляет значение варианта (`data-field-value`) в поле; строка-пометка `[data-preset-note="<name поля>"]`
- *   в результате видна, пока расчёт идёт по ориентиру (текст — `data-note` варианта).
+ *   в результате видна, пока расчёт идёт по ориентиру (текст — `data-note` варианта);
+ * - главный итог `.calc-result__main` и короткий итог `view.summary(…)` из `render` — для панели итога
+ *   `[data-result-bar]` (на экране уже 960 px, когда итог не виден) и для объявления диктору
+ *   `[data-result-announce]` (по «Рассчитать» и после паузы ввода, D-024). Оба элемента даёт CalculatorResult.
  */
 import type { Calculation, FieldErrors } from '../lib/form';
 import {
@@ -20,8 +23,17 @@ import {
   fieldTextForChoice,
   type PresetChoice,
 } from '../lib/presets';
+import {
+  announceDelayMs,
+  keyboardLikelyOpen,
+  resultAnnouncement,
+  resultBarView,
+  resultInView,
+  resultViewInset,
+  type ResultState,
+} from '../lib/result-bar';
 
-type State = 'empty' | 'invalid' | 'ready';
+type State = ResultState;
 
 /** Вывод значений в блок результата. */
 export interface ResultView {
@@ -31,6 +43,8 @@ export interface ResultView {
   show(row: string, visible: boolean): void;
   /** Заменить пункты списка `[data-out-list="name"]`. */
   list(name: string, items: readonly string[]): void;
+  /** Короткий итог одной строкой — для панели итога и диктора: «11,9 л краски · 3 банки». */
+  summary(text: string): void;
 }
 
 type Control = HTMLInputElement | HTMLSelectElement;
@@ -60,6 +74,10 @@ export function initCalculatorForm<F extends string, R>({
   }
   // До первой отправки ошибки не показываются; после — пересчёт при каждом вводе.
   let live = false;
+  let state: State = 'empty';
+  // Был успешный расчёт после последнего сброса: до него панели итога нет.
+  let calculated = false;
+  let summaryText = '';
 
   // Выбор ориентира: подставляет значение в поле; правка поля переключает выбор на «Своё значение».
   const presets = [...form.querySelectorAll<HTMLSelectElement>('select[data-preset-for]')].flatMap(
@@ -103,7 +121,134 @@ export function initCalculatorForm<F extends string, R>({
         }),
       );
     },
+    summary(text) {
+      summaryText = text;
+    },
   };
+
+  // Объявление диктору: отдельная скрытая область вместо role="status" на числе — иначе диктор
+  // зачитывал бы итог на каждое нажатие клавиши при живом пересчёте.
+  const announcer = result.querySelector<HTMLElement>('[data-result-announce]');
+  let announced = '';
+  let announceTimer = 0;
+  const announce = (text: string) => {
+    window.clearTimeout(announceTimer);
+    if (!announcer) return;
+    announced = text;
+    // Очистка и запись через паузу: тот же текст после повторного «Рассчитать» объявляется снова.
+    announcer.textContent = '';
+    if (text !== '') announceTimer = window.setTimeout(() => (announcer.textContent = text), 50);
+  };
+  const announceAfterPause = () => {
+    window.clearTimeout(announceTimer);
+    announceTimer = window.setTimeout(() => {
+      const text = resultAnnouncement(state, summaryText);
+      if (text !== announced) announce(text);
+    }, announceDelayMs);
+  };
+
+  // Панель итога внизу экрана на телефоне: видна, когда главный итог (или сообщение об ошибках) вне экрана.
+  const bar = result.parentElement?.querySelector<HTMLButtonElement>(':scope > [data-result-bar]');
+  const barText = bar?.querySelector<HTMLElement>('[data-result-bar-text]');
+  const mainResult = result.querySelector<HTMLElement>('.calc-result__main');
+  const invalidMessage = result.querySelector<HTMLElement>('.calc-result__invalid');
+  const wide = window.matchMedia('(min-width: 60rem)');
+  // Наибольшая высота окна при текущей ширине: старые Android при клавиатуре уменьшают само окно.
+  let fullWidth = window.innerWidth;
+  let fullHeight = window.innerHeight;
+
+  const keyboardOpen = () => {
+    if (window.innerWidth !== fullWidth) {
+      fullWidth = window.innerWidth;
+      fullHeight = window.innerHeight;
+    } else {
+      fullHeight = Math.max(fullHeight, window.innerHeight);
+    }
+    const viewport = window.visualViewport;
+    const visibleHeight = viewport ? viewport.height * viewport.scale : window.innerHeight;
+    const active = document.activeElement;
+    const textField =
+      active instanceof HTMLTextAreaElement ||
+      (active instanceof HTMLInputElement &&
+        ['text', 'number', 'search', 'tel', 'email', 'url', 'password'].includes(active.type));
+    return keyboardLikelyOpen(textField, visibleHeight, fullHeight);
+  };
+
+  // Фокус перешёл (Tab, «Далее»): если элемент формы оказался под панелью — прокрутить его выше панели.
+  // Браузер при фокусе прокручивает только к краю окна и панель не учитывает.
+  let focusMoved = false;
+  const revealFocused = (barVisible: boolean) => {
+    focusMoved = false;
+    const active = document.activeElement;
+    if (!barVisible || !bar || !(active instanceof HTMLElement) || !form.contains(active)) return;
+    const overlap = active.getBoundingClientRect().bottom - bar.getBoundingClientRect().top;
+    if (overlap > 0) window.scrollBy({ top: overlap + 16, behavior: 'instant' });
+  };
+
+  const refreshBar = () => {
+    if (!bar || !barText) return;
+    const target = state === 'invalid' ? invalidMessage : mainResult;
+    const rect = target?.getBoundingClientRect();
+    const barView = resultBarView({
+      calculated,
+      state,
+      narrow: !wide.matches,
+      resultInView: rect ? resultInView(rect.top, rect.bottom, window.innerHeight) : true,
+      keyboardOpen: keyboardOpen(),
+      summary: summaryText,
+    });
+    if (barView.visible) {
+      // Части итога «11,9 л краски · 5 банок» не разрываются: на 320 px перенос только между ними.
+      const parts = barView.text.split(' · ');
+      barText.replaceChildren(
+        ...parts.flatMap((part, index) => {
+          const span = document.createElement('span');
+          span.className = 'result-bar__part';
+          span.textContent = index < parts.length - 1 ? `${part} ·` : part;
+          return index === 0 ? [span] : [' ', span];
+        }),
+      );
+      bar.dataset['tone'] = barView.tone;
+    }
+    bar.hidden = !barView.visible;
+    // Отступ страницы снизу и scroll-padding-bottom, пока панель на экране (calculator.css); высота —
+    // фактическая: на 320 px итог может занять две строки.
+    const root = document.documentElement;
+    root.toggleAttribute('data-result-bar-shown', barView.visible);
+    if (barView.visible) root.style.setProperty('--result-bar-space', `${bar.offsetHeight}px`);
+    if (focusMoved) revealFocused(barView.visible);
+  };
+
+  let barFrame = 0;
+  const scheduleBar = () => {
+    window.cancelAnimationFrame(barFrame);
+    barFrame = window.requestAnimationFrame(refreshBar);
+  };
+
+  if (bar && barText) {
+    // Наблюдатель только будит пересчёт; видимость считает resultInView по тем же полям области.
+    const observer = new IntersectionObserver(scheduleBar, {
+      rootMargin: `-${resultViewInset.top}px 0px -${resultViewInset.bottom}px 0px`,
+      threshold: [0, 0.5, 1],
+    });
+    for (const target of [mainResult, invalidMessage]) if (target) observer.observe(target);
+    wide.addEventListener('change', scheduleBar);
+    window.addEventListener('resize', scheduleBar);
+    window.visualViewport?.addEventListener('resize', scheduleBar);
+    document.addEventListener('focusin', () => {
+      focusMoved = true;
+      scheduleBar();
+    });
+    document.addEventListener('focusout', scheduleBar);
+
+    // Вся панель — кнопка «К результату»: прокрутка к результату и фокус на его заголовке.
+    bar.addEventListener('click', () => {
+      if (!heading) return;
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      heading.focus({ preventScroll: true });
+      heading.scrollIntoView({ block: 'start', behavior: reduce ? 'auto' : 'smooth' });
+    });
+  }
 
   // Явная прокрутка: при обычном focus() поле может оказаться под липкой шапкой.
   const focusField = (input: Control) => {
@@ -111,11 +256,13 @@ export function initCalculatorForm<F extends string, R>({
     (input.closest('.field') ?? input).scrollIntoView({ block: 'center' });
   };
 
-  const setState = (state: State) => {
-    result.dataset['state'] = state;
+  const setState = (next: State) => {
+    state = next;
+    result.dataset['state'] = next;
     for (const panel of result.querySelectorAll<HTMLElement>('[data-state-panel]')) {
-      panel.hidden = panel.dataset['statePanel'] !== state;
+      panel.hidden = panel.dataset['statePanel'] !== next;
     }
+    scheduleBar();
   };
 
   const readValues = (): Record<F, string> => {
@@ -161,8 +308,13 @@ export function initCalculatorForm<F extends string, R>({
     const calculation = evaluate(readValues());
     if (calculation.ok) {
       showErrors({});
+      summaryText = '';
       render(calculation.result, view);
+      // Страница без view.summary — в панели текст главного итога.
+      if (summaryText === '')
+        summaryText = (mainResult?.textContent ?? '').replace(/\s+/g, ' ').trim();
       showPresetNotes();
+      calculated = true;
       setState('ready');
       if (moveFocus && heading) {
         heading.focus({ preventScroll: true });
@@ -196,14 +348,19 @@ export function initCalculatorForm<F extends string, R>({
     event.preventDefault();
     live = true;
     update(true);
+    announce(resultAnnouncement(state, summaryText));
   });
 
   form.addEventListener('input', () => {
-    if (live) update(false);
+    if (!live) return;
+    update(false);
+    announceAfterPause();
   });
 
   form.addEventListener('reset', () => {
     live = false;
+    calculated = false;
+    announce('');
     // Значения полей сбрасываются после события reset.
     requestAnimationFrame(() => {
       showErrors({});

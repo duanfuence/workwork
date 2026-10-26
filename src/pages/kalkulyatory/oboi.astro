@@ -167,7 +167,7 @@ const id = 'wp';
         headingId="calc-result-title"
         placeholder="Заполните размеры комнаты и рулона и нажмите «Рассчитать». После первого расчёта результат обновляется сразу при изменении параметров."
       >
-        <p class="calc-result__main" role="status">
+        <p class="calc-result__main">
           <span class="calc-result__number" data-out="rolls"></span>
           <span class="calc-result__unit" data-out="rollsWord"></span>
         </p>
@@ -419,6 +419,8 @@ const id = 'wp';
       fields: wallpaperFields,
       evaluate: evaluateWallpaperForm,
       render(value, view) {
+        const cost = value.totalCost === null ? '' : ` · ${formatRubles(value.totalCost)}`;
+        view.summary(`${value.rolls} ${pluralizeRu(value.rolls, rollWordForms)}${cost}`);
         view.text('rolls', String(value.rolls));
         view.text('rollsWord', pluralizeRu(value.rolls, rollWordForms));
         view.text('perimeter', formatNumber(value.perimeter, 3));

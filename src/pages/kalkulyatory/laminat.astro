@@ -214,7 +214,7 @@ const id = 'lm';
         headingId="calc-result-title"
         placeholder="Заполните размеры комнаты и доски и нажмите «Рассчитать». После первого расчёта результат обновляется сразу при изменении параметров."
       >
-        <p class="calc-result__main" role="status">
+        <p class="calc-result__main">
           <span class="calc-result__number" data-out="packs"></span>
           <span class="calc-result__unit" data-out="packsWord"></span>
         </p>
@@ -493,6 +493,8 @@ const id = 'lm';
         const l = value.boardLength;
         const w = value.boardWidth;
 
+        const cost = value.totalCost === null ? '' : ` · ${formatRubles(value.totalCost)}`;
+        view.summary(`${packsText(value.packs)}${cost}`);
         view.text('packs', String(value.packs));
         view.text('packsWord', pluralizeRu(value.packs, packWordForms));
         view.show('totalCost', value.totalCost !== null);
