@@ -2,22 +2,18 @@
 import CalculatorCard from '../components/CalculatorCard.astro';
 import CatalogSearch from '../components/CatalogSearch.astro';
 import CategoryCard from '../components/CategoryCard.astro';
+import { catalogPath } from '../config/navigation';
 import { site } from '../config/site';
 import { calculators } from '../data/calculators';
 import { categories } from '../data/categories';
-import {
-  getCalculatorsByCategory,
-  getPopularCalculators,
-  isAvailable,
-  sortCategories,
-} from '../lib/catalog';
+import { getCatalogSections, getPopularCalculators, isAvailable } from '../lib/catalog';
 import BaseLayout from '../layouts/BaseLayout.astro';
 
-const sortedCategories = sortCategories(categories);
 const categoryTitles = new Map(categories.map((category) => [category.id, category.title]));
-const popular = getPopularCalculators(calculators);
-const hasAvailable = calculators.some((entry) => isAvailable(entry));
-const allAvailable = calculators.every((entry) => isAvailable(entry));
+// Только опубликованные: на сайте не обещаем будущие калькуляторы.
+const popular = getPopularCalculators(calculators).filter((entry) => isAvailable(entry));
+// Раздел «Категории» — только когда категорий с калькуляторами больше одной (D-022).
+const sections = getCatalogSections(calculators, categories);
 ---
 
 <BaseLayout>
@@ -41,13 +37,7 @@ const allAvailable = calculators.every((entry) => isAvailable(entry));
         <h2 class="section-title" id="catalog-title">
           Популярные инструменты
         </h2>
-        <p class="section-lead">
-          {allAvailable
-            ? 'Калькуляторы, которые чаще всего нужны при ремонте.'
-            : hasAvailable
-              ? 'Первая очередь калькуляторов для ремонта. Готовые открываются по клику, отмеченные «Скоро» — в разработке.'
-              : 'Первая очередь калькуляторов для ремонта. Они сейчас в разработке — карточки станут ссылками, когда страницы будут готовы.'}
-        </p>
+        <p class="section-lead">Калькуляторы, которые чаще всего нужны при ремонте.</p>
       </div>
       <p class="catalog-status" id="catalog-search-status" role="status" aria-live="polite"></p>
       <ul class="card-grid" id="catalog-list">
@@ -56,37 +46,38 @@ const allAvailable = calculators.every((entry) => isAvailable(entry));
         ))}
       </ul>
       <p class="catalog-empty" data-catalog-empty hidden>
-        По этому запросу калькуляторов пока нет. Попробуйте другое слово, например «стены» или
-        «пол».
+        По этому запросу калькуляторов нет. Попробуйте другое слово, например «стены» или «пол».
+      </p>
+      <p class="catalog-more">
+        <a class="catalog-more__link" href={catalogPath}>
+          Все калькуляторы →
+        </a>
       </p>
     </div>
   </section>
 
-  <section class="section section--muted" id="categories" aria-labelledby="categories-title">
-    <div class="container">
-      <div class="section-header">
-        <h2 class="section-title" id="categories-title">
-          Категории
-        </h2>
-        <p class="section-lead">Каталог будет расти по четырём направлениям.</p>
-      </div>
-      <ul class="card-grid card-grid--categories">
-        {sortedCategories.map((category) => {
-          const inCategory = getCalculatorsByCategory(calculators, category.id);
-          const availableCount = inCategory.filter((entry) => isAvailable(entry)).length;
-          return (
+  {sections.length > 1 && (
+    <section class="section section--muted" id="categories" aria-labelledby="categories-title">
+      <div class="container">
+        <div class="section-header">
+          <h2 class="section-title" id="categories-title">
+            Категории
+          </h2>
+        </div>
+        <ul class="card-grid card-grid--categories">
+          {sections.map((section) => (
             <CategoryCard
-              category={category}
-              availableCount={availableCount}
-              plannedCount={inCategory.length - availableCount}
+              category={section.category}
+              count={section.entries.length}
+              href={`${catalogPath}#${section.category.id}`}
             />
-          );
-        })}
-      </ul>
-    </div>
-  </section>
+          ))}
+        </ul>
+      </div>
+    </section>
+  )}
 
-  <section class="section" id="about" aria-labelledby="about-title">
+  <section class="section section--muted" id="about" aria-labelledby="about-title">
     <div class="container about">
       <div class="section-header">
         <h2 class="section-title" id="about-title">
@@ -161,31 +152,16 @@ const allAvailable = calculators.every((entry) => isAvailable(entry));
     background: var(--color-surface-muted);
   }
 
-  .card-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
-    gap: var(--space-4);
-    margin: 0;
-    padding: 0;
-    list-style: none;
+  .catalog-more {
+    margin-top: var(--space-6);
   }
 
-  .catalog-status:empty {
-    display: none;
-  }
-
-  .catalog-status {
-    margin-bottom: var(--space-4);
-    color: var(--color-text-muted);
-    font-size: var(--font-size-sm);
-  }
-
-  .catalog-empty {
-    padding: var(--space-6);
-    background: var(--color-surface);
-    border: var(--border-width) dashed var(--color-border-strong);
-    border-radius: var(--radius-lg);
-    color: var(--color-text-secondary);
+  .catalog-more__link {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--tap-target-min);
+    color: var(--color-accent);
+    font-weight: var(--font-weight-semibold);
   }
 
   .principles {

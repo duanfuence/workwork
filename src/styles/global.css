@@ -136,6 +136,34 @@ input {
 }
 
 /* Кнопки */
+/* Каталог карточек калькуляторов: главная и /kalkulyatory/. */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.catalog-status:empty {
+  display: none;
+}
+
+.catalog-status {
+  margin-bottom: var(--space-4);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.catalog-empty {
+  padding: var(--space-6);
+  background: var(--color-surface);
+  border: var(--border-width) dashed var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  color: var(--color-text-secondary);
+}
+
 .button {
   display: inline-flex;
   align-items: center;

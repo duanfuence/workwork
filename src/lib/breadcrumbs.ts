@@ -2,6 +2,7 @@
  * Навигационная цепочка — один источник и для видимых крошек (Breadcrumbs.astro), и для JSON-LD
  * BreadcrumbList: разметка строится из тех же элементов, поэтому разойтись с видимой цепочкой не может.
  */
+import { catalogPath } from '../config/navigation';
 import { canonicalUrl } from './seo';
 
 export interface Crumb {
@@ -10,11 +11,16 @@ export interface Crumb {
   href?: string;
 }
 
-/** Цепочка страницы калькулятора: Главная → Калькуляторы → название калькулятора. */
+/** Цепочка страницы каталога /kalkulyatory/: Главная → Калькуляторы. */
+export function catalogCrumbs(): Crumb[] {
+  return [{ label: 'Главная', href: '/' }, { label: 'Калькуляторы' }];
+}
+
+/** Цепочка страницы калькулятора: Главная → Калькуляторы (каталог) → название калькулятора. */
 export function calculatorCrumbs(entry: { title: string }): Crumb[] {
   return [
     { label: 'Главная', href: '/' },
-    { label: 'Калькуляторы', href: '/#catalog' },
+    { label: 'Калькуляторы', href: catalogPath },
     { label: entry.title },
   ];
 }

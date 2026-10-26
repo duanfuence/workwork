@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { CalculatorEntry, Category } from '../data/catalog.types';
 import {
+  getAvailableCalculators,
   getCalculatorHref,
   getCalculatorsByCategory,
+  getCatalogSections,
   getPopularCalculators,
+  getRelatedCalculators,
+  relatedLimit,
   sortCategories,
   statusLabels,
 } from './catalog';
@@ -12,6 +16,7 @@ function entry(overrides: Partial<CalculatorEntry> & Pick<CalculatorEntry, 'id'>
   return {
     slug: overrides.id,
     title: `Калькулятор ${overrides.id}`,
+    shortTitle: overrides.id,
     category: 'repair',
     description: 'Описание',
     path: `/kalkulyatory/${overrides.id}/`,
@@ -66,5 +71,86 @@ describe('sortCategories', () => {
     ];
     expect(sortCategories(list).map((c) => c.id)).toEqual(['repair', 'cost']);
     expect(list[0]?.id).toBe('cost');
+  });
+});
+
+const ids = (list: readonly CalculatorEntry[]) => list.map((item) => item.id);
+
+describe('getAvailableCalculators', () => {
+  it('только опубликованные, в порядке каталога', () => {
+    const list = [
+      entry({ id: 'a', status: 'available' }),
+      entry({ id: 'b' }),
+      entry({ id: 'c', status: 'in-progress' }),
+      entry({ id: 'd', status: 'available' }),
+    ];
+    expect(ids(getAvailableCalculators(list))).toEqual(['a', 'd']);
+  });
+});
+
+describe('getCatalogSections', () => {
+  const categories: Category[] = [
+    { id: 'construction', title: 'Строительство', description: '', order: 2 },
+    { id: 'repair', title: 'Ремонт', description: '', order: 1 },
+    { id: 'cost', title: 'Стоимость', description: '', order: 3 },
+  ];
+
+  it('категории по порядку, без пустых и без категорий только с неготовыми калькуляторами', () => {
+    const list = [
+      entry({ id: 'wall', category: 'construction', status: 'available' }),
+      entry({ id: 'paint', category: 'repair', status: 'available' }),
+      entry({ id: 'tile', category: 'repair' }),
+      entry({ id: 'estimate', category: 'cost' }),
+    ];
+    const sections = getCatalogSections(list, categories);
+    expect(sections.map((section) => section.category.id)).toEqual(['repair', 'construction']);
+    expect(sections.map((section) => ids(section.entries))).toEqual([['paint'], ['wall']]);
+  });
+});
+
+describe('getRelatedCalculators', () => {
+  const list = [
+    entry({ id: 'a', status: 'available' }),
+    entry({ id: 'b', status: 'available', category: 'construction' }),
+    entry({ id: 'c', status: 'available' }),
+    entry({ id: 'd' }),
+    entry({ id: 'e', status: 'available' }),
+    entry({ id: 'f', status: 'available', category: 'construction' }),
+    entry({ id: 'g', status: 'available' }),
+  ];
+  const byId = (id: string) => list.find((item) => item.id === id)!;
+
+  it('сначала та же категория, затем остальные; по кругу от следующего за текущим', () => {
+    expect(ids(getRelatedCalculators(list, byId('c'), 10))).toEqual(['e', 'g', 'a', 'f', 'b']);
+    expect(ids(getRelatedCalculators(list, byId('b'), 10))).toEqual(['f', 'c', 'e', 'g', 'a']);
+  });
+
+  it('текущий исключён, неготовые не попадают', () => {
+    for (const current of list) {
+      const related = ids(getRelatedCalculators(list, current, 10));
+      expect(related).not.toContain(current.id);
+      expect(related).not.toContain('d');
+    }
+  });
+
+  it('не больше лимита; по умолчанию — relatedLimit', () => {
+    expect(getRelatedCalculators(list, byId('a'), 2)).toHaveLength(2);
+    expect(getRelatedCalculators(list, byId('a'))).toHaveLength(relatedLimit);
+    expect(getRelatedCalculators(list, byId('a'), 0)).toEqual([]);
+  });
+
+  it('порядок стабилен и не зависит от числа вызовов', () => {
+    expect(getRelatedCalculators(list, byId('e'))).toEqual(getRelatedCalculators(list, byId('e')));
+  });
+
+  it('при лимите меньше числа калькуляторов каждый показывается одинаково часто', () => {
+    const shown = new Map<string, number>();
+    const repair = list.filter((item) => item.status === 'available' && item.category === 'repair');
+    for (const current of repair) {
+      for (const item of getRelatedCalculators(repair, current, 2)) {
+        shown.set(item.id, (shown.get(item.id) ?? 0) + 1);
+      }
+    }
+    expect(new Set(shown.values())).toEqual(new Set([2]));
   });
 });

@@ -1,0 +1,120 @@
+---
+/**
+ * «Другие калькуляторы» внизу страницы калькулятора: отбор — getRelatedCalculators (та же категория,
+ * затем остальные, без текущего, только опубликованные), ссылка на весь каталог.
+ */
+import { catalogPath } from '../config/navigation';
+import { calculators } from '../data/calculators';
+import type { CalculatorEntry } from '../data/catalog.types';
+import { getRelatedCalculators } from '../lib/catalog';
+
+interface Props {
+  current: CalculatorEntry;
+}
+
+const { current } = Astro.props;
+const related = getRelatedCalculators(calculators, current);
+---
+
+{related.length > 0 && (
+  <section class="related" aria-labelledby="related-title" data-related>
+    <h2 class="related__title" id="related-title">
+      Другие калькуляторы
+    </h2>
+    <ul class="related__list">
+      {related.map((entry) => (
+        <li>
+          <a class="related__link" href={entry.path}>
+            <span class="related__name">{entry.title}</span>
+            <span class="related__text">{entry.description}</span>
+          </a>
+        </li>
+      ))}
+    </ul>
+    <a class="related__all" href={catalogPath}>
+      Все калькуляторы →
+    </a>
+  </section>
+)}
+
+<style>
+  .related {
+    display: grid;
+    gap: var(--space-4);
+    margin-top: var(--space-8);
+    padding-top: var(--space-8);
+    border-top: var(--border);
+  }
+
+  .related__title {
+    font-size: var(--font-size-xl);
+  }
+
+  /* На телефоне — компактный список названий в одну колонку, с 48rem — карточки с описанием. */
+  .related__list {
+    display: grid;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .related__link {
+    display: grid;
+    align-content: center;
+    gap: var(--space-1);
+    min-height: var(--tap-target-min);
+    height: 100%;
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-surface);
+    border: var(--border);
+    border-radius: var(--radius-md);
+    color: var(--color-text);
+    text-decoration: none;
+    transition:
+      border-color var(--transition-fast),
+      box-shadow var(--transition-fast);
+  }
+
+  .related__link:hover {
+    border-color: var(--color-accent);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .related__name {
+    font-weight: var(--font-weight-semibold);
+    line-height: var(--line-height-snug);
+  }
+
+  .related__text {
+    display: none;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+  }
+
+  @media (min-width: 48rem) {
+    .related__list {
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+      gap: var(--space-4);
+    }
+
+    .related__link {
+      align-content: start;
+      padding: var(--space-4) var(--space-5);
+      border-radius: var(--radius-lg);
+    }
+
+    .related__text {
+      display: block;
+    }
+  }
+
+  .related__all {
+    display: inline-flex;
+    align-items: center;
+    justify-self: start;
+    min-height: var(--tap-target-min);
+    color: var(--color-accent);
+    font-weight: var(--font-weight-semibold);
+  }
+</style>

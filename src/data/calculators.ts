@@ -1,8 +1,8 @@
 import type { CalculatorEntry } from './catalog.types';
 
 /**
- * Каталог калькуляторов — единственный источник данных для главной страницы,
- * поиска и (в будущем) страниц калькуляторов и sitemap.
+ * Каталог калькуляторов — единственный источник данных для главной страницы, страницы каталога
+ * /kalkulyatory/, поиска, блока «Другие калькуляторы», подвала и sitemap.xml.
  *
  * Новый калькулятор добавляется сюда со статусом `planned`.
  * Статус `available` ставится только вместе с готовой страницей по адресу `path`.
@@ -12,6 +12,7 @@ export const calculators: readonly CalculatorEntry[] = [
     id: 'wallpaper',
     slug: 'oboi',
     title: 'Калькулятор обоев',
+    shortTitle: 'Обои',
     category: 'repair',
     description: 'Сколько рулонов обоев нужно на комнату с учётом окон, дверей и подгонки рисунка.',
     path: '/kalkulyatory/oboi/',
@@ -29,6 +30,7 @@ export const calculators: readonly CalculatorEntry[] = [
     id: 'laminate',
     slug: 'laminat',
     title: 'Калькулятор ламината',
+    shortTitle: 'Ламинат',
     category: 'repair',
     description: 'Сколько досок и упаковок ламината нужно по раскладке рядами со смещением стыков.',
     path: '/kalkulyatory/laminat/',
@@ -54,6 +56,7 @@ export const calculators: readonly CalculatorEntry[] = [
     id: 'paint',
     slug: 'kraska',
     title: 'Калькулятор краски',
+    shortTitle: 'Краска',
     category: 'repair',
     description: 'Расход краски для стен и потолка по площади, числу слоёв и норме расхода.',
     path: '/kalkulyatory/kraska/',
@@ -71,6 +74,7 @@ export const calculators: readonly CalculatorEntry[] = [
     id: 'tile',
     slug: 'plitka',
     title: 'Калькулятор плитки',
+    shortTitle: 'Плитка',
     category: 'repair',
     description: 'Количество плитки и упаковок для пола и стен по сетке с учётом швов и запаса.',
     path: '/kalkulyatory/plitka/',
@@ -88,6 +92,7 @@ export const calculators: readonly CalculatorEntry[] = [
     id: 'putty',
     slug: 'shpaklevka',
     title: 'Калькулятор шпаклёвки',
+    shortTitle: 'Шпаклёвка',
     category: 'repair',
     description:
       'Расход шпаклёвки и количество упаковок по площади стен, числу слоёв и расходу на слой.',
@@ -106,6 +111,7 @@ export const calculators: readonly CalculatorEntry[] = [
     id: 'plaster',
     slug: 'shtukaturka',
     title: 'Калькулятор штукатурки',
+    shortTitle: 'Штукатурка',
     category: 'repair',
     description: 'Расход штукатурки и количество мешков по площади и средней толщине слоя.',
     path: '/kalkulyatory/shtukaturka/',

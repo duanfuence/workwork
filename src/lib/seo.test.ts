@@ -31,12 +31,18 @@ describe('canonicalUrl', () => {
 describe('sitemap', () => {
   const xml = buildSitemap(site, sitemapPaths(calculators));
 
-  it('главная и только опубликованные калькуляторы', () => {
+  it('главная, каталог и только опубликованные калькуляторы', () => {
     const available = calculators.filter((entry) => entry.status === 'available');
     expect(locs(xml)).toEqual([
       'https://example.com/',
+      'https://example.com/kalkulyatory/',
       ...available.map((entry) => `https://example.com${entry.path}`),
     ]);
+  });
+
+  it('при шести опубликованных калькуляторах — 8 адресов', () => {
+    expect(calculators.filter((entry) => entry.status === 'available')).toHaveLength(6);
+    expect(locs(xml)).toHaveLength(8);
   });
 
   it('у каждого калькулятора из sitemap есть страница; 404 и черновиков нет', () => {
@@ -49,7 +55,7 @@ describe('sitemap', () => {
       path: '/kalkulyatory/skoro/',
       status: 'planned',
     };
-    expect(sitemapPaths([planned])).toEqual(['/']);
+    expect(sitemapPaths([planned])).toEqual(['/', '/kalkulyatory/']);
   });
 
   it('адреса абсолютные, со слэшем на конце; без lastmod', () => {

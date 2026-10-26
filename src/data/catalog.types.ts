@@ -34,6 +34,8 @@ export interface CalculatorEntry {
   slug: string;
   /** Название для карточек и заголовков. */
   title: string;
+  /** Короткое название без слова «калькулятор» («Обои»): подвал и перечисления в текстах. */
+  shortTitle: string;
   category: CategoryId;
   /** Короткое описание для карточки (одно предложение). */
   description: string;

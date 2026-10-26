@@ -1,6 +1,9 @@
 ---
 interface Props {
-  /** id списка карточек, который фильтрует поиск. */
+  /**
+   * id блока с карточками (`[data-search-index]`), который фильтрует поиск. Внутри могут быть группы
+   * `[data-search-group]` — группа без подходящих карточек скрывается целиком.
+   */
   listId: string;
   /** id раздела, к которому прокручивать страницу при отправке формы. */
   sectionId: string;
@@ -52,6 +55,7 @@ const { listId, sectionId } = Astro.props;
     if (!input || !list) continue;
 
     const items = [...list.querySelectorAll<HTMLElement>('[data-search-index]')];
+    const groups = [...list.querySelectorAll<HTMLElement>('[data-search-group]')];
 
     const update = () => {
       const query = input.value;
@@ -60,6 +64,9 @@ const { listId, sectionId } = Astro.props;
         const match = matchesQuery(item.dataset['searchIndex'] ?? '', query);
         item.hidden = !match;
         if (match) visible += 1;
+      }
+      for (const group of groups) {
+        group.hidden = !group.querySelector('[data-search-index]:not([hidden])');
       }
       if (empty) empty.hidden = visible > 0;
       if (status) {

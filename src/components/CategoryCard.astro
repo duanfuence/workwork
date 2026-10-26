@@ -4,36 +4,31 @@ import { calculatorWordForms, pluralizeRu } from '../lib/plural';
 
 interface Props {
   category: Category;
-  /** Сколько калькуляторов категории запланировано или в работе. */
-  plannedCount: number;
-  /** Сколько калькуляторов категории опубликовано. */
-  availableCount: number;
+  /** Сколько опубликованных калькуляторов в категории (карточки выводятся только при count > 0). */
+  count: number;
+  /** Раздел страницы каталога: /kalkulyatory/#<id категории>. */
+  href: string;
 }
 
-const { category, plannedCount, availableCount } = Astro.props;
-
-let summary: string;
-if (availableCount > 0 && plannedCount > 0) {
-  summary = `Доступно: ${availableCount} · в разработке: ${plannedCount}`;
-} else if (availableCount > 0) {
-  summary = `Доступно: ${availableCount} ${pluralizeRu(availableCount, calculatorWordForms)}`;
-} else if (plannedCount > 0) {
-  summary = `${plannedCount} ${pluralizeRu(plannedCount, calculatorWordForms)} в первой очереди`;
-} else {
-  summary = 'Калькуляторы появятся позже';
-}
+const { category, count, href } = Astro.props;
 ---
 
 <li class="category-card">
-  <h3 class="category-card__title">{category.title}</h3>
+  <h3 class="category-card__title">
+    <a class="category-card__link" href={href}>
+      {category.title}
+    </a>
+  </h3>
   <p class="category-card__text">{category.description}</p>
-  <p class:list={['category-card__summary', { 'is-empty': plannedCount + availableCount === 0 }]}>
-    {summary}
+  <p class="category-card__summary">
+    {count}
+    {pluralizeRu(count, calculatorWordForms)} →
   </p>
 </li>
 
 <style>
   .category-card {
+    position: relative;
     display: grid;
     align-content: start;
     gap: var(--space-2);
@@ -41,11 +36,32 @@ if (availableCount > 0 && plannedCount > 0) {
     background: var(--color-surface);
     border: var(--border);
     border-radius: var(--radius-lg);
+    transition:
+      border-color var(--transition-fast),
+      box-shadow var(--transition-fast);
+  }
+
+  .category-card:hover {
+    border-color: var(--color-accent);
+    box-shadow: var(--shadow-md);
   }
 
   .category-card__title {
     font-size: var(--font-size-lg);
     line-height: var(--line-height-snug);
+  }
+
+  .category-card__link {
+    color: var(--color-text);
+    text-decoration: none;
+  }
+
+  /* Кликабельна вся карточка. */
+  .category-card__link::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: var(--radius-lg);
   }
 
   .category-card__text {
@@ -58,10 +74,5 @@ if (availableCount > 0 && plannedCount > 0) {
     font-size: var(--font-size-sm);
     font-weight: var(--font-weight-semibold);
     color: var(--color-accent);
-  }
-
-  .category-card__summary.is-empty {
-    color: var(--color-text-muted);
-    font-weight: var(--font-weight-medium);
   }
 </style>

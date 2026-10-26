@@ -5,7 +5,8 @@ import { buildSearchIndex } from '../lib/search';
 
 interface Props {
   entry: CalculatorEntry;
-  categoryTitle: string;
+  /** Подпись категории над названием; пусто — не выводится (в разделе каталога категория — в заголовке). */
+  categoryTitle?: string;
 }
 
 const { entry, categoryTitle } = Astro.props;
@@ -15,10 +16,12 @@ const status = statusLabels[entry.status];
 
 <li class="calc-card-item" data-search-index={buildSearchIndex(entry)}>
   <article class:list={['calc-card', { 'calc-card--soon': !href }]}>
-    <div class="calc-card__meta">
-      <span class="calc-card__category">{categoryTitle}</span>
-      {!href && <span class="badge badge--soon">{status}</span>}
-    </div>
+    {(categoryTitle || !href) && (
+      <div class="calc-card__meta">
+        {categoryTitle && <span class="calc-card__category">{categoryTitle}</span>}
+        {!href && <span class="badge badge--soon">{status}</span>}
+      </div>
+    )}
     <h3 class="calc-card__title">
       {href ? (
         <a class="calc-card__link" href={href}>

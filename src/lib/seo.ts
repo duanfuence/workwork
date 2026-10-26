@@ -3,6 +3,7 @@
  * Чистые функции без Astro и DOM: их используют BaseLayout и хук сборки в astro.config.mjs.
  * `site` — адрес сайта без слэша на конце (результат parseSiteUrl).
  */
+import { catalogPath } from '../config/navigation';
 import type { CalculatorEntry } from '../data/catalog.types';
 import { getCalculatorHref } from './catalog';
 
@@ -18,12 +19,15 @@ export function canonicalUrl(site: string, pathname: string): string {
   return url.href;
 }
 
-/** Страницы для sitemap.xml: главная и опубликованные калькуляторы (каталог — единственный источник). */
+/**
+ * Страницы для sitemap.xml: главная, каталог /kalkulyatory/ и опубликованные калькуляторы
+ * (каталог — единственный источник).
+ */
 export function sitemapPaths(calculators: readonly CalculatorEntry[]): string[] {
   const paths = calculators
     .map((entry) => getCalculatorHref(entry))
     .filter((href): href is string => href !== null);
-  return ['/', ...paths];
+  return ['/', catalogPath, ...paths];
 }
 
 const xmlEscapes: Record<string, string> = {

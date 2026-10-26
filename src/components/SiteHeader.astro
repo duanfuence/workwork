@@ -1,6 +1,8 @@
 ---
 import { site } from '../config/site';
-import { navLinks } from '../config/navigation';
+import { isCurrentSection, navLinks } from '../config/navigation';
+
+const pathname = Astro.url.pathname;
 ---
 
 <header class="site-header">
@@ -31,7 +33,11 @@ import { navLinks } from '../config/navigation';
       <ul class="site-nav__list">
         {navLinks.map((link) => (
           <li>
-            <a class="site-nav__link" href={link.href}>
+            <a
+              class="site-nav__link"
+              href={link.href}
+              aria-current={isCurrentSection(link.href, pathname) ? 'page' : undefined}
+            >
               {link.label}
             </a>
           </li>
@@ -194,6 +200,15 @@ import { navLinks } from '../config/navigation';
   .site-nav__link:hover {
     background: var(--color-surface-muted);
     color: var(--color-text);
+  }
+
+  /* Текущий раздел: цвет акцента и подчёркивание — не только цветом. */
+  .site-nav__link[aria-current='page'] {
+    color: var(--color-accent);
+    font-weight: var(--font-weight-semibold);
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 0.35em;
   }
 
   /* Мобильная навигация: раскрывающееся меню. Без JavaScript ссылки остаются видимыми. */

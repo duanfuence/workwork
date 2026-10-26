@@ -21,14 +21,15 @@ astro.config.mjs          конфигурация Astro (статика, traili
 src/
   config/
     site.ts               название, описание, язык, цвет темы
-    navigation.ts         пункты меню (только существующие разделы)
+    navigation.ts         пункты меню, адрес каталога catalogPath, isCurrentSection (aria-current)
   data/
     catalog.types.ts      типы каталога: Category, CalculatorEntry, CalculatorStatus, CalculatorSeo
     categories.ts         4 категории
     calculators.ts        калькуляторы (6: обои и ламинат — available, остальные planned)
     catalog.test.ts       проверки целостности каталога
   lib/
-    catalog.ts            выборки по каталогу, ссылка только для available
+    catalog.ts            выборки по каталогу: ссылка только для available, getAvailableCalculators,
+                          getCatalogSections (категории с калькуляторами), getRelatedCalculators
     search.ts             нормализация текста и поиск (используется и при сборке, и в браузере)
     plural.ts             русские формы множественного числа
     number.ts             разбор чисел из полей, ceilDiv, перевод м/см → целые мм
@@ -47,7 +48,8 @@ src/
       laminate-form.ts    поля формы ламината (числа + направление и схема)
     *.test.ts             unit-тесты рядом с модулями
   layouts/BaseLayout.astro  <head>, метаданные, шапка, подвал
-  components/             SiteHeader, SiteFooter, CalculatorCard, CategoryCard, CatalogSearch, Breadcrumbs
+  components/             SiteHeader, SiteFooter, CalculatorCard, CategoryCard, CatalogSearch, Breadcrumbs,
+                          RelatedCalculators («Другие калькуляторы» на страницах калькуляторов)
     calculator/NumberField.astro       поле ввода числа: label, единица, подсказка, место для ошибки
     calculator/SelectField.astro       выпадающий список с подписью, подсказкой и местом для ошибки
     calculator/CalculatorResult.astro  блок результата: заголовок, состояния «до расчёта / ошибки / результат»
@@ -57,6 +59,7 @@ src/
     index.astro           главная
     404.astro             страница «не найдено»
     kalkulyatory/oboi.astro  калькулятор обоев → /kalkulyatory/oboi/
+    kalkulyatory/index.astro  каталог всех опубликованных калькуляторов по категориям → /kalkulyatory/
     kalkulyatory/laminat.astro  калькулятор ламината → /kalkulyatory/laminat/
   styles/
     tokens.css            дизайн-токены

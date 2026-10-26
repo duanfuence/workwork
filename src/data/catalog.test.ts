@@ -6,9 +6,9 @@ import { categories } from './categories';
  * Пути страниц калькуляторов по файлам в src/pages/kalkulyatory/:
  * `oboi.astro` и `oboi/index.astro` → `/kalkulyatory/oboi/`. Файлы не импортируются (lazy glob).
  */
-const calculatorPagePaths = Object.keys(import.meta.glob('../pages/kalkulyatory/**/*.astro')).map(
-  (file) => `/${file.replace('../pages/', '').replace(/(\/index)?\.astro$/, '')}/`,
-);
+const calculatorPagePaths = Object.keys(import.meta.glob('../pages/kalkulyatory/**/*.astro'))
+  .filter((file) => file !== '../pages/kalkulyatory/index.astro') // страница каталога /kalkulyatory/
+  .map((file) => `/${file.replace('../pages/', '').replace(/(\/index)?\.astro$/, '')}/`);
 
 describe('целостность каталога', () => {
   it('идентификаторы калькуляторов уникальны и в формате kebab-case', () => {
@@ -38,6 +38,8 @@ describe('целостность каталога', () => {
 
   it('у каждого калькулятора заполнены название, описание и SEO-метаданные', () => {
     for (const entry of calculators) {
+      expect(entry.shortTitle.length).toBeGreaterThan(0);
+      expect(entry.title.toLowerCase()).not.toBe(entry.shortTitle.toLowerCase());
       expect(entry.title.trim()).not.toBe('');
       expect(entry.description.trim()).not.toBe('');
       expect(entry.seo.title.length).toBeGreaterThan(0);

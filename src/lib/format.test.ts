@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatNumber, formatRubles } from './format';
+import { formatNumber, formatRubles, listRu } from './format';
 
 // В ru-RU разряды разделяются неразрывным пробелом (U+00A0).
 const nbsp = '\u00a0';
@@ -22,5 +22,14 @@ describe('formatRubles', () => {
     expect(formatRubles(11699.1)).toBe(`11${nbsp}699,10${nbsp}₽`);
     expect(formatRubles(7200)).toBe(`7${nbsp}200${nbsp}₽`);
     expect(formatRubles(0)).toBe(`0${nbsp}₽`);
+  });
+});
+
+describe('listRu', () => {
+  it('перечисляет через запятую с «и» перед последним', () => {
+    expect(listRu([])).toBe('');
+    expect(listRu(['обои'])).toBe('обои');
+    expect(listRu(['обои', 'краска'])).toBe('обои и краска');
+    expect(listRu(['обои', 'ламинат', 'краска'])).toBe('обои, ламинат и краска');
   });
 });

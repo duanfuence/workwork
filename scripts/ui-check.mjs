@@ -32,6 +32,7 @@ const tilePath = '/kalkulyatory/plitka/';
 const plasterPath = '/kalkulyatory/shtukaturka/';
 const puttyPath = '/kalkulyatory/shpaklevka/';
 const calculatorPaths = [calcPath, laminatePath, paintPath, tilePath, puttyPath, plasterPath];
+const catalogPath = '/kalkulyatory/';
 /**
  * Адрес сайта, с которым собран dist/ (SITE_URL при сборке). С ним проверяется SEO-разметка
  * (canonical, og:image, JSON-LD, sitemap.xml), без него — что её нет.
@@ -214,7 +215,7 @@ async function checkSeo(page) {
       };
     });
 
-  for (const pagePath of ['/', ...calculatorPaths]) {
+  for (const pagePath of ['/', catalogPath, ...calculatorPaths]) {
     const label = `${mode} ${pagePath}`;
     await page.goto(baseUrl + pagePath, { waitUntil: 'networkidle' });
     const head = await readHead();
@@ -261,6 +262,10 @@ async function checkSeo(page) {
         items.at(-1)?.item === expected,
       `${label}: адреса в BreadcrumbList абсолютные, последний — canonical`,
     );
+    check(
+      items[1]?.item === siteOrigin + catalogPath,
+      `${label}: второй пункт BreadcrumbList — каталог ${items[1]?.item}`,
+    );
   }
 
   const notFound = await page.goto(baseUrl + '/kalkulyatory/nesushchestvuyushchiy/');
@@ -291,12 +296,14 @@ async function checkSeo(page) {
   );
   const xml = sitemap.ok ? await sitemap.text() : '';
   const locs = [...xml.matchAll(/<loc>([^<]*)<\/loc>/g)].map((match) => match[1]);
-  const expectedLocs = ['/', ...calculatorPaths].map((pagePath) => siteOrigin + pagePath);
+  const expectedLocs = ['/', catalogPath, ...calculatorPaths].map(
+    (pagePath) => siteOrigin + pagePath,
+  );
   check(
     sitemap.ok &&
       [...locs].sort().join() === [...expectedLocs].sort().join() &&
       !xml.includes('lastmod'),
-    `${mode}: sitemap.xml — главная и ${calculatorPaths.length} калькуляторов, без lastmod`,
+    `${mode}: sitemap.xml — главная, каталог и ${calculatorPaths.length} калькуляторов (${locs.length} адресов), без lastmod`,
   );
   const statuses = await Promise.all(
     locs.map(async (loc) => (await fetch(baseUrl + new URL(loc).pathname)).status),
@@ -309,6 +316,170 @@ async function checkSeo(page) {
   check(
     og.ok && og.headers.get('content-type') === 'image/png',
     `${mode}: /og.png отдаётся (${og.status}, ${og.headers.get('content-type')})`,
+  );
+}
+
+/** Пункт меню «Калькуляторы» с aria-current="page" — только в разделе каталога и калькуляторов. */
+async function currentNav(page) {
+  return page.$$eval('#site-nav a[aria-current="page"]', (links) =>
+    links.map((a) => a.getAttribute('href')),
+  );
+}
+
+/** Страница каталога /kalkulyatory/: все опубликованные калькуляторы по разделам, поиск. */
+async function checkCatalogPage(page, viewport) {
+  const label = `каталог ${viewport.name}`;
+  const response = await page.goto(baseUrl + catalogPath, { waitUntil: 'networkidle' });
+  check(response?.status() === 200, `${label}: ответ 200`);
+  const meta = await checkCommon(page, label);
+  check(
+    meta.title.startsWith('Строительные калькуляторы онлайн'),
+    `${label}: title «${meta.title}»`,
+  );
+  check(
+    plain(await page.textContent('h1')) === 'Строительные калькуляторы онлайн',
+    `${label}: h1 под запрос`,
+  );
+  const links = await page.$$eval('#catalog-groups .calc-card a', (items) =>
+    items.map((a) => a.getAttribute('href')),
+  );
+  check(
+    [...links].sort().join() === [...calculatorPaths].sort().join(),
+    `${label}: карточки — ссылки на все ${calculatorPaths.length} опубликованных калькуляторов`,
+  );
+  const statuses = await Promise.all(
+    links.map(async (href) => (await fetch(baseUrl + href)).status),
+  );
+  check(
+    statuses.every((status) => status === 200),
+    `${label}: все карточки ведут на страницы с ответом 200`,
+  );
+  check(
+    (await page.locator('#catalog-groups .badge--soon').count()) === 0,
+    `${label}: нет карточек «Скоро»`,
+  );
+  check(
+    (await currentNav(page)).join() === catalogPath,
+    `${label}: aria-current="page" у пункта «Калькуляторы»`,
+  );
+  await checkOverflow(page, label);
+  if (!fullCheckViewports.has(viewport.name)) return;
+
+  const search = page.locator('#catalog-search-input');
+  const visibleCards = () => page.locator('#catalog-groups .calc-card-item:not([hidden])').count();
+  await search.fill('плитка');
+  check((await visibleCards()) === 1, `${label}: поиск «плитка» — одна карточка`);
+  await search.fill('несуществующий материал');
+  check(
+    (await visibleCards()) === 0 &&
+      (await page.locator('#catalog-groups .catalog-group:not([hidden])').count()) === 0 &&
+      (await page.locator('[data-catalog-empty]').isVisible()),
+    `${label}: ничего не найдено — разделы скрыты, сообщение видно`,
+  );
+  await search.fill('');
+  check(
+    (await visibleCards()) === calculatorPaths.length,
+    `${label}: пустой запрос — все карточки`,
+  );
+  await page.screenshot({
+    path: path.join(outDir, `catalog-${viewport.name}.png`),
+    fullPage: true,
+  });
+}
+
+/** «Другие калькуляторы» внизу каждой страницы калькулятора и текущий пункт меню. */
+async function checkRelated(page, viewport) {
+  for (const calculatorPath of calculatorPaths) {
+    const label = `другие калькуляторы ${calculatorPath.split('/')[2]} ${viewport.name}`;
+    await page.goto(baseUrl + calculatorPath, { waitUntil: 'networkidle' });
+    const block = page.locator('[data-related]');
+    const hrefs = await block
+      .locator('.related__list a')
+      .evaluateAll((items) => items.map((a) => a.getAttribute('href')));
+    check(
+      (await block.count()) === 1 &&
+        hrefs.length >= 1 &&
+        hrefs.length <= 4 &&
+        !hrefs.includes(calculatorPath) &&
+        hrefs.every((href) => calculatorPaths.includes(href)),
+      `${label}: ${hrefs.length} ссылок на другие опубликованные калькуляторы, без себя`,
+    );
+    check(
+      (await block.locator(`a[href="${catalogPath}"]`).count()) === 1,
+      `${label}: ссылка «Все калькуляторы» на каталог`,
+    );
+    const afterFaq = await page.evaluate(() => {
+      const faq = document.querySelector('.faq');
+      const related = document.querySelector('[data-related]');
+      return Boolean(
+        faq && related && faq.compareDocumentPosition(related) & Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+    });
+    check(afterFaq, `${label}: блок после FAQ`);
+    const targets = await block
+      .locator('a')
+      .evaluateAll((items) =>
+        items.map((a) =>
+          Math.round(Math.min(a.getBoundingClientRect().height, a.getBoundingClientRect().width)),
+        ),
+      );
+    check(
+      targets.every((size) => size >= 44),
+      `${label}: зоны нажатия ≥ 44 px (${Math.min(...targets)})`,
+    );
+    check(
+      (await currentNav(page)).join() === catalogPath,
+      `${label}: aria-current="page" у пункта «Калькуляторы»`,
+    );
+  }
+  if (viewport.name === '390' || viewport.name === '1440') {
+    await page.goto(baseUrl + plasterPath, { waitUntil: 'networkidle' });
+    await page.locator('[data-related]').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: path.join(outDir, `related-${viewport.name}.png`) });
+  }
+}
+
+/**
+ * Обход сайта: все внутренние ссылки со всех страниц, начиная с главной, отвечают 200,
+ * а якоря существуют на странице назначения.
+ */
+async function crawlSite() {
+  const pages = new Map();
+  const queue = ['/'];
+  const broken = [];
+  const fetchPage = async (pathname) => {
+    if (!pages.has(pathname)) {
+      const response = await fetch(baseUrl + pathname);
+      const type = response.headers.get('content-type') ?? '';
+      pages.set(pathname, {
+        status: response.status,
+        html: type.includes('text/html') ? await response.text() : '',
+      });
+    }
+    return pages.get(pathname);
+  };
+  for (let i = 0; i < queue.length; i++) {
+    const from = queue[i];
+    const { html } = await fetchPage(from);
+    for (const [, href] of html.matchAll(/<a\b[^>]*?\bhref="([^"]*)"/g)) {
+      const url = new URL(href, baseUrl + from);
+      if (url.origin !== baseUrl) continue;
+      const target = await fetchPage(url.pathname);
+      if (target.status !== 200) broken.push(`${from} → ${href} (${target.status})`);
+      else if (url.hash && !target.html.includes(`id="${decodeURIComponent(url.hash.slice(1))}"`)) {
+        broken.push(`${from} → ${href} (нет якоря)`);
+      }
+      if (target.html && !queue.includes(url.pathname)) queue.push(url.pathname);
+    }
+  }
+  check(
+    broken.length === 0 && queue.length >= calculatorPaths.length + 2,
+    `обход сайта: ${queue.length} страниц, все внутренние ссылки и якоря отвечают 200 ${broken.join('; ')}`,
+  );
+  check(
+    queue.includes(catalogPath) &&
+      calculatorPaths.every((calculatorPath) => queue.includes(calculatorPath)),
+    'обход сайта: каталог и все калькуляторы достижимы по ссылкам с главной',
   );
 }
 
@@ -370,6 +541,15 @@ async function checkHome(page, viewport) {
     ),
     `${label}: доступный калькулятор стоит первым`,
   );
+  check(
+    (await page.locator(`#catalog a[href="${catalogPath}"]`).count()) === 1,
+    `${label}: «Все калькуляторы →» ведёт на каталог`,
+  );
+  check((await currentNav(page)).length === 0, `${label}: на главной нет aria-current в меню`);
+  check(
+    (await page.locator('#categories').count()) === 0,
+    `${label}: раздела «Категории» нет — категория с калькуляторами одна (D-022)`,
+  );
   await checkLinks(page, label);
 
   // Навигация
@@ -383,10 +563,10 @@ async function checkHome(page, viewport) {
     check((await toggle.getAttribute('aria-expanded')) === 'true', `${label}: aria-expanded=true`);
     check(await nav.isVisible(), `${label}: меню раскрывается`);
     await page.screenshot({ path: path.join(outDir, `home-${viewport.name}-menu.png`) });
-    await page.locator('#site-nav a[href="/#categories"]').click();
+    await page.locator('#site-nav a[href="/#about"]').click();
     await page.waitForTimeout(600);
     check(!(await nav.isVisible()), `${label}: меню закрывается после выбора пункта`);
-    check(page.url().endsWith('#categories'), `${label}: переход к «Категориям»`);
+    check(page.url().endsWith('#about'), `${label}: переход к «О сервисе»`);
     await toggle.click();
     await page.keyboard.press('Escape');
     check(!(await nav.isVisible()), `${label}: меню закрывается по Escape`);
@@ -1320,6 +1500,8 @@ try {
     await checkPlaster(page, viewport);
     await checkPutty(page, viewport);
     await checkFormFields(page, viewport);
+    await checkCatalogPage(page, viewport);
+    await checkRelated(page, viewport);
     check(
       consoleErrors.length === 0,
       `${viewport.name}: нет ошибок в консоли (${consoleErrors.join(' | ') || '0'})`,
@@ -1328,7 +1510,10 @@ try {
     // 404 и SEO — после проверки консоли: браузер сам пишет в неё об ответах 404.
     const notFound = await page.goto(baseUrl + '/kalkulyatory/nesushchestvuyushchiy/');
     check(notFound?.status() === 404, `${viewport.name}: несуществующий калькулятор отдаёт 404`);
-    if (viewport.name === '1440') await checkSeo(page);
+    if (viewport.name === '1440') {
+      await checkSeo(page);
+      await crawlSite();
+    }
     await context.close();
   }
 

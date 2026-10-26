@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { calculators } from '../data/calculators';
-import { breadcrumbList, calculatorCrumbs, serializeJsonLd } from './breadcrumbs';
+import { breadcrumbList, calculatorCrumbs, catalogCrumbs, serializeJsonLd } from './breadcrumbs';
 
 const site = 'https://example.com';
 
@@ -8,8 +8,21 @@ describe('calculatorCrumbs', () => {
   it('Главная → Калькуляторы → название калькулятора', () => {
     expect(calculatorCrumbs({ title: 'Калькулятор обоев' })).toEqual([
       { label: 'Главная', href: '/' },
-      { label: 'Калькуляторы', href: '/#catalog' },
+      { label: 'Калькуляторы', href: '/kalkulyatory/' },
       { label: 'Калькулятор обоев' },
+    ]);
+  });
+
+  it('каталог: Главная → Калькуляторы (текущая страница)', () => {
+    expect(catalogCrumbs()).toEqual([{ label: 'Главная', href: '/' }, { label: 'Калькуляторы' }]);
+    expect(breadcrumbList(catalogCrumbs(), site, '/kalkulyatory/').itemListElement).toEqual([
+      { '@type': 'ListItem', position: 1, name: 'Главная', item: 'https://example.com/' },
+      {
+        '@type': 'ListItem',
+        position: 2,
+        name: 'Калькуляторы',
+        item: 'https://example.com/kalkulyatory/',
+      },
     ]);
   });
 });
@@ -26,7 +39,7 @@ describe('breadcrumbList', () => {
     expect(list.itemListElement.map((item) => item.position)).toEqual([1, 2, 3]);
     expect(list.itemListElement.map((item) => item.item)).toEqual([
       'https://example.com/',
-      'https://example.com/#catalog',
+      'https://example.com/kalkulyatory/',
       `https://example.com${entry.path}`,
     ]);
   });

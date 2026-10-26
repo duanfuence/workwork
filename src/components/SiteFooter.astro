@@ -1,6 +1,10 @@
 ---
 import { navLinks } from '../config/navigation';
 import { site } from '../config/site';
+import { calculators } from '../data/calculators';
+import { getAvailableCalculators } from '../lib/catalog';
+
+const available = getAvailableCalculators(calculators);
 
 const year = new Date().getFullYear();
 ---
@@ -15,7 +19,22 @@ const year = new Date().getFullYear();
         Сверяйтесь с рекомендациями производителя.
       </p>
     </div>
-    <nav aria-label="Навигация в подвале">
+    <nav class="site-footer__nav" aria-labelledby="footer-calculators-title">
+      <p class="site-footer__heading" id="footer-calculators-title">
+        Калькуляторы
+      </p>
+      <ul class="site-footer__links site-footer__links--calculators">
+        {available.map((entry) => (
+          <li>
+            <a href={entry.path}>{entry.shortTitle}</a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+    <nav class="site-footer__nav" aria-labelledby="footer-nav-title">
+      <p class="site-footer__heading" id="footer-nav-title">
+        Разделы
+      </p>
       <ul class="site-footer__links">
         {navLinks.map((link) => (
           <li>
@@ -49,8 +68,19 @@ const year = new Date().getFullYear();
 
   @media (min-width: 48rem) {
     .site-footer__inner {
-      grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+      grid-template-columns: minmax(0, 2fr) minmax(0, 1.5fr) minmax(0, 1fr);
     }
+  }
+
+  .site-footer__nav {
+    display: grid;
+    align-content: start;
+    gap: var(--space-2);
+  }
+
+  .site-footer__heading {
+    color: var(--color-text);
+    font-weight: var(--font-weight-semibold);
   }
 
   .site-footer__about {
@@ -71,6 +101,12 @@ const year = new Date().getFullYear();
     margin: 0;
     padding: 0;
     list-style: none;
+  }
+
+  /* Калькуляторы — в две колонки: короткие названия, список не растягивается на телефоне. */
+  .site-footer__links--calculators {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: var(--space-4);
   }
 
   .site-footer__links a {

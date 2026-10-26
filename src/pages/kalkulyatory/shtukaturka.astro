@@ -1,5 +1,6 @@
 ---
 import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import RelatedCalculators from '../../components/RelatedCalculators.astro';
 import CalculatorResult from '../../components/calculator/CalculatorResult.astro';
 import NumberField from '../../components/calculator/NumberField.astro';
 import { calculators } from '../../data/calculators';
@@ -268,6 +269,8 @@ const id = 'pl';
         </div>
       </section>
     </article>
+
+    <RelatedCalculators current={entry} />
   </div>
 </BaseLayout>
 
