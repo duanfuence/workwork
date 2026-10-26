@@ -523,9 +523,11 @@ async function checkLaminate(page, viewport) {
     (await field('minPiece').inputValue()) === '400' &&
       (await field('minOffset').inputValue()) === '400' &&
       (await field('reserve').inputValue()) === '5' &&
+      (await field('gap').inputValue()) === '8' &&
+      (await field('kerf').inputValue()) === '3' &&
       (await field('direction').inputValue()) === 'length' &&
       (await field('scheme').inputValue()) === 'half',
-    `${label}: значения по умолчанию — 400 / 400 мм, запас 5 %, вдоль длины, 1/2`,
+    `${label}: значения по умолчанию — 400 / 400 мм, зазор 8 мм, пропил 3 мм, запас 5 %, вдоль длины, 1/2`,
   );
 
   // Пустая форма
@@ -552,7 +554,8 @@ async function checkLaminate(page, viewport) {
     return;
   }
 
-  // К13 через форму: ввод, Enter в последнем поле
+  // К13 через форму при зазоре 8 и пропиле 3 (по умолчанию): поле 3984 × 3484 мм, 19 рядов, последний 10 мм;
+  // пары 690 + 534 + 3 ≤ 1380 — те же 57 досок (ручной расчёт в laminate-form.test.ts).
   await fill({ roomLength: '4', roomWidth: '3,5', boardLength: '1380', boardWidth: '193' });
   await field('boardsPerPack').focus();
   await page.keyboard.type('8');
@@ -563,7 +566,22 @@ async function checkLaminate(page, viewport) {
   check((await out('boards')) === '57', `${label}: 57 досок по плану`);
   check((await out('boardsWithReserve')) === '60', `${label}: 60 досок с запасом 5 %`);
   check((await out('rows')) === '19', `${label}: 19 рядов`);
-  check((await out('lastRowWidth')) === '26', `${label}: последний ряд 26 мм`);
+  check((await out('lastRowWidth')) === '10', `${label}: последний ряд 10 мм (поле без зазора)`);
+  check(
+    (await out('roomSize')) === '4000 × 3500' &&
+      (await out('fieldSize')) === '3984 × 3484' &&
+      (await out('gap')) === '8' &&
+      (await out('kerf')) === '3' &&
+      (await out('rowLength')) === '3984',
+    `${label}: комната 4000 × 3500, поле 3984 × 3484, зазор 8, пропил 3, ряд 3984 мм`,
+  );
+  check(
+    (await page.locator('[data-out="kerfLength"], [data-out="offcutLength"]').count()) === 0 &&
+      !(await page.locator('[data-calculator-result]').innerText()).match(
+        /kerfLength|offcutLength/,
+      ),
+    `${label}: пропил и обрезки отдельными числами не показываются`,
+  );
   check((await out('areaBoards')) === '53 доски', `${label}: по площади 53 доски`);
   check((await out('areaPacks')) === '7 упаковок', `${label}: по площади 7 упаковок`);
   check(
@@ -583,8 +601,9 @@ async function checkLaminate(page, viewport) {
     `${label}: два типа рядов`,
   );
 
-  // Направление и схема — без кнопки. При строгих 400 мм поперёк обе строгие схемы невыполнимы
-  // (концы рядов 740 и 50 мм не сдвигаются в допустимые), при условиях §8 (300 мм, запас 0) — К13 поперёк по 1/3.
+  // Направление и схема — без кнопки. При строгих 400 мм поперёк 1/3 невыполнима; при условиях §8
+  // (300 мм, запас 0, без зазора и пропила) — К13 поперёк по 1/3, 56 досок.
+  await fill({ gap: '0', kerf: '0' });
   await field('direction').selectOption('width');
   await field('scheme').selectOption('third');
   check(
@@ -599,7 +618,7 @@ async function checkLaminate(page, viewport) {
   );
   await field('direction').selectOption('length');
   await field('scheme').selectOption('half');
-  await fill({ minPiece: '400', minOffset: '400', reserve: '5' });
+  await fill({ minPiece: '400', minOffset: '400', reserve: '5', gap: '8', kerf: '3' });
   check((await out('packs')) === '8', `${label}: обратно вдоль по 1/2 → 8 упаковок`);
   await fill({ packPrice: '1849,90' });
   check(
@@ -638,6 +657,45 @@ async function checkLaminate(page, viewport) {
     `${label}: те же размеры по 1/2 → 13 досок, 2 упаковки`,
   );
 
+  // З7а: план меньше расчёта по площади; дробный и граничный пропил (LAMINATE.md §15.5)
+  await fill({ roomLength: '2,413', roomWidth: '1', reserve: '0', gap: '8', kerf: '3' });
+  check(
+    (await out('boards')) === '10' &&
+      (await out('areaBoards')) === '11 досок' &&
+      (await out('packs')) === '2' &&
+      (await out('fieldSize')) === '2397 × 984',
+    `${label}: З7а — поле 2397 × 984, 10 досок, по площади 11, 2 упаковки`,
+  );
+  check(
+    (await out('difference')).startsWith(
+      'План меньше расчёта по площади на 1 доску: площадь считается по размерам комнаты',
+    ) && (await out('difference')).endsWith('Это не экономия и не гарантированный минимум.'),
+    `${label}: объяснение «план меньше площади» — «${(await out('difference')).slice(0, 60)}…»`,
+  );
+  check(
+    (await out('wastePercent')) === '1,8' &&
+      (await page.getByText('Материал сверх площади укладки', { exact: true }).count()) === 1,
+    `${label}: материал сверх площади укладки 1,8 % (${await out('wastePercent')})`,
+  );
+  await fill({ kerf: '2,3' });
+  check(
+    (await out('boards')) === '10' && (await out('kerf')) === '2,3',
+    `${label}: пропил 2,3 мм не округляется — 10 досок`,
+  );
+  await fill({ kerf: '3,1' });
+  check((await out('boards')) === '12', `${label}: пропил 3,1 мм — пара не помещается, 12 досок`);
+  await fill({ kerf: '5', gap: '30' });
+  check(
+    (await state()) === 'ready' && (await out('kerf')) === '5' && (await out('gap')) === '30',
+    `${label}: границы — пропил 5 мм, зазор 30 мм`,
+  );
+  await fill({ kerf: '0', gap: '0' });
+  check(
+    (await state()) === 'ready' && (await out('fieldSize')) === '2413 × 1000',
+    `${label}: зазор 0 — поле равно комнате`,
+  );
+  await fill({ roomLength: '2,5', gap: '8', kerf: '3', reserve: '5' });
+
   // Ошибки ввода
   const expectError = async (values, name, message, title) => {
     await fill(values);
@@ -673,13 +731,24 @@ async function checkLaminate(page, viewport) {
     'отрицательная ширина',
   );
   await fill({ reserve: '5', roomWidth: '1' });
+  await expectError({ gap: '8,5' }, 'gap', 'Введите целое число миллиметров.', 'дробный зазор');
+  await expectError({ gap: '31' }, 'gap', 'Не больше 30 мм.', 'зазор 31 мм');
+  await fill({ gap: '8' });
+  await expectError({ kerf: '5,1' }, 'kerf', 'Не больше 5 мм.', 'пропил 5,1 мм');
+  await expectError(
+    { kerf: '2,35' },
+    'kerf',
+    'Не больше одного знака после запятой.',
+    'пропил 2,35 мм',
+  );
+  await fill({ kerf: '3' });
   check((await state()) === 'ready', `${label}: после исправления — результат`);
   await checkOverflow(page, `${label}, после ошибок`);
 
   // Порядок Tab: поля и выпадающие списки
   await field('roomLength').focus();
   const order = [];
-  for (let i = 0; i < 12; i += 1) {
+  for (let i = 0; i < 14; i += 1) {
     order.push(
       await page.evaluate(
         () => document.activeElement?.getAttribute('name') ?? document.activeElement?.textContent,
@@ -689,7 +758,7 @@ async function checkLaminate(page, viewport) {
   }
   check(
     order.join(',') ===
-      'roomLength,roomWidth,boardLength,boardWidth,boardsPerPack,direction,scheme,minPiece,minOffset,reserve,packPrice,Рассчитать',
+      'roomLength,roomWidth,boardLength,boardWidth,boardsPerPack,direction,scheme,minPiece,minOffset,gap,kerf,reserve,packPrice,Рассчитать',
     `${label}: порядок Tab (${order.join(',')})`,
   );
 
@@ -700,6 +769,8 @@ async function checkLaminate(page, viewport) {
     (await state()) === 'empty' &&
       (await field('roomLength').inputValue()) === '' &&
       (await field('minPiece').inputValue()) === '400' &&
+      (await field('gap').inputValue()) === '8' &&
+      (await field('kerf').inputValue()) === '3' &&
       (await field('scheme').inputValue()) === 'half',
     `${label}: «Сбросить» — результат пуст, значения по умолчанию`,
   );

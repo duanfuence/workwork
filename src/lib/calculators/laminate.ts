@@ -93,6 +93,9 @@ export interface LaminateResult {
   /** Размеры доски, мм. */
   boardLength: number;
   boardWidth: number;
+  /** Размеры комнаты, как введены (от стены до стены), мм. */
+  roomLengthMm: number;
+  roomWidthMm: number;
   /** Длина ряда — длина укладываемого поля вдоль рядов `R − 2g`, мм. */
   rowLength: number;
   /** Поперечный размер поля `D − 2g`, мм. */
@@ -568,6 +571,8 @@ export function calculateLaminate(input: LaminateInput): LaminateCalculation {
       scheme,
       boardLength: l,
       boardWidth: w,
+      roomLengthMm: L,
+      roomWidthMm: W,
       rowLength,
       fieldWidth,
       gap: g,
