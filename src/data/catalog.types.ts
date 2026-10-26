@@ -43,6 +43,11 @@ export interface CalculatorEntry {
   sheet: number;
   /** Раздел работ в штампе листа: «Отделка стен». */
   sheetTitle: string;
+  /**
+   * Какие размеры комнаты калькулятор берёт из полей формы с этими именами (D-026): по ним работают запоминание
+   * размеров и блок «Дальше для этой комнаты». Пусто — калькулятор считает не комнату (плитка: стена или пол).
+   */
+  roomFields: readonly ('roomLength' | 'roomWidth' | 'wallHeight')[];
   category: CategoryId;
   /** Короткое описание для карточки (одно предложение). */
   description: string;

@@ -178,9 +178,18 @@ export function initCalculatorForm<F extends string, R>({
     }
     return controls;
   };
+  // «Дальше для этой комнаты»: пометка «размеры подставятся» — только когда размеры правда сохранены.
+  const showRoomNextHint = () => {
+    const stored = parseStoredRoom(storage.read());
+    const saved = stored?.roomLength !== undefined && stored.roomWidth !== undefined;
+    for (const hint of document.querySelectorAll<HTMLElement>('[data-room-next-hint]')) {
+      hint.hidden = !saved;
+    }
+  };
   const saveRoom = () => {
     const sizes = roomToSave(roomControls());
     if (sizes) storage.write(serializeRoom(mergeRoom(parseStoredRoom(storage.read()), sizes)));
+    showRoomNextHint();
   };
   // Строка над формой «Размеры комнаты подставлены… · Очистить» и что именно подставлено.
   let roomNotice: HTMLElement | null = null;
@@ -497,6 +506,7 @@ export function initCalculatorForm<F extends string, R>({
         }
       }
       hideRoomNotice();
+      showRoomNextHint();
       (first ?? roomInputs[0]?.[1])?.focus();
       if (live) update(false);
     });
@@ -625,6 +635,7 @@ export function initCalculatorForm<F extends string, R>({
     parseShareQuery(window.location.search, shareControls),
     roomFill(parseStoredRoom(storage.read()), roomControls()),
   );
+  showRoomNextHint();
   if (start.source === 'link') applyLink(start.values);
   else if (start.source === 'memory') restoreRoom(start.values);
 }

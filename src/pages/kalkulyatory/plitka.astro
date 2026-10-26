@@ -3,6 +3,7 @@ import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import RelatedCalculators from '../../components/RelatedCalculators.astro';
 import CalculatorIntro from '../../components/calculator/CalculatorIntro.astro';
 import CalculatorResult from '../../components/calculator/CalculatorResult.astro';
+import RoomNext from '../../components/calculator/RoomNext.astro';
 import NumberField from '../../components/calculator/NumberField.astro';
 import SelectField from '../../components/calculator/SelectField.astro';
 import { calculators } from '../../data/calculators';
@@ -141,6 +142,7 @@ const id = 'tl';
 
       <CalculatorResult
         headingId="calc-result-title"
+        title={entry.shortTitle}
         placeholder="Заполните размеры поверхности и плитки и нажмите «Рассчитать». После первого расчёта результат обновляется сразу при изменении параметров."
       >
         <p class="calc-result__main">
@@ -153,6 +155,7 @@ const id = 'tl';
           <span data-out="tilesToBuy"></span> шт.
         </p>
 
+        <h3 class="calc-result__subtitle">Как получилось</h3>
         <dl class="calc-result__list">
           <div>
             <dt>
@@ -179,7 +182,7 @@ const id = 'tl';
         </dl>
 
         <div class="calc-result__section">
-          <h3 class="calc-result__subtitle">Как получилось</h3>
+          <h3 class="calc-result__subtitle">Формула</h3>
           <p class="calc-result__note" data-out="formula"></p>
           <p class="calc-result__note" data-out="areaNote"></p>
         </div>
@@ -190,6 +193,8 @@ const id = 'tl';
         </p>
       </CalculatorResult>
     </div>
+
+    <RoomNext current={entry} />
 
     <article class="calc-article">
       <p class="calc-article__intro">

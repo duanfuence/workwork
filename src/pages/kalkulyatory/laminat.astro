@@ -3,6 +3,7 @@ import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import RelatedCalculators from '../../components/RelatedCalculators.astro';
 import CalculatorIntro from '../../components/calculator/CalculatorIntro.astro';
 import CalculatorResult from '../../components/calculator/CalculatorResult.astro';
+import RoomNext from '../../components/calculator/RoomNext.astro';
 import NumberField from '../../components/calculator/NumberField.astro';
 import SelectField from '../../components/calculator/SelectField.astro';
 import { calculators } from '../../data/calculators';
@@ -208,16 +209,19 @@ const id = 'lm';
 
       <CalculatorResult
         headingId="calc-result-title"
+        title={entry.shortTitle}
         placeholder="Заполните размеры комнаты и доски и нажмите «Рассчитать». После первого расчёта результат обновляется сразу при изменении параметров."
       >
         <p class="calc-result__main">
           <span class="calc-result__number" data-out="packs"></span>
           <span class="calc-result__unit" data-out="packsWord"></span>
+          <span class="calc-result__explain" data-out="purchaseNote"></span>
         </p>
         <p class="calc-result__cost" data-row="totalCost" hidden>
           Стоимость: <strong data-out="totalCost"></strong>
         </p>
 
+        <h3 class="calc-result__subtitle">Как получилось</h3>
         <dl class="calc-result__list">
           <div>
             <dt>Досок по плану раскладки</dt>
@@ -316,6 +320,8 @@ const id = 'lm';
         </p>
       </CalculatorResult>
     </div>
+
+    <RoomNext current={entry} />
 
     <article class="calc-article">
       <p class="calc-article__intro">
@@ -502,6 +508,10 @@ const id = 'lm';
         view.text('packsWord', pluralizeRu(value.packs, packWordForms));
         view.show('totalCost', value.totalCost !== null);
         if (value.totalCost !== null) view.text('totalCost', formatRubles(value.totalCost));
+        view.text(
+          'purchaseNote',
+          `${boardsText(value.boardsToBuy)}, ${formatNumber(value.areaToBuy, 2)} м²`,
+        );
         view.text('boards', String(value.boards));
         view.text('reserve', formatNumber(value.reserve, 1));
         view.text('boardsWithReserve', String(value.boardsWithReserve));

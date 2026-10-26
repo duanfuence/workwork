@@ -7,6 +7,7 @@ import {
   getCatalogSections,
   getPopularCalculators,
   getRelatedCalculators,
+  getRoomNextCalculators,
   relatedLimit,
   sheetLabel,
   sortCategories,
@@ -20,6 +21,7 @@ function entry(overrides: Partial<CalculatorEntry> & Pick<CalculatorEntry, 'id'>
     shortTitle: overrides.id,
     sheet: 1,
     sheetTitle: 'Отделка стен',
+    roomFields: [],
     category: 'repair',
     description: 'Описание',
     path: `/kalkulyatory/${overrides.id}/`,
@@ -164,5 +166,31 @@ describe('штамп листа', () => {
       'Лист 01 · Отделка стен',
     );
     expect(sheetLabel(entry({ id: 'x', sheet: 12, sheetTitle: 'Полы' }))).toBe('Лист 12 · Полы');
+  });
+});
+
+describe('дальше для этой комнаты', () => {
+  const room = ['roomLength', 'roomWidth', 'wallHeight'] as const;
+  const list = [
+    entry({ id: 'oboi', status: 'available', roomFields: room }),
+    entry({ id: 'laminat', status: 'available', roomFields: ['roomLength', 'roomWidth'] }),
+    entry({ id: 'plitka', status: 'available', roomFields: [] }),
+    entry({ id: 'kraska', status: 'planned', roomFields: room }),
+    entry({ id: 'shpaklevka', status: 'available', roomFields: room }),
+  ];
+
+  it('опубликованные калькуляторы с общими полями комнаты, без текущего, в порядке каталога', () => {
+    const current = list[0];
+    if (!current) throw new Error('нет записи');
+    expect(getRoomNextCalculators(list, current).map((item) => item.id)).toEqual([
+      'laminat',
+      'shpaklevka',
+    ]);
+  });
+
+  it('у калькулятора без полей комнаты — пусто', () => {
+    const tile = list[2];
+    if (!tile) throw new Error('нет записи');
+    expect(getRoomNextCalculators(list, tile)).toEqual([]);
   });
 });

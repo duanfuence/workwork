@@ -88,7 +88,15 @@ export interface ShareReport {
   url: string;
 }
 
-/** Текст для «Скопировать итог»: название, параметры, к покупке, ссылка. */
+/** Текст для «Скопировать» — список покупок: позиция «□ …» (галочка в магазине), исходные данные, ссылка. */
 export function shareText({ title, params, purchase, url }: ShareReport): string {
-  return [`${title} — ДомРасчёт`, ...params, `К покупке: ${purchase}`, url].join('\n');
+  return [
+    `Список покупок · ${title} (ДомРасчёт)`,
+    `□ ${purchase}`,
+    '',
+    'Исходные данные:',
+    ...params.map((param) => `— ${param}`),
+    '',
+    `Расчёт с формулами: ${url}`,
+  ].join('\n');
 }

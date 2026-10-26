@@ -9,22 +9,29 @@
  *   ввода, а не на каждое нажатие клавиши;
  * - панель итога `[data-result-bar]` — на экране уже 960 px, когда итог вне экрана: короткий итог
  *   и переход «К результату». Не live-регион: объявляет только область выше.
- * И для ссылки на расчёт (D-027): кнопки «Ссылка на расчёт» и «Скопировать итог» `[data-share]` — скрыты, пока
- * их не покажет скрипт: без JavaScript их нет; подтверждение «Скопировано» и поле для копирования вручную.
+ * И для ссылки на расчёт (D-027): кнопки «Поделиться» (ссылка на расчёт) и «Скопировать» (список покупок)
+ * `[data-share]` — скрыты, пока их не покажет скрипт: без JavaScript их нет; подтверждение «Скопировано» и поле для
+ * копирования вручную.
+ *
+ * Вид — «спецификация» (DES-1): тёмная полоса со штампом «СПЕЦИФИКАЦИЯ · ОБОИ», первым — «К покупке» (главный
+ * итог страницы `.calc-result__main` крупным моноширинным числом), затем «Как получилось» — строки с выносками.
  */
 interface Props {
   /** id заголовка; на него переходит фокус после расчёта. */
   headingId: string;
   /** Подсказка до первого расчёта. */
   placeholder: string;
+  /** Что считается — для штампа «Спецификация · Обои»: короткое название калькулятора. */
+  title: string;
 }
 
-const { headingId, placeholder } = Astro.props;
+const { headingId, placeholder, title } = Astro.props;
 ---
 
 <section class="calc-result" aria-labelledby={headingId} data-calculator-result data-state="empty">
   <h2 class="calc-result__title" id={headingId} tabindex="-1" data-result-heading>
-    Результат
+    <span class="visually-hidden">Результат: </span>
+    {`Спецификация · ${title}`}
   </h2>
 
   <div data-state-panel="empty">
@@ -36,16 +43,17 @@ const { headingId, placeholder } = Astro.props;
     <ul class="calc-result__error-list" data-error-summary></ul>
   </div>
 
-  <div data-state-panel="ready" hidden>
+  <div class="calc-result__ready" data-state-panel="ready" hidden>
+    <p class="stamp calc-result__label">К покупке</p>
     <slot />
 
     <div class="calc-share" data-share hidden>
       <div class="calc-share__actions">
-        <button type="button" class="button button--secondary calc-share__button" data-share-link>
-          Ссылка на расчёт
-        </button>
         <button type="button" class="button button--secondary calc-share__button" data-share-copy>
-          Скопировать итог
+          Скопировать<span class="visually-hidden"> список покупок</span>
+        </button>
+        <button type="button" class="button button--secondary calc-share__button" data-share-link>
+          Поделиться<span class="visually-hidden"> ссылкой на расчёт</span>
         </button>
       </div>
       <p class="calc-share__status" role="status" data-share-status></p>

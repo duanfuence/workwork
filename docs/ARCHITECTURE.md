@@ -57,6 +57,7 @@ src/
                           RelatedCalculators («Другие калькуляторы» на страницах калькуляторов),
                           MaterialIcon (схема материала на карточке-листе)
     calculator/CalculatorIntro.astro   шапка калькулятора: штамп листа (sheet, sheetTitle из каталога), H1, лид
+    calculator/RoomNext.astro          «Дальше для этой комнаты»: калькуляторы с теми же roomFields (каталог)
     calculator/NumberField.astro       поле ввода числа: label, единица, подсказка, место для ошибки
     calculator/SelectField.astro       выпадающий список с подписью, подсказкой и местом для ошибки
     calculator/PresetSelect.astro      выбор «Тип материала»: подставляет ориентир расхода в поле

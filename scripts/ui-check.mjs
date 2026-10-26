@@ -976,7 +976,7 @@ async function checkShare(browser, viewport) {
   );
   check(
     (await buttons.count()) === 2 && heights.every((height) => height >= 44),
-    `${label}: после расчёта — «Ссылка на расчёт» и «Скопировать итог», высота ${heights.join(' / ')} px`,
+    `${label}: после расчёта — полоса «Скопировать» и «Поделиться», высота ${heights.join(' / ')} px`,
   );
   await checkOverflow(page, `${label}, кнопки в результате`);
 
@@ -999,15 +999,18 @@ async function checkShare(browser, viewport) {
   await page.waitForTimeout(150);
   const text = await clipboard();
   const expectedText = [
-    'Калькулятор шпаклёвки — ДомРасчёт',
-    'Площадь 45,9 м² (с потолком)',
-    '2 слоя по 1,1 кг/м², запас 10 %',
-    'К покупке: 6 упаковок по 20 кг (120 кг)',
-    url,
+    'Список покупок · Калькулятор шпаклёвки (ДомРасчёт)',
+    '□ 6 упаковок по 20 кг (120 кг)',
+    '',
+    'Исходные данные:',
+    '— Площадь 45,9 м² (с потолком)',
+    '— 2 слоя по 1,1 кг/м², запас 10 %',
+    '',
+    `Расчёт с формулами: ${url}`,
   ].join('\n');
   check(
     plain(text) === plain(expectedText),
-    `${label}: «Скопировать итог» — ${JSON.stringify(text)}`,
+    `${label}: «Скопировать» — список покупок ${JSON.stringify(text)}`,
   );
   if (viewport.name !== '320') {
     await page.locator('[data-share]').scrollIntoViewIfNeeded();
@@ -1162,7 +1165,7 @@ async function checkForcedColors(browser, viewport) {
   await expectOutline('form button[type="submit"]', 'кнопка «Рассчитать»');
   await fillPuttyRoom(page);
   await page.keyboard.press('Shift+Tab');
-  await expectOutline('[data-share-link]', 'кнопка «Ссылка на расчёт»');
+  await expectOutline('[data-share-link]', 'кнопка «Поделиться»');
   if (viewport.name !== '1440') {
     await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
     await page.waitForTimeout(350);
@@ -1385,6 +1388,163 @@ async function checkDesign(browser, viewport) {
       await slow.context.close();
     }
   }
+  check(errors.length === 0, `${label}: нет ошибок в консоли (${errors.join(' | ') || '0'})`);
+}
+
+/**
+ * Результат — «спецификация» (DES-1, часть 2) на обоях: тёмная полоса со штампом, «К покупке» крупным моноширинным
+ * числом, «Как получилось» с выносками и вычитаниями, полоса «Скопировать / Поделиться», «Дальше для этой комнаты»
+ * (пометка — только когда размеры сохранены), тёмная панель итога на телефоне.
+ */
+async function checkSpec(browser, viewport) {
+  const label = `спецификация ${viewport.name}`;
+  const errors = [];
+  const { context, page } = await freshPage(browser, viewport, errors);
+  const hint = page.locator('[data-room-next-hint]');
+  await page.goto(baseUrl + calcPath, { waitUntil: 'networkidle' });
+  const heading = plain(await page.locator('[data-result-heading]').textContent());
+  check(
+    heading === 'Результат: Спецификация · Обои',
+    `${label}: заголовок результата «${heading}» (для диктора — «Результат:»)`,
+  );
+  const next = await page
+    .locator('.room-next__link')
+    .evaluateAll((links) => links.map((link) => link.getAttribute('href')));
+  check(
+    next.join(' ') === `${laminatePath} ${paintPath} ${puttyPath} ${plasterPath}` &&
+      !(await hint.isVisible()),
+    `${label}: «Дальше для этой комнаты» — ламинат, краска, шпаклёвка, штукатурка; до расчёта без пометки`,
+  );
+
+  // Обои: 4 × 3 × 2,7, окно 1,5 × 1,4, рулон 0,53 × 10,05 по 1200 ₽ → 9 рулонов, 10 800 ₽ (WALLPAPER.md).
+  const values = {
+    roomLength: '4',
+    roomWidth: '3',
+    wallHeight: '2,7',
+    windowCount: '1',
+    windowWidth: '1,5',
+    windowHeight: '1,4',
+    rollWidth: '0,53',
+    rollLength: '10,05',
+    rollPrice: '1200',
+  };
+  for (const [name, value] of Object.entries(values))
+    await page.fill(`form [name="${name}"]`, value);
+  await page.locator('form button[type="submit"]').click();
+  await page.waitForTimeout(200);
+  const spec = await page.evaluate(() => {
+    const result = document.querySelector('[data-calculator-result]');
+    const title = document.querySelector('[data-result-heading]');
+    const ready = result?.querySelector('[data-state-panel="ready"]');
+    const number = result?.querySelector('.calc-result__number');
+    const minus = result?.querySelector('.calc-result__minus dd');
+    const row = result?.querySelector('.calc-result__list > div');
+    const buttons = [...(result?.querySelectorAll('[data-share] button') ?? [])].map((button) =>
+      button.getBoundingClientRect(),
+    );
+    const style = (element) => (element ? getComputedStyle(element) : null);
+    return {
+      titleBg: style(title)?.backgroundColor ?? '',
+      titleColor: style(title)?.color ?? '',
+      first: ready?.firstElementChild?.textContent?.trim() ?? '',
+      number: number?.textContent?.trim() ?? '',
+      numberFont: style(number)?.fontFamily ?? '',
+      numberSize: parseFloat(style(number)?.fontSize ?? '0'),
+      explain: result?.querySelector('.calc-result__explain')?.textContent?.trim() ?? '',
+      ddFont: style(row?.querySelector('dd'))?.fontFamily ?? '',
+      leader: style(row)?.backgroundImage ?? '',
+      minus: minus?.textContent?.trim() ?? '',
+      minusColor: style(minus)?.color ?? '',
+      minusSign: minus ? getComputedStyle(minus, '::before').content : '',
+      buttons: buttons.map((rect) => ({
+        top: Math.round(rect.top),
+        height: Math.round(rect.height),
+      })),
+    };
+  });
+  check(
+    contrastRatio(spec.titleColor, spec.titleBg) >= 4.5 && spec.titleBg === 'rgb(19, 36, 61)',
+    `${label}: шапка — тёмная полоса, контраст ${contrastRatio(spec.titleColor, spec.titleBg).toFixed(2)}:1`,
+  );
+  const minSize = viewport.name === '1440' ? 64 : 48;
+  check(
+    spec.first === 'К покупке' &&
+      spec.number === '9' &&
+      spec.numberFont.startsWith('"JetBrains Mono"') &&
+      spec.numberSize >= minSize &&
+      spec.explain === 'одной партии',
+    `${label}: первым «К покупке» — ${spec.number}, JetBrains Mono ${spec.numberSize} px, «${spec.explain}»`,
+  );
+  check(
+    spec.ddFont.startsWith('"JetBrains Mono"') && spec.leader.includes('radial-gradient'),
+    `${label}: «Как получилось» — значения моноширинные, точечная выноска`,
+  );
+  check(
+    spec.minus === '2,1 м²' &&
+      spec.minusSign.includes('−') &&
+      contrastRatio(spec.minusColor, 'rgb(255, 255, 255)') >= 4.5 &&
+      spec.minusColor === 'rgb(181, 64, 14)',
+    `${label}: вычитание «−${spec.minus}» размерным цветом, контраст ${contrastRatio(spec.minusColor, 'rgb(255, 255, 255)').toFixed(2)}:1`,
+  );
+  check(
+    spec.buttons.length === 2 &&
+      spec.buttons[0]?.top === spec.buttons[1]?.top &&
+      spec.buttons.every((button) => button.height >= 44),
+    `${label}: «Скопировать» и «Поделиться» — одной полосой, высота ${spec.buttons.map((b) => b.height).join(' / ')} px`,
+  );
+  check(await hint.isVisible(), `${label}: после расчёта — пометка «Размеры комнаты подставятся»`);
+  await checkOverflow(page, `${label}, спецификация`);
+  if (viewport.name !== '1440') {
+    await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+    await page.waitForTimeout(350);
+    const bar = await page.evaluate(() => {
+      const element = document.querySelector('[data-result-bar]');
+      const text = element?.querySelector('.result-bar__text');
+      if (!element || !text) return null;
+      return {
+        bg: getComputedStyle(element).backgroundColor,
+        color: getComputedStyle(text).color,
+        font: getComputedStyle(text).fontFamily,
+      };
+    });
+    check(
+      bar !== null &&
+        bar.bg === 'rgb(19, 36, 61)' &&
+        bar.font.startsWith('"JetBrains Mono"') &&
+        contrastRatio(bar.color, bar.bg) >= 4.5,
+      `${label}: панель итога — тёмная полоса, моноширинное число, контраст ${bar ? contrastRatio(bar.color, bar.bg).toFixed(2) : 0}:1`,
+    );
+  }
+  await page.locator('[data-calculator-result]').scrollIntoViewIfNeeded();
+  await page.screenshot({
+    path: path.join(outDir, `spec-oboi-${viewport.name}.png`),
+    fullPage: true,
+  });
+  await page.goto(baseUrl + tilePath, { waitUntil: 'networkidle' });
+  check(
+    (await page.locator('.room-next').count()) === 0,
+    `${label}: у плитки блока «Дальше для этой комнаты» нет`,
+  );
+  await context.close();
+
+  // Хранилище запрещено — блок есть, а пометки «размеры подставятся» нет и после расчёта.
+  const denied = await freshPage(browser, viewport, errors, () => {
+    Object.defineProperty(window, 'localStorage', {
+      get() {
+        throw new DOMException('Хранилище запрещено', 'SecurityError');
+      },
+    });
+  });
+  await denied.page.goto(baseUrl + calcPath, { waitUntil: 'networkidle' });
+  for (const [name, value] of Object.entries(values))
+    await denied.page.fill(`form [name="${name}"]`, value);
+  await denied.page.locator('form button[type="submit"]').click();
+  check(
+    (await denied.page.locator('.room-next').isVisible()) &&
+      !(await denied.page.locator('[data-room-next-hint]').isVisible()),
+    `${label}: хранилище запрещено — ссылки есть, пометки «размеры подставятся» нет`,
+  );
+  await denied.context.close();
   check(errors.length === 0, `${label}: нет ошибок в консоли (${errors.join(' | ') || '0'})`);
 }
 
@@ -2489,6 +2649,7 @@ try {
     if (viewport.name !== '768') await checkShare(browser, viewport);
     if (fullCheckViewports.has(viewport.name)) await checkForcedColors(browser, viewport);
     if (viewport.name !== '768') await checkDesign(browser, viewport);
+    if (viewport.name !== '768') await checkSpec(browser, viewport);
     check(
       consoleErrors.length === 0,
       `${viewport.name}: нет ошибок в консоли (${consoleErrors.join(' | ') || '0'})`,

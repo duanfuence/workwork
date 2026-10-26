@@ -6,6 +6,13 @@ import { categories } from './categories';
  * Пути страниц калькуляторов по файлам в src/pages/kalkulyatory/:
  * `oboi.astro` и `oboi/index.astro` → `/kalkulyatory/oboi/`. Файлы не импортируются (lazy glob).
  */
+/** Исходники страниц калькуляторов — для сверки полей комнаты из каталога. */
+const pageSources = import.meta.glob<string>('../pages/kalkulyatory/*.astro', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+});
+
 const calculatorPagePaths = Object.keys(import.meta.glob('../pages/kalkulyatory/**/*.astro'))
   .filter((file) => file !== '../pages/kalkulyatory/index.astro') // страница каталога /kalkulyatory/
   .map((file) => `/${file.replace('../pages/', '').replace(/(\/index)?\.astro$/, '')}/`);
@@ -68,6 +75,17 @@ describe('целостность каталога', () => {
       'putty',
       'plaster',
     ]);
+  });
+
+  it('поля комнаты из каталога есть на странице калькулятора, других полей комнаты на ней нет', () => {
+    const roomNames = ['roomLength', 'roomWidth', 'wallHeight'] as const;
+    for (const entry of calculators.filter((item) => item.status === 'available')) {
+      const file = Object.keys(pageSources).find((key) => key.endsWith(`/${entry.slug}.astro`));
+      const source = file ? (pageSources[file] ?? '') : '';
+      const onPage = roomNames.filter((name) => source.includes(`name="${name}"`));
+      // Высота стен у шпаклёвки и штукатурки есть и в режиме «стены» — в каталоге она всё равно поле комнаты.
+      expect(onPage, entry.id).toEqual([...entry.roomFields]);
+    }
   });
 
   it('у каждого опубликованного калькулятора есть страница по его path', () => {

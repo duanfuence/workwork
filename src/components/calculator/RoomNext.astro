@@ -1,0 +1,102 @@
+---
+/**
+ * «Дальше для этой комнаты» — после результата: калькуляторы с теми же размерами комнаты (из каталога,
+ * `getRoomNextCalculators`). Пометку «размеры подставятся» показывает общий механизм форм, только когда размеры
+ * действительно сохранены в браузере (D-026); без JavaScript и без хранилища её нет.
+ */
+import { calculators } from '../../data/calculators';
+import type { CalculatorEntry } from '../../data/catalog.types';
+import { getCalculatorHref, getRoomNextCalculators, sheetNumber } from '../../lib/catalog';
+
+interface Props {
+  current: CalculatorEntry;
+}
+
+const { current } = Astro.props;
+const next = getRoomNextCalculators(calculators, current);
+---
+
+{next.length > 0 && (
+  <nav class="room-next" aria-labelledby="room-next-title">
+    <h2 class="stamp room-next__title" id="room-next-title">
+      Дальше для этой комнаты
+    </h2>
+    <p class="room-next__hint" data-room-next-hint hidden>
+      Размеры комнаты подставятся.
+    </p>
+    <ul class="room-next__list">
+      {next.map((entry) => (
+        <li>
+          <a class="room-next__link" href={getCalculatorHref(entry) ?? entry.path}>
+            <span class="room-next__sheet">{`Лист ${sheetNumber(entry)}`}</span>
+            <span class="room-next__name">{entry.shortTitle}</span>
+          </a>
+        </li>
+      ))}
+    </ul>
+  </nav>
+)}
+
+<style>
+  .room-next {
+    display: grid;
+    gap: var(--space-2);
+    padding: var(--space-4) var(--space-5);
+    background: var(--color-surface);
+    border: var(--border);
+    border-left: 2px solid var(--color-dimension);
+    border-radius: var(--radius-lg);
+  }
+
+  .room-next__title {
+    color: var(--color-text);
+    font-weight: var(--font-weight-mono-bold);
+  }
+
+  .room-next__hint {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+  }
+
+  .room-next__hint[hidden] {
+    display: none;
+  }
+
+  .room-next__list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .room-next__link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: var(--tap-target-min);
+    padding: 0 var(--space-3);
+    border: var(--border-ink);
+    border-radius: var(--radius-md);
+    color: var(--color-text);
+    text-decoration: none;
+  }
+
+  .room-next__link:hover {
+    background: var(--color-accent-soft);
+    color: var(--color-text);
+  }
+
+  .room-next__sheet {
+    color: var(--color-dimension-text);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-stamp);
+    letter-spacing: var(--letter-spacing-stamp);
+    text-transform: uppercase;
+  }
+
+  .room-next__name {
+    font-weight: var(--font-weight-semibold);
+  }
+</style>

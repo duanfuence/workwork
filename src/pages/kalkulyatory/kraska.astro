@@ -3,6 +3,7 @@ import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import RelatedCalculators from '../../components/RelatedCalculators.astro';
 import CalculatorIntro from '../../components/calculator/CalculatorIntro.astro';
 import CalculatorResult from '../../components/calculator/CalculatorResult.astro';
+import RoomNext from '../../components/calculator/RoomNext.astro';
 import NumberField from '../../components/calculator/NumberField.astro';
 import PresetSelect from '../../components/calculator/PresetSelect.astro';
 import PresetTable from '../../components/calculator/PresetTable.astro';
@@ -139,6 +140,7 @@ const id = 'pt';
 
       <CalculatorResult
         headingId="calc-result-title"
+        title={entry.shortTitle}
         placeholder="Заполните размеры помещения и укрывистость краски и нажмите «Рассчитать». После первого расчёта результат обновляется сразу при изменении параметров."
       >
         <p class="calc-result__main">
@@ -152,6 +154,7 @@ const id = 'pt';
           <span data-out="litersToBuy"></span> л
         </p>
 
+        <h3 class="calc-result__subtitle">Как получилось</h3>
         <dl class="calc-result__list">
           <div>
             <dt>Площадь стен</dt>
@@ -159,7 +162,7 @@ const id = 'pt';
               <span data-out="wallArea"></span> м²
             </dd>
           </div>
-          <div>
+          <div class="calc-result__minus">
             <dt>Минус окна и двери</dt>
             <dd>
               <span data-out="openingsArea"></span> м²
@@ -194,7 +197,7 @@ const id = 'pt';
         </dl>
 
         <div class="calc-result__section">
-          <h3 class="calc-result__subtitle">Как получилось</h3>
+          <h3 class="calc-result__subtitle">Формула</h3>
           <p class="calc-result__note" data-out="formula"></p>
         </div>
         <p class="calc-result__note">
@@ -203,6 +206,8 @@ const id = 'pt';
         </p>
       </CalculatorResult>
     </div>
+
+    <RoomNext current={entry} />
 
     <article class="calc-article">
       <p class="calc-article__intro">

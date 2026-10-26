@@ -96,3 +96,20 @@ export function getRelatedCalculators(
     ...candidates.filter((entry) => entry.category !== current.category),
   ].slice(0, Math.max(0, limit));
 }
+
+/**
+ * «Дальше для этой комнаты»: другие опубликованные калькуляторы, которые берут хотя бы один размер комнаты из тех же
+ * полей, что и текущий (поле каталога `roomFields`). Порядок — как в каталоге. У калькулятора без полей комнаты — пусто.
+ */
+export function getRoomNextCalculators(
+  list: readonly CalculatorEntry[],
+  current: CalculatorEntry,
+): CalculatorEntry[] {
+  if (current.roomFields.length === 0) return [];
+  return list.filter(
+    (entry) =>
+      entry.id !== current.id &&
+      isAvailable(entry) &&
+      entry.roomFields.some((field) => current.roomFields.includes(field)),
+  );
+}
