@@ -438,3 +438,33 @@
     display: none;
   }
 }
+
+/* Строка «Размеры комнаты подставлены из прошлого расчёта · Очистить» над формой (D-026). */
+.calc-memory {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--space-1);
+  padding: var(--space-1) var(--space-4);
+  background: var(--color-accent-soft);
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.calc-memory__clear {
+  min-height: var(--tap-target-min);
+  padding: 0 var(--space-1);
+  background: none;
+  border: 0;
+  color: var(--color-accent);
+  font: inherit;
+  font-weight: var(--font-weight-semibold);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+
+.calc-memory__clear:hover {
+  color: var(--color-accent-hover);
+}

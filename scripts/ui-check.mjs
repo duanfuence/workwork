@@ -801,6 +801,157 @@ async function checkResultBar(page, viewport) {
   await page.screenshot({ path: path.join(outDir, `result-bar-laminate-${viewport.name}.png`) });
 }
 
+const roomKey = 'domraschet:room';
+
+/** Новый контекст браузера с ширинами viewport; ошибки консоли — в `errors`. */
+async function freshPage(browser, viewport, errors, init) {
+  const context = await browser.newContext({
+    viewport: { width: viewport.width, height: viewport.height },
+    isMobile: viewport.isMobile,
+    hasTouch: viewport.isMobile,
+    locale: 'ru-RU',
+  });
+  if (init) await context.addInitScript(init);
+  const page = await context.newPage();
+  page.on('console', (message) => {
+    if (message.type() === 'error') errors.push(message.text());
+  });
+  page.on('pageerror', (error) => errors.push(error.message));
+  return { context, page };
+}
+
+/**
+ * Размеры комнаты между калькуляторами (D-026): расчёт в краске → в шпаклёвке подставлены, строка с «Очистить»;
+ * ламинат — длина и ширина; плитка и режим «стены» — без запоминания; хранилище запрещено — без ошибок.
+ */
+async function checkRoomMemory(browser, viewport) {
+  const label = `размеры комнаты ${viewport.name}`;
+  const errors = [];
+  const { context, page } = await freshPage(browser, viewport, errors);
+  const stored = () => page.evaluate((key) => window.localStorage.getItem(key), roomKey);
+  const value = (name) => page.locator(`form [name="${name}"]`).inputValue();
+  const notice = page.locator('[data-room-notice]');
+
+  await page.goto(baseUrl + paintPath, { waitUntil: 'networkidle' });
+  for (const [name, text] of Object.entries({
+    roomLength: '4',
+    roomWidth: '3',
+    wallHeight: '2,7',
+    coverage: '8',
+  }))
+    await page.fill(`form [name="${name}"]`, text);
+  check((await stored()) === null, `${label}: до расчёта ничего не сохранено`);
+  await page.locator('form button[type="submit"]').click();
+  check(
+    (await stored()) === '{"v":1,"roomLength":4,"roomWidth":3,"wallHeight":2.7}',
+    `${label}: после расчёта в краске сохранены только три размера (${await stored()})`,
+  );
+
+  await page.goto(baseUrl + puttyPath, { waitUntil: 'networkidle' });
+  const filled = [await value('roomLength'), await value('roomWidth'), await value('wallHeight')];
+  check(
+    filled.join(' ') === '4 3 2,7' &&
+      (await page.locator('[data-calculator-result]').getAttribute('data-state')) === 'empty',
+    `${label}: в шпаклёвке подставлены 4 × 3 × 2,7, расчёт сам не запущен`,
+  );
+  const noticeText = plain(await notice.textContent());
+  const clearButton = notice.locator('button');
+  const clearHeight = await clearButton.evaluate(
+    (element) => element.getBoundingClientRect().height,
+  );
+  check(
+    (await notice.isVisible()) &&
+      noticeText === 'Размеры комнаты подставлены из прошлого расчёта: 4 × 3 × 2,7 м · Очистить' &&
+      clearHeight >= 44,
+    `${label}: строка «${noticeText}», «Очистить» ${clearHeight} px`,
+  );
+  await checkOverflow(page, `${label}, строка над формой`);
+  if (viewport.name === '390') {
+    await notice.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: path.join(outDir, `room-memory-${viewport.name}.png`) });
+  }
+  await clearButton.click();
+  check(
+    (await value('roomLength')) === '' &&
+      (await value('wallHeight')) === '' &&
+      (await notice.count()) === 0 &&
+      (await stored()) === null &&
+      (await page.evaluate(() => document.activeElement?.getAttribute('name'))) === 'roomLength',
+    `${label}: «Очистить» — поля пусты, строки нет, сохранённое удалено, фокус на длине`,
+  );
+
+  // Режим «отдельные стены» не меняет размеров комнаты.
+  await page.goto(baseUrl + plasterPath, { waitUntil: 'networkidle' });
+  await page.selectOption('form [name="mode"]', 'walls');
+  for (const [name, text] of Object.entries({
+    wallLength: '5',
+    wallHeight: '2,5',
+    consumption: '1',
+  }))
+    await page.fill(`form [name="${name}"]`, text);
+  await page.locator('form button[type="submit"]').click();
+  check(
+    (await stored()) === null,
+    `${label}: расчёт отдельной стены в штукатурке ничего не сохраняет`,
+  );
+
+  await page.evaluate(
+    (key) =>
+      window.localStorage.setItem(key, '{"v":1,"roomLength":4,"roomWidth":3,"wallHeight":2.7}'),
+    roomKey,
+  );
+  await page.goto(baseUrl + laminatePath, { waitUntil: 'networkidle' });
+  check(
+    (await value('roomLength')) === '4' &&
+      (await value('roomWidth')) === '3' &&
+      plain(await notice.textContent()).includes(': 4 × 3 м'),
+    `${label}: ламинат — подставлены длина и ширина «4 × 3 м»`,
+  );
+  await page.goto(baseUrl + tilePath, { waitUntil: 'networkidle' });
+  check(
+    (await notice.count()) === 0 && (await value('surfaceLength')) === '',
+    `${label}: плитка — ничего не подставлено`,
+  );
+  await page.evaluate(
+    (key) => window.localStorage.setItem(key, '{"v":0,"roomLength":4,"roomWidth":3}'),
+    roomKey,
+  );
+  await page.goto(baseUrl + calcPath, { waitUntil: 'networkidle' });
+  check(
+    (await notice.count()) === 0 && (await value('roomLength')) === '',
+    `${label}: запись старой версии формата не читается`,
+  );
+  await context.close();
+
+  // Хранилище запрещено (приватный режим, запрет сайтам хранить данные).
+  const denied = await freshPage(browser, viewport, errors, () => {
+    Object.defineProperty(window, 'localStorage', {
+      get() {
+        throw new DOMException('Хранилище запрещено', 'SecurityError');
+      },
+    });
+  });
+  await denied.page.goto(baseUrl + paintPath, { waitUntil: 'networkidle' });
+  for (const [name, text] of Object.entries({
+    roomLength: '4',
+    roomWidth: '3',
+    wallHeight: '2,7',
+    coverage: '8',
+  }))
+    await denied.page.fill(`form [name="${name}"]`, text);
+  await denied.page.locator('form button[type="submit"]').click();
+  const deniedState = await denied.page
+    .locator('[data-calculator-result]')
+    .getAttribute('data-state');
+  await denied.page.goto(baseUrl + puttyPath, { waitUntil: 'networkidle' });
+  check(
+    deniedState === 'ready' && (await denied.page.locator('[data-room-notice]').count()) === 0,
+    `${label}: хранилище запрещено — расчёт работает, подстановки нет`,
+  );
+  await denied.context.close();
+  check(errors.length === 0, `${label}: нет ошибок в консоли (${errors.join(' | ') || '0'})`);
+}
+
 async function checkLinks(page, label) {
   const hrefs = await page.$$eval('a[href]', (links) => links.map((a) => a.getAttribute('href')));
   const broken = [];
@@ -1870,6 +2021,14 @@ try {
       hasTouch: viewport.isMobile,
       locale: 'ru-RU',
     });
+    // Основные сценарии — с пустыми формами: размеры комнаты из прошлых расчётов не подставляются.
+    await context.addInitScript((key) => {
+      try {
+        window.localStorage.removeItem(key);
+      } catch {
+        // хранилище недоступно
+      }
+    }, roomKey);
     const page = await context.newPage();
     const consoleErrors = [];
     page.on('console', (message) => {
@@ -1889,6 +2048,8 @@ try {
     await checkRelated(page, viewport);
     if (fullCheckViewports.has(viewport.name)) await checkPresets(page, viewport);
     if (viewport.name !== '768') await checkResultBar(page, viewport);
+    if (viewport.name === '320' || viewport.name === '390')
+      await checkRoomMemory(browser, viewport);
     check(
       consoleErrors.length === 0,
       `${viewport.name}: нет ошибок в консоли (${consoleErrors.join(' | ') || '0'})`,

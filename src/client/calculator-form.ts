@@ -14,6 +14,8 @@
  *   в результате видна, пока расчёт идёт по ориентиру (текст — `data-note` варианта);
  * - необязательно: поля одного режима `[data-show-when="<name>=<value>"]` (NumberField, SelectField с `showWhen`) —
  *   видны, пока в выборе `<name>` значение `<value>`; скрытые поля `evaluate` страницы не разбирает;
+ * - необязательно: поля помещения `roomLength`, `roomWidth`, `wallHeight` — размеры комнаты сохраняются в браузере
+ *   после успешного расчёта и подставляются в пустые поля другого калькулятора (D-026);
  * - главный итог `.calc-result__main` и короткий итог `view.summary(…)` из `render` — для панели итога
  *   `[data-result-bar]` (на экране уже 960 px, когда итог не виден) и для объявления диктору
  *   `[data-result-announce]` (по «Рассчитать» и после паузы ввода, D-024). Оба элемента даёт CalculatorResult.
@@ -34,6 +36,18 @@ import {
   resultViewInset,
   type ResultState,
 } from '../lib/result-bar';
+import {
+  mergeRoom,
+  parseStoredRoom,
+  roomFields,
+  roomFill,
+  roomNoticeSizes,
+  roomStorageKey,
+  roomToSave,
+  serializeRoom,
+  type RoomControls,
+  type RoomField,
+} from '../lib/room-memory';
 
 type State = ResultState;
 
@@ -112,6 +126,55 @@ export function initCalculatorForm<F extends string, R>({
       note.textContent = active ? (select.selectedOptions[0]?.dataset['note'] ?? '') : '';
       note.hidden = !active;
     }
+  };
+
+  // Размеры комнаты между калькуляторами (D-026). Хранилище бывает недоступно (приватный режим, запрет
+  // сайтам хранить данные) — тогда калькулятор работает как без запоминания, без ошибок.
+  const storage = {
+    read(): string | null {
+      try {
+        return window.localStorage.getItem(roomStorageKey);
+      } catch {
+        return null;
+      }
+    },
+    write(value: string) {
+      try {
+        window.localStorage.setItem(roomStorageKey, value);
+      } catch {
+        // без запоминания
+      }
+    },
+    remove() {
+      try {
+        window.localStorage.removeItem(roomStorageKey);
+      } catch {
+        // без запоминания
+      }
+    },
+  };
+  const roomInputs = roomFields.flatMap((field) => {
+    const input = form.querySelector<HTMLInputElement>(`input[name="${field}"]`);
+    return input ? [[field, input] as const] : [];
+  });
+  const roomControls = (): RoomControls => {
+    const controls: RoomControls = {};
+    for (const [field, input] of roomInputs) {
+      controls[field] = { value: input.value, active: input.closest('[hidden]') === null };
+    }
+    return controls;
+  };
+  const saveRoom = () => {
+    const sizes = roomToSave(roomControls());
+    if (sizes) storage.write(serializeRoom(mergeRoom(parseStoredRoom(storage.read()), sizes)));
+  };
+  // Строка над формой «Размеры комнаты подставлены… · Очистить» и что именно подставлено.
+  let roomNotice: HTMLElement | null = null;
+  let roomFilled: Partial<Record<RoomField, string>> = {};
+  const hideRoomNotice = () => {
+    roomNotice?.remove();
+    roomNotice = null;
+    roomFilled = {};
   };
 
   const view: ResultView = {
@@ -327,6 +390,7 @@ export function initCalculatorForm<F extends string, R>({
       if (summaryText === '')
         summaryText = (mainResult?.textContent ?? '').replace(/\s+/g, ' ').trim();
       showPresetNotes();
+      saveRoom();
       calculated = true;
       setState('ready');
       if (moveFocus && heading) {
@@ -376,6 +440,7 @@ export function initCalculatorForm<F extends string, R>({
     calculated = false;
     announce('');
     // Значения полей сбрасываются после события reset.
+    hideRoomNotice();
     requestAnimationFrame(() => {
       applyVisibility();
       showErrors({});
@@ -383,4 +448,44 @@ export function initCalculatorForm<F extends string, R>({
       setState('empty');
     });
   });
+
+  // Сохранённые размеры — только в пустые поля; расчёт сам не запускается.
+  const restoreRoom = () => {
+    roomFilled = roomFill(parseStoredRoom(storage.read()), roomControls());
+    const sizes = roomNoticeSizes(roomFilled);
+    if (sizes === '') return;
+    for (const [field, input] of roomInputs) {
+      const text = roomFilled[field];
+      if (text !== undefined) input.value = text;
+    }
+    const notice = document.createElement('p');
+    notice.className = 'calc-memory';
+    notice.dataset['roomNotice'] = '';
+    const clear = document.createElement('button');
+    clear.type = 'button';
+    clear.className = 'calc-memory__clear';
+    clear.textContent = 'Очистить';
+    clear.addEventListener('click', () => {
+      storage.remove();
+      // Очищаются только поля, которые с подстановки не правили.
+      let first: HTMLInputElement | null = null;
+      for (const [field, input] of roomInputs) {
+        if (roomFilled[field] !== undefined && input.value === roomFilled[field]) {
+          input.value = '';
+          first ??= input;
+        }
+      }
+      hideRoomNotice();
+      (first ?? roomInputs[0]?.[1])?.focus();
+      if (live) update(false);
+    });
+    const text = document.createElement('span');
+    text.textContent = `Размеры комнаты подставлены из прошлого расчёта: ${sizes} ·`;
+    notice.append(text, ' ', clear);
+    const title = form.querySelector('h2');
+    if (title) title.after(notice);
+    else form.prepend(notice);
+    roomNotice = notice;
+  };
+  restoreRoom();
 }
