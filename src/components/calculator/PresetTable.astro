@@ -3,28 +3,32 @@
  * Таблица ориентиров расхода для статьи калькулятора — из тех же данных, что выбор «Тип материала»;
  * видна без JavaScript.
  */
-import { presetsCheckedAt, presetsFor, type PresetCalculator } from '../../data/material-presets';
+import {
+  presetRange,
+  presetsCheckedAt,
+  presetsFor,
+  presetUnits,
+  type PresetCalculator,
+} from '../../data/material-presets';
 import { presetFieldText } from '../../lib/presets';
 
 interface Props {
   calculator: PresetCalculator;
-  /** Единица значений в подписи таблицы: «м²/л», «кг/м² на 1 мм». */
-  valueUnit: string;
   /** Заголовок колонки значения: «Укрывистость», «Расход». */
   valueTitle: string;
 }
 
-const { calculator, valueUnit, valueTitle } = Astro.props;
+const { calculator, valueTitle } = Astro.props;
 const presets = presetsFor(calculator);
 const checkedAt = presetsCheckedAt.split('-').reverse().join('.');
 const rule =
   calculator === 'paint'
-    ? 'Ориентир — нижняя граница укрывистости: так литров не окажется меньше нужного.'
-    : 'Ориентир — верхняя граница расхода: так смеси не окажется меньше нужного.';
-const caption = `${valueTitle}, ${valueUnit}`;
+    ? 'Ориентир — медиана нижних границ укрывистости у проверенных марок, округлённая вниз.'
+    : 'Ориентир — медиана верхних границ расхода у проверенных марок, округлённая вверх.';
+const caption = `${valueTitle}, ${presetUnits[calculator]}`;
 const intro =
   `Типовые значения по техническим описаниям производителей (проверено ${checkedAt}). ${rule} ` +
-  'Точное значение — на упаковке выбранного материала: у конкретного продукта оно может быть заметно другим.';
+  'Разницу между марками покрывает поле «Запас». Точное значение — на упаковке выбранного материала.';
 ---
 
 <section aria-labelledby="presets-title">
@@ -46,13 +50,16 @@ const intro =
         </tr>
       </thead>
       <tbody>
-        {presets.map((preset) => (
-          <tr>
-            <th scope="row">{preset.label}</th>
-            <td>{presetFieldText(preset.value)}</td>
-            <td>{`${presetFieldText(preset.range.min)}–${presetFieldText(preset.range.max)}`}</td>
-          </tr>
-        ))}
+        {presets.map((preset) => {
+          const range = presetRange(preset);
+          return (
+            <tr>
+              <th scope="row">{preset.label}</th>
+              <td>{presetFieldText(preset.value)}</td>
+              <td>{`${presetFieldText(range.min)}–${presetFieldText(range.max)}`}</td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   </div>
@@ -60,7 +67,7 @@ const intro =
     {presets.map((preset) => (
       <li>
         <strong>{`${preset.label}.`}</strong>
-        {` ${preset.note} По данным: ${preset.sources.join(', ')}.`}
+        {` ${preset.note} По данным: ${preset.sources.map((source) => source.name).join(', ')}.`}
       </li>
     ))}
   </ul>

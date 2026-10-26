@@ -4,7 +4,9 @@ import {
   choiceAfterEdit,
   customChoice,
   fieldTextForChoice,
+  median,
   presetFieldText,
+  presetValueByRule,
   type PresetChoice,
 } from './presets';
 
@@ -68,5 +70,81 @@ describe('ручная правка', () => {
 describe('сброс', () => {
   it('исходное состояние — «Своё значение» и пустое поле, ориентира нет', () => {
     expect(activeChoice(choices, customChoice, '')).toBeNull();
+  });
+});
+
+describe('median', () => {
+  it('нечётное и чётное число значений', () => {
+    expect(median([0.9, 1, 1])).toBe(1);
+    expect(median([1.3, 0.85, 1, 0.9])).toBeCloseTo(0.95, 10);
+  });
+
+  it('пустой список — ошибка', () => {
+    expect(() => median([])).toThrow();
+  });
+});
+
+describe('presetValueByRule', () => {
+  const sources = (pairs: [number, number][]) => pairs.map(([min, max]) => ({ min, max }));
+
+  it('расход: медиана верхних границ, вверх до 0,1 — 0,95 → 1,0 (не 1,1 из-за двоичной дроби)', () => {
+    expect(
+      presetValueByRule(
+        'consumption',
+        sources([
+          [0.85, 0.85],
+          [1, 1],
+          [0.8, 0.9],
+          [1.1, 1.3],
+        ]),
+      ),
+    ).toBe(1);
+  });
+
+  it('расход: точная медиана не округляется, 1,65 → 1,7', () => {
+    expect(
+      presetValueByRule(
+        'consumption',
+        sources([
+          [1.5, 1.6],
+          [1.6, 1.6],
+          [1.4, 1.8],
+          [1.4, 1.5],
+        ]),
+      ),
+    ).toBe(1.6);
+    expect(
+      presetValueByRule(
+        'consumption',
+        sources([
+          [1.6, 1.6],
+          [1.7, 1.7],
+        ]),
+      ),
+    ).toBe(1.7);
+  });
+
+  it('укрывистость: медиана нижних границ, вниз до целого — 7,75 → 7', () => {
+    expect(
+      presetValueByRule(
+        'coverage',
+        sources([
+          [7, 14],
+          [7, 12],
+          [8.5, 9],
+          [12, 12],
+        ]),
+      ),
+    ).toBe(7);
+    expect(
+      presetValueByRule(
+        'coverage',
+        sources([
+          [8, 10],
+          [9, 12],
+          [10, 14],
+        ]),
+      ),
+    ).toBe(9);
   });
 });

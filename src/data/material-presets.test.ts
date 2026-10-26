@@ -3,9 +3,14 @@ import { paintLimits } from '../lib/calculators/paint';
 import { plasterLimits } from '../lib/calculators/plaster';
 import { puttyLimits } from '../lib/calculators/putty';
 import { parseDecimal } from '../lib/number';
-import { presetFieldText } from '../lib/presets';
+import { presetFieldText, presetValueByRule } from '../lib/presets';
 import { hasPrecision } from '../lib/validation';
-import { materialPresets, presetsFor, type PresetCalculator } from './material-presets';
+import {
+  materialPresets,
+  presetRange,
+  presetsFor,
+  type PresetCalculator,
+} from './material-presets';
 
 const research = Object.values(
   import.meta.glob<string>('../../docs/research/MATERIAL_PRESETS.md', {
@@ -46,16 +51,29 @@ describe('ориентиры расхода', () => {
   );
 
   it.each(materialPresets.map((preset) => [preset.id, preset]))(
-    '%s: на стороне большего расхода, не меньше трёх источников',
+    '%s: значение по правилу D-023 (медиана), не меньше трёх источников',
     (_id, preset) => {
-      // Укрывистость: меньше м²/л — больше литров; расход: больше кг/м² — больше мешков.
-      const boundary = preset.calculator === 'paint' ? preset.range.min : preset.range.max;
-      expect(preset.value).toBe(boundary);
-      expect(preset.range.min).toBeLessThanOrEqual(preset.range.max);
+      const kind = preset.calculator === 'paint' ? 'coverage' : 'consumption';
+      expect(preset.value).toBe(presetValueByRule(kind, preset.sources));
+      const range = presetRange(preset);
+      expect(preset.value).toBeGreaterThanOrEqual(range.min);
+      expect(preset.value).toBeLessThanOrEqual(range.max);
+      for (const source of preset.sources) expect(source.min).toBeLessThanOrEqual(source.max);
       expect(preset.sources.length).toBeGreaterThanOrEqual(3);
       expect(research).toContain(`\n## ${preset.research}\n`);
     },
   );
+
+  it('ожидаемые ориентиры (расчёт — docs/research/MATERIAL_PRESETS.md)', () => {
+    expect(Object.fromEntries(materialPresets.map((preset) => [preset.id, preset.value]))).toEqual({
+      'paint-interior': 7,
+      'plaster-gypsum': 1,
+      'plaster-cement': 1.6,
+      'putty-gypsum-start': 1,
+      'putty-gypsum-finish': 0.9,
+      'putty-polymer-paste': 1.7,
+    });
+  });
 
   it('у шпаклёвки указана толщина слоя, к которой относится расход', () => {
     for (const preset of presetsFor('putty')) expect(preset.layerMm).toBe(1);

@@ -55,3 +55,32 @@ export function activeChoice(
   const id = choiceAfterEdit(choices, selectedId, fieldText);
   return choices.find((choice) => choice.id === id) ?? null;
 }
+
+/** Медиана: среднее двух средних значений при чётном числе. */
+export function median(values: readonly number[]): number {
+  if (values.length === 0) throw new Error('Медиана пустого списка не определена');
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1
+    ? (sorted[middle] ?? 0)
+    : ((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0)) / 2;
+}
+
+/**
+ * Ориентир по правилу D-023 из значений производителей (`min`–`max` у каждого продукта):
+ * - расход (кг/м²) — медиана верхних границ, вверх до 0,1;
+ * - укрывистость (м²/л) — медиана нижних границ, вниз до целого.
+ * Разброс между марками покрывает поле «Запас», а не сам ориентир.
+ * Считается в сотых долях: двоичные дроби не дают лишних 0,1 (0,95 → 1,0, а не 1,1).
+ */
+export function presetValueByRule(
+  kind: 'consumption' | 'coverage',
+  sources: readonly { min: number; max: number }[],
+): number {
+  if (kind === 'coverage') {
+    const hundredths = Math.round(median(sources.map((source) => source.min)) * 100);
+    return Math.floor(hundredths / 100);
+  }
+  const hundredths = Math.round(median(sources.map((source) => source.max)) * 100);
+  return Math.ceil(hundredths / 10) / 10;
+}

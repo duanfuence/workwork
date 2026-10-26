@@ -499,26 +499,32 @@ async function checkPresets(page, viewport) {
       // 37,8 м² × 2 слоя ÷ 7 м²/л = 10,8 л; с запасом 10 % — 11,88 → 11,9.
       out: ['litersWithReserve', '11,9'],
       note: 'водно-дисперсионной интерьерной краски',
+      range: 'от 7 до 14 м²/л',
+      manual: '8',
     },
     {
       path: plasterPath,
       field: 'consumption',
       preset: 'plaster-gypsum',
-      fieldText: '1,3',
+      fieldText: '1',
       fill: { wallLength: '5', wallHeight: '2,7' },
-      // 13,5 м² × 10 мм × 1,3 = 175,5 кг; с запасом 10 % — 193,05 → 193,1.
-      out: ['massWithReserve', '193,1'],
+      // 13,5 м² × 10 мм × 1 = 135 кг; с запасом 10 % — 148,5.
+      out: ['massWithReserve', '148,5'],
       note: 'гипсовой штукатурки',
+      range: 'от 0,8 до 1,3 кг/м² на 1 мм',
+      manual: '1,2',
     },
     {
       path: puttyPath,
       field: 'consumption',
       preset: 'putty-gypsum-finish',
-      fieldText: '1',
+      fieldText: '0,9',
       fill: { wallLength: '5', wallHeight: '2,7' },
-      // 13,5 м² × 1 кг/м² × 1 слой = 13,5 кг; с запасом 10 % — 14,85 → 14,9.
-      out: ['massWithReserve', '14,9'],
+      // 13,5 м² × 0,9 кг/м² × 1 слой = 12,15 кг; с запасом 10 % — 13,365 → 13,4.
+      out: ['massWithReserve', '13,4'],
       note: 'гипсовой финишной шпаклёвки',
+      range: 'от 0,9 до 1 кг/м² при слое 1 мм',
+      manual: '1,2',
     },
   ];
   for (const item of cases) {
@@ -567,11 +573,13 @@ async function checkPresets(page, viewport) {
       `${label}: результат по ориентиру — ${item.out[1]}`,
     );
     check(
-      (await note.isVisible()) && plain(await note.textContent()).includes(item.note),
-      `${label}: пометка «ориентир для ${item.note} — сверьте с упаковкой»`,
+      (await note.isVisible()) &&
+        plain(await note.textContent()) ===
+          `Ориентир для ${item.note}; у разных марок ${item.range} — сверьте с упаковкой.`,
+      `${label}: пометка «Ориентир для ${item.note}; у разных марок ${item.range} — сверьте с упаковкой»`,
     );
 
-    await input.fill('0,9');
+    await input.fill(item.manual);
     check(
       (await select.inputValue()) === '' &&
         !(await note.isVisible()) &&
