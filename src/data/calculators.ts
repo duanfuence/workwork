@@ -57,7 +57,7 @@ export const calculators: readonly CalculatorEntry[] = [
     category: 'repair',
     description: 'Расход краски для стен и потолка по площади, числу слоёв и норме расхода.',
     path: '/kalkulyatory/kraska/',
-    status: 'planned',
+    status: 'available',
     popular: true,
     searchTerms: ['краска', 'покраска', 'окраска', 'стены', 'потолок', 'расход', 'литры', 'слои'],
     seo: {

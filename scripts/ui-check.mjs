@@ -26,6 +26,7 @@ const port = 4329;
 const baseUrl = `http://localhost:${port}`;
 const calcPath = '/kalkulyatory/oboi/';
 const laminatePath = '/kalkulyatory/laminat/';
+const paintPath = '/kalkulyatory/kraska/';
 const viewports = [
   { name: '320', width: 320, height: 640, isMobile: true },
   { name: '390', width: 390, height: 844, isMobile: true },
@@ -123,19 +124,19 @@ async function checkHome(page, viewport) {
     return;
   }
 
-  // Каталог: обои и ламинат опубликованы, остальные — «Скоро» без ссылок
+  // Каталог: обои, ламинат и краска опубликованы, остальные — «Скоро» без ссылок
   const cards = page.locator('#catalog-list > li');
   check((await cards.count()) === 6, `${label}: 6 карточек калькуляторов`);
   const cardLinks = await page
     .locator('#catalog-list a')
     .evaluateAll((links) => links.map((a) => a.getAttribute('href')));
   check(
-    cardLinks.join(',') === [calcPath, laminatePath].join(','),
-    `${label}: ссылки только у калькуляторов обоев и ламината (${cardLinks.join(', ')})`,
+    cardLinks.join(',') === [calcPath, laminatePath, paintPath].join(','),
+    `${label}: ссылки только у калькуляторов обоев, ламината и краски (${cardLinks.join(', ')})`,
   );
   check(
-    (await page.locator('#catalog-list .badge--soon').count()) === 4,
-    `${label}: 4 карточки со статусом «Скоро»`,
+    (await page.locator('#catalog-list .badge--soon').count()) === 3,
+    `${label}: 3 карточки со статусом «Скоро»`,
   );
   check(
     plain(await page.locator('#catalog-list > li').first().textContent()).includes(
@@ -479,6 +480,73 @@ async function checkCalculator(page, viewport) {
   await checkLinks(page, label);
 }
 
+async function checkPaint(page, viewport) {
+  const label = `краска ${viewport.name}`;
+  const response = await page.goto(baseUrl + paintPath, { waitUntil: 'networkidle' });
+  check(response?.status() === 200, `${label}: ответ 200`);
+  const meta = await checkCommon(page, label);
+  check(
+    meta.title === 'Калькулятор краски — расход на стены и потолок — ДомРасчёт',
+    `${label}: title «${meta.title}»`,
+  );
+  await checkOverflow(page, label);
+  if (viewport.name !== '390') return;
+
+  const field = (name) => page.locator(`[name="${name}"]`);
+  const error = async (name) =>
+    plain(await page.locator(`[data-error-for="${name}"]`).textContent());
+  const state = () => page.locator('[data-calculator-result]').getAttribute('data-state');
+  const out = async (name) => plain(await page.locator(`[data-out="${name}"]`).textContent());
+  const fill = async (values) => {
+    for (const [name, value] of Object.entries(values)) await field(name).fill(value);
+  };
+  check(
+    (await field('coats').inputValue()) === '2' &&
+      (await field('reserve').inputValue()) === '10' &&
+      (await field('ceiling').inputValue()) === 'no',
+    `${label}: по умолчанию 2 слоя, запас 10 %, потолок не красится`,
+  );
+  await page.locator('form[data-paint-form] button[type="submit"]').click();
+  check(
+    (await state()) === 'invalid' && (await page.locator('[data-error-summary] li').count()) === 4,
+    `${label}: пустая форма — 4 ошибки (размеры и укрывистость)`,
+  );
+  // П5 (PAINT.md): 45,9 м², 11,475 л → 11,5; с запасом 12,6225 → 12,7; банок по 2,7 л — 5.
+  await fill({ roomLength: '4', roomWidth: '3', wallHeight: '2,7', openingsArea: '3,9' });
+  await fill({ coverage: '8', canVolume: '2,7' });
+  await field('ceiling').selectOption('yes');
+  check(
+    (await state()) === 'ready' &&
+      (await out('paintArea')) === '45,9' &&
+      (await out('liters')) === '11,5' &&
+      (await out('litersWithReserve')) === '12,7' &&
+      (await out('cans')) === '5' &&
+      (await out('litersToBuy')) === '13,5' &&
+      (await page.locator('[data-row="ceilingArea"]').isVisible()),
+    `${label}: П5 — 45,9 м², 11,5 л, с запасом 12,7 л, 5 банок по 2,7 л`,
+  );
+  await fill({ openingsArea: '50' });
+  check(
+    (await state()) === 'invalid' &&
+      (await error('openingsArea')).startsWith('Больше площади стен'),
+    `${label}: проёмы больше стен — ошибка у поля`,
+  );
+  await fill({ openingsArea: '3,9', coverage: '8,55' });
+  check(
+    (await error('coverage')) === 'Не больше одного знака после запятой.',
+    `${label}: укрывистость 8,55 — ошибка у поля`,
+  );
+  await fill({ coverage: '8' });
+  await checkOverflow(page, `${label}, с результатом`);
+  await page.screenshot({ path: path.join(outDir, `paint-${viewport.name}.png`), fullPage: true });
+  await page.locator('form[data-paint-form] button[type="reset"]').click();
+  await page.waitForTimeout(100);
+  check(
+    (await state()) === 'empty' && (await field('coats').inputValue()) === '2',
+    `${label}: «Сбросить» — результат пуст, значения по умолчанию`,
+  );
+}
+
 async function checkLaminate(page, viewport) {
   const label = `ламинат ${viewport.name}`;
   // С главной — по карточке
@@ -806,13 +874,14 @@ try {
     await checkHome(page, viewport);
     await checkCalculator(page, viewport);
     await checkLaminate(page, viewport);
+    await checkPaint(page, viewport);
     check(
       consoleErrors.length === 0,
       `${viewport.name}: нет ошибок в консоли (${consoleErrors.join(' | ') || '0'})`,
     );
 
     // 404 — после проверки консоли: браузер сам пишет в неё об ответе 404.
-    const notFound = await page.goto(baseUrl + '/kalkulyatory/kraska/');
+    const notFound = await page.goto(baseUrl + '/kalkulyatory/plitka/');
     check(notFound?.status() === 404, `${viewport.name}: неготовый калькулятор отдаёт 404`);
     await context.close();
   }
