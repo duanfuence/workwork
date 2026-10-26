@@ -33,3 +33,7 @@ jobs:
       - run: npm run format:check
       - run: npm run test
       - run: npm run build
+      # Браузер для UI-проверок — версия задаётся Playwright из package-lock.json. Не кэшируется:
+      # восстановление кэша не быстрее загрузки, а системные зависимости (--with-deps) не кэшируются.
+      - run: npx playwright install --with-deps --only-shell chromium
+      - run: npm run ui:check

@@ -10,6 +10,7 @@
  * долях миллиметра (`T`), потому что пропил задаётся с шагом 0,1 мм. Сетка начал рядов и сдвигов — 1 мм.
  */
 import { ceilDiv, metersToMm } from '../number';
+import { type Range, checkOptional, checkRequired, fmt } from '../validation';
 
 export type LaminateDirection = 'length' | 'width';
 export type LaminateScheme = 'half' | 'third' | 'offcut';
@@ -155,11 +156,6 @@ const T = 10;
 /** Порог «узкого» последнего ряда, мм (зависит от инструкции, §6). */
 export const narrowLastRowThreshold = 50;
 
-interface Range {
-  min: number;
-  max: number;
-}
-
 export const laminateLimits = {
   roomLength: { min: 0.1, max: 100 },
   roomWidth: { min: 0.1, max: 100 },
@@ -183,7 +179,6 @@ export const schemeTitles: Record<LaminateScheme, string> = {
   offcut: 'Укладка «от обрезка»',
 };
 
-const fmt = (value: number) => String(value).replace('.', ',');
 const mod = (a: number, b: number) => ((a % b) + b) % b;
 
 /** Круговое расстояние между стыками двух рядов с началами `a` и `b`. */
@@ -398,24 +393,6 @@ export function groupRows(rows: readonly Row[]): RowType[] {
     }
   });
   return types;
-}
-
-function checkRequired(value: number | null, range: Range, unit: string): string | null {
-  if (value === null) return 'Заполните поле.';
-  if (!Number.isFinite(value)) return 'Введите число.';
-  if (value <= 0) return 'Значение должно быть больше нуля.';
-  if (value < range.min) return `Не меньше ${fmt(range.min)} ${unit}.`;
-  if (value > range.max) return `Не больше ${fmt(range.max)} ${unit}.`;
-  return null;
-}
-
-function checkOptional(value: number | null, range: Range, unit: string): string | null {
-  if (value === null) return null;
-  if (!Number.isFinite(value)) return 'Введите число.';
-  if (value < 0) return 'Значение не может быть отрицательным.';
-  if (value < range.min) return `Не меньше ${fmt(range.min)} ${unit}.`;
-  if (value > range.max) return `Не больше ${fmt(range.max)} ${unit}.`;
-  return null;
 }
 
 function checkChoice<T extends string>(value: string | null, options: readonly T[]): T | null {

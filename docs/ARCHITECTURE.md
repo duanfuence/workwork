@@ -8,7 +8,7 @@
 | Язык          | TypeScript 5.9 (`astro/tsconfigs/strictest`)                                                    |
 | Стили         | обычный CSS + CSS-переменные (дизайн-токены), scoped-стили Astro                                |
 | Клиентский JS | только небольшие `<script>` в компонентах (меню, поиск, форма калькулятора), без UI-фреймворков |
-| Тесты         | Vitest 5 (unit), Playwright — локальный скрипт `scripts/ui-check.mjs`                           |
+| Тесты         | Vitest 5 (unit), Playwright 1.63 (devDependency) — `scripts/ui-check.mjs`, локально и в CI      |
 | Качество      | ESLint 10 + typescript-eslint + eslint-plugin-astro, Prettier 3                                 |
 | CI            | GitHub Actions: `.github/workflows/ci.yml`                                                      |
 
@@ -32,6 +32,7 @@ src/
     search.ts             нормализация текста и поиск (используется и при сборке, и в браузере)
     plural.ts             русские формы множественного числа
     number.ts             разбор чисел из полей, ceilDiv, перевод м/см → целые мм
+    validation.ts         общие проверки полей: checkRequired, checkOptional, hasPrecision, fmt
     format.ts             числа и рубли по-русски (Intl, ru-RU)
     form.ts               общий разбор текстовых полей в числа и объединение ошибок (без DOM)
     calculators/
@@ -57,7 +58,7 @@ src/
     global.css            базовые стили и утилиты (.container, .section, .visually-hidden, .button)
     calculator.css        общие стили страниц калькуляторов
 public/favicon.svg
-scripts/ui-check.mjs      Playwright-проверка главной
+scripts/ui-check.mjs      Playwright-проверка главной и калькуляторов (локально и в CI)
 ```
 
 ## Каталог
@@ -111,7 +112,7 @@ interface CalculatorEntry {
 
   | Слой            | Где                                                    | Общий / свой | Отвечает за                                                                                                                                                                                               |
   | --------------- | ------------------------------------------------------ | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-  | Математика      | `src/lib/calculators/<id>.ts`                          | свой         | проверка допустимых значений, формулы, `{ ok, result }` / `{ ok: false, errors }`; никогда NaN/Infinity                                                                                                   |
+  | Математика      | `src/lib/calculators/<id>.ts`                          | свой         | проверка допустимых значений (общие проверки — `src/lib/validation.ts`), формулы, `{ ok, result }` / `{ ok: false, errors }`; никогда NaN/Infinity                                                        |
   | Разбор полей    | `src/lib/form.ts` + `src/lib/calculators/<id>-form.ts` | общий + свой | текст → число (`parseNumberFields`), «Введите число.», приоритет ошибок разбора (`withParseErrors`); список полей и особые правила калькулятора (у обоев — игнор размеров проёмов при нуле проёмов)       |
   | Поведение формы | `src/client/calculator-form.ts`                        | общий        | чтение полей (`input` и `select`), ошибки у полей и сводка, фокус и прокрутка к первому ошибочному полю, состояния блока результата, вывод текста, строк и списков, пересчёт после первой отправки, сброс |
   | Разметка        | `NumberField`, `CalculatorResult`, `calculator.css`    | общий        | поле с подписью, единицей, подсказкой и местом для ошибки; блок результата с тремя состояниями                                                                                                            |

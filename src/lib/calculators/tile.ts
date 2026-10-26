@@ -6,6 +6,7 @@
  * Это оценка по сетке, а не раскладка: каждая подрезанная плитка считается целой, обрезки не переносятся.
  */
 import { ceilDiv, metersToMm } from '../number';
+import { type Range, checkOptional, checkRequired } from '../validation';
 
 /** Входные данные. `null` — поле не заполнено. Поверхность в метрах, плитка и шов в миллиметрах. */
 export interface TileInput {
@@ -46,11 +47,6 @@ export interface TileResult {
 
 export type TileCalculation = { ok: true; result: TileResult } | { ok: false; errors: TileErrors };
 
-interface Range {
-  min: number;
-  max: number;
-}
-
 export const tileLimits = {
   surfaceLength: { min: 0.1, max: 100 },
   surfaceWidth: { min: 0.1, max: 100 },
@@ -63,26 +59,6 @@ export const tileLimits = {
 } as const satisfies Record<string, Range>;
 
 const surfaces: readonly TileSurface[] = ['floor', 'wall'];
-const fmt = (value: number) => String(value).replace('.', ',');
-
-function checkRequired(value: number | null, range: Range, unit: string): string | null {
-  if (value === null) return 'Заполните поле.';
-  if (!Number.isFinite(value)) return 'Введите число.';
-  if (value <= 0) return 'Значение должно быть больше нуля.';
-  if (value < range.min) return `Не меньше ${fmt(range.min)} ${unit}.`;
-  if (value > range.max) return `Не больше ${fmt(range.max)} ${unit}.`;
-  return null;
-}
-
-function checkOptional(value: number | null, range: Range, unit: string): string | null {
-  if (value === null) return null;
-  if (!Number.isFinite(value)) return 'Введите число.';
-  if (value < 0) return 'Значение не может быть отрицательным.';
-  if (value < range.min) return `Не меньше ${fmt(range.min)} ${unit}.`;
-  if (value > range.max) return `Не больше ${fmt(range.max)} ${unit}.`;
-  return null;
-}
-
 function hasOneDecimal(value: number): boolean {
   return Math.abs(value * 10 - Math.round(value * 10)) <= 1e-6;
 }

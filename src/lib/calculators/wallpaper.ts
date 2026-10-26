@@ -6,6 +6,7 @@
  * не ошибалось из-за двоичных дробей (10.6 / 0.53 = 20.000000000000004).
  */
 import { ceilDiv, ceilToMultiple, centimetersToMm, metersToMm } from '../number';
+import { type Range, checkOptional, checkRequired, fmt } from '../validation';
 
 /** Входные данные. `null` — поле не заполнено. Размеры в метрах, раппорт и подрезка в сантиметрах. */
 export interface WallpaperInput {
@@ -71,11 +72,6 @@ export interface WallpaperResult {
 export type WallpaperCalculation =
   { ok: true; result: WallpaperResult } | { ok: false; errors: WallpaperErrors };
 
-interface Range {
-  min: number;
-  max: number;
-}
-
 /** Допустимые значения. Единицы — как во входных данных. */
 export const wallpaperLimits = {
   roomLength: { min: 0.1, max: 100 },
@@ -89,27 +85,6 @@ export const wallpaperLimits = {
   trimAllowance: { min: 0, max: 100 },
   rollPrice: { min: 0, max: 1_000_000 },
 } as const satisfies Record<string, Range>;
-
-const fmt = (value: number) => String(value).replace('.', ',');
-
-/** Проверка обязательного положительного размера. Возвращает текст ошибки или `null`. */
-function checkRequired(value: number | null, range: Range, unit: string): string | null {
-  if (value === null) return 'Заполните поле.';
-  if (!Number.isFinite(value)) return 'Введите число.';
-  if (value <= 0) return 'Значение должно быть больше нуля.';
-  if (value < range.min) return `Не меньше ${fmt(range.min)} ${unit}.`;
-  if (value > range.max) return `Не больше ${fmt(range.max)} ${unit}.`;
-  return null;
-}
-
-/** Проверка необязательного неотрицательного значения (`null` допустим). */
-function checkOptional(value: number | null, range: Range, unit: string): string | null {
-  if (value === null) return null;
-  if (!Number.isFinite(value)) return 'Введите число.';
-  if (value < 0) return 'Значение не может быть отрицательным.';
-  if (value > range.max) return `Не больше ${fmt(range.max)} ${unit}.`;
-  return null;
-}
 
 function checkCount(value: number | null): string | null {
   if (value === null) return null;

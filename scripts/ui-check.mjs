@@ -4,8 +4,9 @@
  * Использование: npm run build && npm run ui:check [-- <папка для скриншотов>]
  * Папка по умолчанию — .ui-check/ (в .gitignore).
  *
- * Playwright не входит в зависимости проекта: скрипт использует установленный в среде пакет
- * (в облачной среде Claude Code он предустановлен). Запускается вручную, в CI не входит.
+ * Playwright — devDependency проекта с точной версией (`npm ci`); браузер ставится отдельно:
+ * `npx playwright install --with-deps --only-shell chromium` (в облачной среде Claude Code он предустановлен).
+ * Запускается в CI после сборки и вручную. При любом провале — код выхода 1.
  */
 import { spawn } from 'node:child_process';
 import { mkdir } from 'node:fs/promises';
@@ -17,7 +18,7 @@ let chromium;
 try {
   ({ chromium } = require('playwright'));
 } catch {
-  console.error('Playwright не найден. Установите его глобально или запустите в облачной среде.');
+  console.error('Playwright не найден: выполните npm ci.');
   process.exit(2);
 }
 
@@ -1152,7 +1153,9 @@ async function checkLaminate(page, viewport) {
   await checkLinks(page, label);
 }
 
-const server = spawn('npx', ['astro', 'preview', '--port', String(port)], {
+// `--ignore-lock`: сервер в переднем плане и без lock-файла. Без флага Astro под ИИ-агентом уходит в фон
+// (его не остановить по pid) и не запускается, если уже работает другой предпросмотр.
+const server = spawn('npx', ['astro', 'preview', '--port', String(port), '--ignore-lock'], {
   stdio: 'ignore',
   detached: true,
   env: { ...process.env, ASTRO_TELEMETRY_DISABLED: '1' },

@@ -7,6 +7,7 @@
  * без ошибок двоичных дробей (10 · 1,1 = 11, а не 11,000…1).
  */
 import { metersToMm } from '../number';
+import { type Range, checkOptional, checkRequired, fmt, hasPrecision } from '../validation';
 
 /** Входные данные. `null` — поле не заполнено. Размеры в метрах, площадь проёмов в м², упаковка в кг. */
 export interface PuttyInput {
@@ -46,11 +47,6 @@ export interface PuttyResult {
 export type PuttyCalculation =
   { ok: true; result: PuttyResult } | { ok: false; errors: PuttyErrors };
 
-interface Range {
-  min: number;
-  max: number;
-}
-
 export const puttyLimits = {
   wallLength: { min: 0.1, max: 100 },
   wallHeight: { min: 0.1, max: 10 },
@@ -64,32 +60,6 @@ export const puttyLimits = {
 
 /** Значения формы по умолчанию. Расхода нет: его берут из инструкции к смеси. */
 export const puttyDefaults = { wallCount: 1, layers: 1, reserve: 10 } as const;
-
-const fmt = (value: number) => String(value).replace('.', ',');
-
-function checkRequired(value: number | null, range: Range, unit: string): string | null {
-  if (value === null) return 'Заполните поле.';
-  if (!Number.isFinite(value)) return 'Введите число.';
-  if (value <= 0) return 'Значение должно быть больше нуля.';
-  if (value < range.min) return `Не меньше ${fmt(range.min)} ${unit}.`;
-  if (value > range.max) return `Не больше ${fmt(range.max)} ${unit}.`;
-  return null;
-}
-
-function checkOptional(value: number | null, range: Range, unit: string): string | null {
-  if (value === null) return null;
-  if (!Number.isFinite(value)) return 'Введите число.';
-  if (value < 0) return 'Значение не может быть отрицательным.';
-  if (value < range.min) return `Не меньше ${fmt(range.min)} ${unit}.`;
-  if (value > range.max) return `Не больше ${fmt(range.max)} ${unit}.`;
-  return null;
-}
-
-/** Не больше `digits` знаков после запятой. */
-function hasPrecision(value: number, digits: number): boolean {
-  const scaled = value * 10 ** digits;
-  return Math.abs(scaled - Math.round(scaled)) <= 1e-6;
-}
 
 const precisionMessage = (digits: number) =>
   digits === 1 ? 'Не больше одного знака после запятой.' : 'Не больше двух знаков после запятой.';

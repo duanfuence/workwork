@@ -6,6 +6,7 @@
  * процента, банка в мл. Округления — целочисленные, без ошибок двоичных дробей (2,0 · 1,05 = 2,1, а не 2,1000…1).
  */
 import { ceilDiv, metersToMm } from '../number';
+import { type Range, checkOptional, checkRequired, fmt, hasPrecision } from '../validation';
 
 /** Входные данные. `null` — поле не заполнено. Размеры в метрах, площадь проёмов в м², банка в литрах. */
 export interface PaintInput {
@@ -50,11 +51,6 @@ export interface PaintResult {
 export type PaintCalculation =
   { ok: true; result: PaintResult } | { ok: false; errors: PaintErrors };
 
-interface Range {
-  min: number;
-  max: number;
-}
-
 export const paintLimits = {
   roomLength: { min: 0.1, max: 100 },
   roomWidth: { min: 0.1, max: 100 },
@@ -67,32 +63,6 @@ export const paintLimits = {
 } as const satisfies Record<string, Range>;
 
 export const paintDefaults = { coats: 2, reserve: 10 } as const;
-
-const fmt = (value: number) => String(value).replace('.', ',');
-
-function checkRequired(value: number | null, range: Range, unit: string): string | null {
-  if (value === null) return 'Заполните поле.';
-  if (!Number.isFinite(value)) return 'Введите число.';
-  if (value <= 0) return 'Значение должно быть больше нуля.';
-  if (value < range.min) return `Не меньше ${fmt(range.min)} ${unit}.`;
-  if (value > range.max) return `Не больше ${fmt(range.max)} ${unit}.`;
-  return null;
-}
-
-function checkOptional(value: number | null, range: Range, unit: string): string | null {
-  if (value === null) return null;
-  if (!Number.isFinite(value)) return 'Введите число.';
-  if (value < 0) return 'Значение не может быть отрицательным.';
-  if (value < range.min) return `Не меньше ${fmt(range.min)} ${unit}.`;
-  if (value > range.max) return `Не больше ${fmt(range.max)} ${unit}.`;
-  return null;
-}
-
-/** Не больше `digits` знаков после запятой. */
-function hasPrecision(value: number, digits: number): boolean {
-  const scaled = value * 10 ** digits;
-  return Math.abs(scaled - Math.round(scaled)) <= 1e-6;
-}
 
 export function calculatePaint(input: PaintInput): PaintCalculation {
   const errors: PaintErrors = {};

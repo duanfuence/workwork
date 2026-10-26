@@ -2,16 +2,17 @@
 
 ## Уровни
 
-| Уровень   | Инструмент                                          | Где                           | Когда запускается                            |
-| --------- | --------------------------------------------------- | ----------------------------- | -------------------------------------------- |
-| Типы      | `astro check` (TypeScript strictest)                | весь проект, включая `.astro` | `npm run typecheck`, CI                      |
-| Линтер    | ESLint 10 + typescript-eslint + eslint-plugin-astro | весь проект                   | `npm run lint`, CI                           |
-| Формат    | Prettier + prettier-plugin-astro                    | весь проект                   | `npm run format:check`, CI                   |
-| Unit      | Vitest 5                                            | `src/**/*.test.ts`            | `npm test`, CI                               |
-| Сборка    | `astro build`                                       | —                             | `npm run build`, CI                          |
-| Интерфейс | Playwright + Chromium                               | `scripts/ui-check.mjs`        | вручную: `npm run build && npm run ui:check` |
+| Уровень   | Инструмент                                          | Где                           | Когда запускается                       |
+| --------- | --------------------------------------------------- | ----------------------------- | --------------------------------------- |
+| Типы      | `astro check` (TypeScript strictest)                | весь проект, включая `.astro` | `npm run typecheck`, CI                 |
+| Линтер    | ESLint 10 + typescript-eslint + eslint-plugin-astro | весь проект                   | `npm run lint`, CI                      |
+| Формат    | Prettier + prettier-plugin-astro                    | весь проект                   | `npm run format:check`, CI              |
+| Unit      | Vitest 5                                            | `src/**/*.test.ts`            | `npm test`, CI                          |
+| Сборка    | `astro build`                                       | —                             | `npm run build`, CI                     |
+| Интерфейс | Playwright 1.63 + Chromium (headless shell)         | `scripts/ui-check.mjs`        | `npm run build && npm run ui:check`, CI |
 
-`npm run check` запускает первые пять уровней в том же порядке, что и CI.
+`npm run check` запускает первые пять уровней в том же порядке, что и CI; затем CI ставит браузер
+(`npx playwright install --with-deps --only-shell chromium`) и запускает `npm run ui:check`.
 
 ## Что покрыто сейчас (205 тестов)
 
@@ -115,7 +116,12 @@
 - порядок Tab по 14 полям и кнопке; видимое выделение фокуса; «Сбросить».
 
 Скриншоты сохраняются в `.ui-check/` (в `.gitignore`) или в папку из аргумента.
-Playwright не входит в зависимости: в облачной среде он предустановлен. В CI не запускается (см. `DECISIONS.md`, D-006).
+Playwright — devDependency с точной версией 1.63.0 (`npm ci`), браузер — отдельной командой: в CI
+`npx playwright install --with-deps --only-shell chromium` (один раз за запуск, без кэша), в облачной среде Claude Code
+он предустановлен (`PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`, сборка 1243 — та, что ожидает Playwright 1.63).
+Любой провал или ошибка запуска — код выхода 1, шаг CI падает (проверено на испорченной сборке и без браузера).
+Предпросмотр запускается с `--ignore-lock`: в переднем плане, без lock-файла, останавливается вместе со скриптом
+(см. `DECISIONS.md`, D-020).
 
 ## Правила для калькуляторов
 

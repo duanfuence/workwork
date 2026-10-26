@@ -22,7 +22,7 @@
 | `npm test`          | Vitest                                                                  |
 | `npm run build`     | статическая сборка в `dist/`                                            |
 | `npm run check`     | всё сразу: типы → линтер → формат → тесты → сборка (как в CI)           |
-| `npm run ui:check`  | Playwright-проверка главной и калькуляторов (320–1440 px), нужна сборка |
+| `npm run ui:check`  | UI-проверка в Playwright (320–1440 px), нужна сборка; запускается в CI. |
 
 ## Правила
 
