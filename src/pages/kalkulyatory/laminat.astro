@@ -1,6 +1,7 @@
 ---
 import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import RelatedCalculators from '../../components/RelatedCalculators.astro';
+import CalculatorIntro from '../../components/calculator/CalculatorIntro.astro';
 import CalculatorResult from '../../components/calculator/CalculatorResult.astro';
 import NumberField from '../../components/calculator/NumberField.astro';
 import SelectField from '../../components/calculator/SelectField.astro';
@@ -19,15 +20,10 @@ const id = 'lm';
   <div class="container calc-page">
     <Breadcrumbs items={calculatorCrumbs(entry)} />
 
-    <header class="calc-intro">
-      <h1 class="calc-intro__title">{entry.title}</h1>
-      <p class="calc-intro__lead">
-        Посчитайте, сколько досок и упаковок ламината нужно на прямоугольную комнату. Калькулятор
-        раскладывает доски по рядам с выбранной схемой смещения стыков и учитывает, какие обрезки
-        можно пустить в дело. Результат — план для идеального прямоугольника: неровные стены, трубы
-        и пороги покрывает запас.
-      </p>
-    </header>
+    <CalculatorIntro
+      entry={entry}
+      lead="Сколько досок и упаковок нужно на комнату — по раскладке рядами со смещением стыков."
+    />
 
     <noscript>
       <p class="calc-noscript">
@@ -322,6 +318,13 @@ const id = 'lm';
     </div>
 
     <article class="calc-article">
+      <p class="calc-article__intro">
+        Посчитайте, сколько досок и упаковок ламината нужно на прямоугольную комнату. Калькулятор
+        раскладывает доски по рядам с выбранной схемой смещения стыков и учитывает, какие обрезки
+        можно пустить в дело. Результат — план для идеального прямоугольника: неровные стены, трубы
+        и пороги покрывает запас.
+      </p>
+
       <section aria-labelledby="method-title">
         <h2 id="method-title">Как считается</h2>
         <p>

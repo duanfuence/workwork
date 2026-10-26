@@ -9,7 +9,6 @@ import { categories } from '../data/categories';
 import { getCatalogSections, getPopularCalculators, isAvailable } from '../lib/catalog';
 import BaseLayout from '../layouts/BaseLayout.astro';
 
-const categoryTitles = new Map(categories.map((category) => [category.id, category.title]));
 // Только опубликованные: на сайте не обещаем будущие калькуляторы.
 const popular = getPopularCalculators(calculators).filter((entry) => isAvailable(entry));
 // Раздел «Категории» — только когда категорий с калькуляторами больше одной (D-022).
@@ -19,13 +18,12 @@ const sections = getCatalogSections(calculators, categories);
 <BaseLayout>
   <section class="hero" aria-labelledby="hero-title">
     <div class="container hero__inner">
-      <p class="hero__status">Бесплатно и без регистрации</p>
+      <p class="stamp hero__status">Бесплатно · без регистрации</p>
       <h1 class="hero__title" id="hero-title">
         {site.name} — калькуляторы для ремонта и строительства
       </h1>
       <p class="hero__lead">
-        Помогут прикинуть, сколько материалов купить для комнаты, и покажут, из чего складывается
-        результат. Работают на любом устройстве.
+        Сколько материалов купить на комнату — и из чего складывается каждая цифра.
       </p>
       <CatalogSearch listId="catalog-list" sectionId="catalog" />
     </div>
@@ -42,7 +40,7 @@ const sections = getCatalogSections(calculators, categories);
       <p class="catalog-status" id="catalog-search-status" role="status" aria-live="polite"></p>
       <ul class="card-grid" id="catalog-list">
         {popular.map((entry) => (
-          <CalculatorCard entry={entry} categoryTitle={categoryTitles.get(entry.category) ?? ''} />
+          <CalculatorCard entry={entry} />
         ))}
       </ul>
       <p class="catalog-empty" data-catalog-empty hidden>
@@ -109,9 +107,9 @@ const sections = getCatalogSections(calculators, categories);
 </BaseLayout>
 
 <style>
+  /* Герой — титульный блок чертежа на сетке: штамп, H1, лид, поиск; без градиентов и картинок. */
   .hero {
-    padding-block: var(--space-10) var(--space-8);
-    background: linear-gradient(180deg, var(--color-surface) 0%, var(--color-bg) 100%);
+    padding-block: var(--space-8);
     border-bottom: var(--border);
   }
 
@@ -128,12 +126,10 @@ const sections = getCatalogSections(calculators, categories);
   }
 
   .hero__status {
-    padding: var(--space-1) var(--space-3);
-    background: var(--color-accent-soft);
-    color: var(--color-accent-hover);
-    border-radius: var(--radius-pill);
-    font-size: var(--font-size-xs);
-    font-weight: var(--font-weight-semibold);
+    padding: var(--space-1) var(--space-2);
+    background: var(--color-surface);
+    border: var(--border-ink);
+    color: var(--color-text);
   }
 
   .hero__title {
@@ -149,7 +145,8 @@ const sections = getCatalogSections(calculators, categories);
   }
 
   .section--muted {
-    background: var(--color-surface-muted);
+    background: var(--color-surface);
+    border-block: var(--border);
   }
 
   .catalog-more {
@@ -161,7 +158,11 @@ const sections = getCatalogSections(calculators, categories);
     align-items: center;
     min-height: var(--tap-target-min);
     color: var(--color-accent);
-    font-weight: var(--font-weight-semibold);
+    font-family: var(--font-mono);
+    font-weight: var(--font-weight-mono-bold);
+    letter-spacing: var(--letter-spacing-stamp);
+    text-transform: uppercase;
+    font-size: var(--font-size-sm);
   }
 
   .principles {
@@ -178,7 +179,7 @@ const sections = getCatalogSections(calculators, categories);
     align-content: start;
     gap: var(--space-2);
     padding-left: var(--space-4);
-    border-left: 3px solid var(--color-accent);
+    border-left: 2px solid var(--color-dimension);
   }
 
   .principles h3 {

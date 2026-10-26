@@ -1,6 +1,7 @@
 ---
 import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import RelatedCalculators from '../../components/RelatedCalculators.astro';
+import CalculatorIntro from '../../components/calculator/CalculatorIntro.astro';
 import CalculatorResult from '../../components/calculator/CalculatorResult.astro';
 import NumberField from '../../components/calculator/NumberField.astro';
 import PresetSelect from '../../components/calculator/PresetSelect.astro';
@@ -21,14 +22,10 @@ const id = 'pt';
   <div class="container calc-page">
     <Breadcrumbs items={calculatorCrumbs(entry)} />
 
-    <header class="calc-intro">
-      <h1 class="calc-intro__title">{entry.title}</h1>
-      <p class="calc-intro__lead">
-        Посчитайте, сколько шпаклёвки и упаковок купить на стены. Расчёт ориентировочный: реальный
-        расход зависит от состава шпаклёвки, состояния поверхности, толщины нанесения и рекомендаций
-        производителя. Расход на один слой возьмите из инструкции к вашей смеси.
-      </p>
-    </header>
+    <CalculatorIntro
+      entry={entry}
+      lead="Сколько шпаклёвки и упаковок нужно на стены и потолок — по слоям и расходу."
+    />
 
     <noscript>
       <p class="calc-noscript">
@@ -246,6 +243,12 @@ const id = 'pt';
     </div>
 
     <article class="calc-article">
+      <p class="calc-article__intro">
+        Посчитайте, сколько шпаклёвки и упаковок купить на стены. Расчёт ориентировочный: реальный
+        расход зависит от состава шпаклёвки, состояния поверхности, толщины нанесения и рекомендаций
+        производителя. Расход на один слой возьмите из инструкции к вашей смеси.
+      </p>
+
       <section aria-labelledby="method-title">
         <h2 id="method-title">Как считается</h2>
         <ol>

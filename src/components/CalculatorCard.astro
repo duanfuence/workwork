@@ -1,27 +1,29 @@
 ---
 import type { CalculatorEntry } from '../data/catalog.types';
-import { getCalculatorHref, statusLabels } from '../lib/catalog';
+import { getCalculatorHref, sheetNumber, statusLabels } from '../lib/catalog';
 import { buildSearchIndex } from '../lib/search';
+import MaterialIcon from './MaterialIcon.astro';
 
 interface Props {
   entry: CalculatorEntry;
-  /** Подпись категории над названием; пусто — не выводится (в разделе каталога категория — в заголовке). */
-  categoryTitle?: string;
 }
 
-const { entry, categoryTitle } = Astro.props;
+const { entry } = Astro.props;
 const href = getCalculatorHref(entry);
 const status = statusLabels[entry.status];
 ---
 
 <li class="calc-card-item" data-search-index={buildSearchIndex(entry)}>
   <article class:list={['calc-card', { 'calc-card--soon': !href }]}>
-    {(categoryTitle || !href) && (
-      <div class="calc-card__meta">
-        {categoryTitle && <span class="calc-card__category">{categoryTitle}</span>}
-        {!href && <span class="badge badge--soon">{status}</span>}
-      </div>
-    )}
+    <!-- Карточка — лист: номер листа и раздел, схема материала справа. -->
+    <div class="calc-card__meta">
+      <span class="stamp calc-card__sheet">
+        {`Лист ${sheetNumber(entry)}`}
+        <span class="calc-card__category">{` · ${entry.sheetTitle}`}</span>
+      </span>
+      <MaterialIcon id={entry.id} />
+    </div>
+    {!href && <span class="badge badge--soon">{status}</span>}
     <h3 class="calc-card__title">
       {href ? (
         <a class="calc-card__link" href={href}>
@@ -33,7 +35,7 @@ const status = statusLabels[entry.status];
     </h3>
     <p class="calc-card__text">{entry.description}</p>
     {href && (
-      <span class="calc-card__action" aria-hidden="true">
+      <span class="stamp calc-card__action" aria-hidden="true">
         Рассчитать →
       </span>
     )}
@@ -55,31 +57,32 @@ const status = statusLabels[entry.status];
     align-content: start;
     gap: var(--space-2);
     width: 100%;
-    padding: var(--space-5);
+    padding: var(--space-4) var(--space-5) var(--space-5);
     background: var(--color-surface);
     border: var(--border);
     border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-sm);
-    transition:
-      border-color var(--transition-fast),
-      box-shadow var(--transition-fast);
+    transition: border-color var(--transition-fast);
   }
 
   .calc-card:not(.calc-card--soon):hover {
-    border-color: var(--color-accent);
-    box-shadow: var(--shadow-md);
+    border-color: var(--color-text);
   }
 
   .calc-card__meta {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
-    gap: var(--space-2);
+    gap: var(--space-3);
+    padding-bottom: var(--space-2);
+    border-bottom: var(--border);
+  }
+
+  .calc-card__sheet {
+    color: var(--color-text);
   }
 
   .calc-card__category {
     color: var(--color-text-muted);
-    font-size: var(--font-size-xs);
   }
 
   .calc-card__title {
@@ -108,8 +111,7 @@ const status = statusLabels[entry.status];
   .calc-card__action {
     margin-top: var(--space-1);
     color: var(--color-accent);
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-semibold);
+    font-weight: var(--font-weight-mono-bold);
   }
 
   .calc-card--soon .calc-card__title {

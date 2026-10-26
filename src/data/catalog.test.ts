@@ -17,6 +17,15 @@ describe('целостность каталога', () => {
     for (const id of ids) expect(id).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
   });
 
+  it('номера листов — уникальные целые от 1, подпись раздела заполнена', () => {
+    const sheets = calculators.map((entry) => entry.sheet);
+    expect(new Set(sheets).size).toBe(sheets.length);
+    for (const entry of calculators) {
+      expect(Number.isInteger(entry.sheet) && entry.sheet >= 1 && entry.sheet <= 99).toBe(true);
+      expect(entry.sheetTitle.trim()).not.toBe('');
+    }
+  });
+
   it('slug уникальны и path построен из slug', () => {
     const slugs = calculators.map((entry) => entry.slug);
     expect(new Set(slugs).size).toBe(slugs.length);

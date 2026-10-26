@@ -115,14 +115,18 @@ const describedBy = [hint ? hintId : null, errorId].filter(Boolean).join(' ');
     position: relative;
   }
 
+  /* Поле «бланка»: тонкая рамка, снизу линия чернилами; значение моноширинное, 18 px. */
   .field__input {
     width: 100%;
-    min-height: var(--tap-target-min);
-    padding: var(--space-2) 2.75rem var(--space-2) var(--space-3);
+    min-height: var(--control-height);
+    padding: var(--space-2) 3rem var(--space-2) var(--space-3);
     background: var(--color-surface);
     border: var(--border-control);
-    border-radius: var(--radius-md);
-    font-size: var(--font-size-md);
+    border-bottom: 2px solid var(--color-control-underline);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-mono);
     font-variant-numeric: tabular-nums;
     transition:
       border-color var(--transition-fast),
@@ -131,6 +135,9 @@ const describedBy = [hint ? hintId : null, errorId].filter(Boolean).join(' ');
 
   .field__input::placeholder {
     color: var(--color-text-muted);
+    font-family: var(--font-sans);
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-regular);
   }
 
   .field__input:hover {
@@ -142,7 +149,9 @@ const describedBy = [hint ? hintId : null, errorId].filter(Boolean).join(' ');
     outline: 2px solid transparent;
     outline-offset: 2px;
     border-color: var(--color-accent);
-    box-shadow: 0 0 0 3px var(--color-accent-soft-hover);
+    box-shadow:
+      inset 0 0 0 1px var(--color-accent),
+      var(--control-focus-ring);
   }
 
   .field__input[aria-invalid='true'] {
@@ -151,7 +160,9 @@ const describedBy = [hint ? hintId : null, errorId].filter(Boolean).join(' ');
   }
 
   .field__input[aria-invalid='true']:focus-visible {
-    box-shadow: 0 0 0 3px var(--color-danger-soft);
+    box-shadow:
+      inset 0 0 0 1px var(--color-danger),
+      0 0 0 3px var(--color-danger-soft);
   }
 
   .field__unit {
@@ -160,6 +171,7 @@ const describedBy = [hint ? hintId : null, errorId].filter(Boolean).join(' ');
     top: 50%;
     transform: translateY(-50%);
     color: var(--color-text-muted);
+    font-family: var(--font-mono);
     font-size: var(--font-size-sm);
     pointer-events: none;
   }

@@ -1,0 +1,21 @@
+---
+/**
+ * Шапка страницы калькулятора: штамп листа «ЛИСТ 01 · ОТДЕЛКА СТЕН», H1 и короткий лид (2–3 строки на телефоне —
+ * форма начинается на первом экране). Подробности — в статье под калькулятором.
+ */
+import type { CalculatorEntry } from '../../data/catalog.types';
+import { sheetLabel } from '../../lib/catalog';
+
+interface Props {
+  entry: CalculatorEntry;
+  lead: string;
+}
+
+const { entry, lead } = Astro.props;
+---
+
+<header class="calc-intro">
+  <p class="stamp calc-intro__sheet">{sheetLabel(entry)}</p>
+  <h1 class="calc-intro__title">{entry.title}</h1>
+  <p class="calc-intro__lead">{lead}</p>
+</header>

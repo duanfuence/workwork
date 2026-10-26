@@ -30,6 +30,9 @@ const description =
     <Breadcrumbs items={catalogCrumbs()} />
 
     <header class="catalog-intro">
+      <p class="stamp catalog-intro__stamp">
+        {`Каталог · ${available.length} ${pluralizeRu(available.length, ['лист', 'листа', 'листов'])}`}
+      </p>
       <h1 class="catalog-intro__title">Строительные калькуляторы онлайн</h1>
       <p class="catalog-intro__lead">
         {count} для ремонта и отделки: {materials}. Укажите размеры помещения и материала —
@@ -79,6 +82,12 @@ const description =
     margin-block: var(--space-6) var(--space-10);
   }
 
+  .catalog-intro__stamp {
+    padding: var(--space-1) var(--space-2);
+    background: var(--color-surface);
+    border: var(--border-ink);
+  }
+
   .catalog-intro__title {
     font-size: var(--font-size-3xl);
     letter-spacing: -0.02em;
@@ -87,7 +96,7 @@ const description =
   .catalog-intro__lead {
     max-width: 42rem;
     color: var(--color-text-secondary);
-    font-size: var(--font-size-lg);
+    font-size: var(--font-size-md);
   }
 
   .catalog-groups {

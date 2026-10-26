@@ -8,12 +8,11 @@ const pathname = Astro.url.pathname;
 <header class="site-header">
   <div class="container site-header__inner">
     <a class="logo" href="/" aria-label={`${site.name} — на главную`}>
-      <svg class="logo__mark" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true">
-        <rect width="32" height="32" rx="7" fill="currentColor"></rect>
-        <path
-          d="M8 15.5 16 9l8 6.5V24a1 1 0 0 1-1 1h-4.5v-5.5h-5V25H9a1 1 0 0 1-1-1z"
-          fill="#fff"
-        ></path>
+      <!-- Квадрат-рамка листа, план дома и оранжевый проём двери с дугой открывания. -->
+      <svg class="logo__mark" viewBox="0 0 32 32" width="30" height="30" aria-hidden="true">
+        <rect class="logo__frame" x="1" y="1" width="30" height="30" rx="2"></rect>
+        <path class="logo__walls" d="M12 23H8V9h16v14h-6"></path>
+        <path class="logo__door" d="M12 23v-6a6 6 0 0 1 6 6"></path>
       </svg>
       <span class="logo__text">{site.name}</span>
     </a>
@@ -79,9 +78,8 @@ const pathname = Astro.url.pathname;
     position: sticky;
     top: 0;
     z-index: 10;
-    background: rgb(255 255 255 / 0.92);
-    backdrop-filter: saturate(1.4) blur(8px);
-    border-bottom: var(--border);
+    background: var(--color-surface);
+    border-bottom: var(--border-ink);
   }
 
   .site-header__inner {
@@ -109,8 +107,26 @@ const pathname = Astro.url.pathname;
   }
 
   .logo__mark {
-    color: var(--color-accent);
     flex: none;
+  }
+
+  .logo__frame {
+    fill: var(--color-surface);
+    stroke: var(--color-accent);
+    stroke-width: 2;
+  }
+
+  .logo__walls {
+    fill: none;
+    stroke: var(--color-text);
+    stroke-width: 2;
+    stroke-linejoin: miter;
+  }
+
+  .logo__door {
+    fill: none;
+    stroke: var(--color-dimension);
+    stroke-width: 2;
   }
 
   .nav-toggle {
@@ -120,16 +136,19 @@ const pathname = Astro.url.pathname;
     min-height: var(--tap-target-min);
     padding: 0 var(--space-3);
     background: var(--color-surface);
-    border: var(--border-strong);
+    border: var(--border-ink);
     border-radius: var(--radius-md);
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-stamp);
+    font-weight: var(--font-weight-mono);
+    letter-spacing: var(--letter-spacing-stamp);
+    text-transform: uppercase;
     cursor: pointer;
     transition: background-color var(--transition-fast);
   }
 
   .nav-toggle:hover {
-    background: var(--color-surface-muted);
+    background: var(--color-accent-soft);
   }
 
   .nav-toggle__icon,
@@ -199,7 +218,11 @@ const pathname = Astro.url.pathname;
     padding: 0 var(--space-3);
     border-radius: var(--radius-md);
     color: var(--color-text-secondary);
-    font-weight: var(--font-weight-medium);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-stamp);
+    font-weight: var(--font-weight-mono);
+    letter-spacing: var(--letter-spacing-stamp);
+    text-transform: uppercase;
     text-decoration: none;
     transition:
       background-color var(--transition-fast),
@@ -207,14 +230,14 @@ const pathname = Astro.url.pathname;
   }
 
   .site-nav__link:hover {
-    background: var(--color-surface-muted);
+    background: var(--color-accent-soft);
     color: var(--color-text);
   }
 
   /* Текущий раздел: цвет акцента и подчёркивание — не только цветом. */
   .site-nav__link[aria-current='page'] {
     color: var(--color-accent);
-    font-weight: var(--font-weight-semibold);
+    font-weight: var(--font-weight-mono-bold);
     text-decoration: underline;
     text-decoration-thickness: 2px;
     text-underline-offset: 0.35em;

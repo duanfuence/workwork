@@ -1,6 +1,7 @@
 ---
 import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import RelatedCalculators from '../../components/RelatedCalculators.astro';
+import CalculatorIntro from '../../components/calculator/CalculatorIntro.astro';
 import CalculatorResult from '../../components/calculator/CalculatorResult.astro';
 import NumberField from '../../components/calculator/NumberField.astro';
 import { calculators } from '../../data/calculators';
@@ -18,15 +19,10 @@ const id = 'wp';
   <div class="container calc-page">
     <Breadcrumbs items={calculatorCrumbs(entry)} />
 
-    <header class="calc-intro">
-      <h1 class="calc-intro__title">{entry.title}</h1>
-      <p class="calc-intro__lead">
-        Посчитайте, сколько рулонов обоев купить для прямоугольной комнаты. Калькулятор раскладывает
-        обои на вертикальные полосы, учитывает подгонку рисунка, запас на подрезку, окна и двери.
-        Результат ориентировочный — он показывает, из чего складывается расход, чтобы его можно было
-        проверить.
-      </p>
-    </header>
+    <CalculatorIntro
+      entry={entry}
+      lead="Сколько рулонов купить на прямоугольную комнату — с окнами, дверями и подгонкой рисунка."
+    />
 
     <noscript>
       <p class="calc-noscript">
@@ -244,6 +240,13 @@ const id = 'wp';
     </div>
 
     <article class="calc-article">
+      <p class="calc-article__intro">
+        Посчитайте, сколько рулонов обоев купить для прямоугольной комнаты. Калькулятор раскладывает
+        обои на вертикальные полосы, учитывает подгонку рисунка, запас на подрезку, окна и двери.
+        Результат ориентировочный — он показывает, из чего складывается расход, чтобы его можно было
+        проверить.
+      </p>
+
       <section aria-labelledby="method-title">
         <h2 id="method-title">Как считается</h2>
         <p>

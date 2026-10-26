@@ -12,6 +12,16 @@ export const statusLabels: Record<CalculatorStatus, string> = {
 };
 
 /** Можно ли ссылаться на страницу калькулятора. */
+/** Номер листа двумя цифрами: «01». */
+export function sheetNumber(entry: CalculatorEntry): string {
+  return String(entry.sheet).padStart(2, '0');
+}
+
+/** Штамп листа: «Лист 01 · Отделка стен» (верхний регистр — стилем). */
+export function sheetLabel(entry: CalculatorEntry): string {
+  return `Лист ${sheetNumber(entry)} · ${entry.sheetTitle}`;
+}
+
 export function isAvailable(entry: CalculatorEntry): boolean {
   return entry.status === 'available';
 }

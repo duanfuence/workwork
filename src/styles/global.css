@@ -1,3 +1,4 @@
+@import './fonts.css';
 @import './tokens.css';
 
 *,
@@ -19,12 +20,17 @@ html {
   }
 }
 
+/* Фон — лист чертежа: светлая бумага и тонкая сетка 16 px. */
 body {
   margin: 0;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: var(--color-bg);
+  background-color: var(--color-bg);
+  background-image:
+    linear-gradient(var(--color-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-grid-line) 1px, transparent 1px);
+  background-size: var(--grid-step) var(--grid-step);
   color: var(--color-text);
   font-family: var(--font-sans);
   font-size: var(--font-size-md);
@@ -42,7 +48,29 @@ h3 {
   margin: 0;
   line-height: var(--line-height-tight);
   font-weight: var(--font-weight-bold);
+  letter-spacing: -0.01em;
   text-wrap: balance;
+}
+
+h3 {
+  font-weight: var(--font-weight-semibold);
+}
+
+/* Штамп чертежа: моноширинный, верхний регистр, разрядка — крошки, номера листов, заголовки групп. */
+.stamp {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-stamp);
+  font-weight: var(--font-weight-mono);
+  line-height: var(--line-height-snug);
+  letter-spacing: var(--letter-spacing-stamp);
+  text-transform: uppercase;
+}
+
+/* Числа и значения — моноширинные: разряды стоят друг под другом. */
+.mono {
+  font-family: var(--font-mono);
+  font-weight: var(--font-weight-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 p {
@@ -107,7 +135,7 @@ input {
   z-index: 100;
   padding: var(--space-2) var(--space-4);
   background: var(--color-surface);
-  border: var(--border-strong);
+  border: var(--border-ink);
   border-radius: var(--radius-md);
 }
 
@@ -164,7 +192,7 @@ input {
 .catalog-empty {
   padding: var(--space-6);
   background: var(--color-surface);
-  border: var(--border-width) dashed var(--color-border-strong);
+  border: var(--border-width) dashed var(--color-border-control);
   border-radius: var(--radius-lg);
   color: var(--color-text-secondary);
 }
@@ -193,13 +221,13 @@ input {
 }
 
 .button--primary {
-  background: var(--color-accent);
-  color: var(--color-on-accent);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
 }
 
 .button--primary:hover {
-  background: var(--color-accent-hover);
-  color: var(--color-on-accent);
+  background: var(--color-primary-hover);
+  color: var(--color-on-primary);
 }
 
 .button--primary:active {
@@ -208,11 +236,11 @@ input {
 
 .button--secondary {
   background: var(--color-surface);
-  border-color: var(--color-border-strong);
+  border-color: var(--color-text);
   color: var(--color-text);
 }
 
 .button--secondary:hover {
-  background: var(--color-surface-muted);
+  background: var(--color-accent-soft);
   color: var(--color-text);
 }

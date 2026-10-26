@@ -54,7 +54,9 @@ src/
     *.test.ts             unit-тесты рядом с модулями
   layouts/BaseLayout.astro  <head>, метаданные, шапка, подвал
   components/             SiteHeader, SiteFooter, CalculatorCard, CategoryCard, CatalogSearch, Breadcrumbs,
-                          RelatedCalculators («Другие калькуляторы» на страницах калькуляторов)
+                          RelatedCalculators («Другие калькуляторы» на страницах калькуляторов),
+                          MaterialIcon (схема материала на карточке-листе)
+    calculator/CalculatorIntro.astro   шапка калькулятора: штамп листа (sheet, sheetTitle из каталога), H1, лид
     calculator/NumberField.astro       поле ввода числа: label, единица, подсказка, место для ошибки
     calculator/SelectField.astro       выпадающий список с подписью, подсказкой и местом для ошибки
     calculator/PresetSelect.astro      выбор «Тип материала»: подставляет ориентир расхода в поле
@@ -70,10 +72,12 @@ src/
     kalkulyatory/index.astro  каталог всех опубликованных калькуляторов по категориям → /kalkulyatory/
     kalkulyatory/laminat.astro  калькулятор ламината → /kalkulyatory/laminat/
   styles/
-    tokens.css            дизайн-токены
-    global.css            базовые стили и утилиты (.container, .section, .visually-hidden, .button)
+    tokens.css            дизайн-токены направления «Чертёж» (DES-1, docs/DESIGN_SYSTEM.md)
+    fonts.css             @font-face Onest и JetBrains Mono из public/fonts, запасные начертания с метриками (D-029)
+    global.css            базовые стили и утилиты (.container, .section, .visually-hidden, .button, .stamp, .mono)
     calculator.css        общие стили страниц калькуляторов
-public/favicon.svg
+public/favicon.svg        логотип: лист с синей рамкой, план дома, оранжевый проём двери
+public/fonts/             woff2 Onest 400/600/800, JetBrains Mono 500/700 (кириллица + латиница), OFL-*.txt
 public/og.png             Open Graph-изображение 1200 × 630 (npm run og:image из scripts/og/og-image.html)
 scripts/ui-check.mjs      Playwright-проверка главной и калькуляторов (локально и в CI)
 ```

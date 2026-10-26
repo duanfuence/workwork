@@ -77,8 +77,7 @@ const related = getRelatedCalculators(calculators, current);
   }
 
   .related__link:hover {
-    border-color: var(--color-accent);
-    box-shadow: var(--shadow-sm);
+    border-color: var(--color-text);
   }
 
   .related__name {
@@ -115,6 +114,10 @@ const related = getRelatedCalculators(calculators, current);
     justify-self: start;
     min-height: var(--tap-target-min);
     color: var(--color-accent);
-    font-weight: var(--font-weight-semibold);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-mono-bold);
+    letter-spacing: var(--letter-spacing-stamp);
+    text-transform: uppercase;
   }
 </style>

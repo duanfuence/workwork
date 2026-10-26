@@ -8,6 +8,7 @@ import {
   getPopularCalculators,
   getRelatedCalculators,
   relatedLimit,
+  sheetLabel,
   sortCategories,
   statusLabels,
 } from './catalog';
@@ -17,6 +18,8 @@ function entry(overrides: Partial<CalculatorEntry> & Pick<CalculatorEntry, 'id'>
     slug: overrides.id,
     title: `Калькулятор ${overrides.id}`,
     shortTitle: overrides.id,
+    sheet: 1,
+    sheetTitle: 'Отделка стен',
     category: 'repair',
     description: 'Описание',
     path: `/kalkulyatory/${overrides.id}/`,
@@ -152,5 +155,14 @@ describe('getRelatedCalculators', () => {
       }
     }
     expect(new Set(shown.values())).toEqual(new Set([2]));
+  });
+});
+
+describe('штамп листа', () => {
+  it('номер двумя цифрами и раздел работ', () => {
+    expect(sheetLabel(entry({ id: 'oboi', sheet: 1, sheetTitle: 'Отделка стен' }))).toBe(
+      'Лист 01 · Отделка стен',
+    );
+    expect(sheetLabel(entry({ id: 'x', sheet: 12, sheetTitle: 'Полы' }))).toBe('Лист 12 · Полы');
   });
 });

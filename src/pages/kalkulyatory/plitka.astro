@@ -1,6 +1,7 @@
 ---
 import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import RelatedCalculators from '../../components/RelatedCalculators.astro';
+import CalculatorIntro from '../../components/calculator/CalculatorIntro.astro';
 import CalculatorResult from '../../components/calculator/CalculatorResult.astro';
 import NumberField from '../../components/calculator/NumberField.astro';
 import SelectField from '../../components/calculator/SelectField.astro';
@@ -19,14 +20,10 @@ const id = 'tl';
   <div class="container calc-page">
     <Breadcrumbs items={calculatorCrumbs(entry)} />
 
-    <header class="calc-intro">
-      <h1 class="calc-intro__title">{entry.title}</h1>
-      <p class="calc-intro__lead">
-        Посчитайте, сколько плитки купить на пол или стену. Калькулятор раскладывает плитку рядами
-        «шов в шов» и считает каждую подрезанную у края плитку целой. Это оценка по сетке, а не план
-        раскладки: где пройдут швы и какие плитки придётся резать, решается при укладке.
-      </p>
-    </header>
+    <CalculatorIntro
+      entry={entry}
+      lead="Сколько плитки купить на пол или стену — по сетке рядов с учётом швов и запаса."
+    />
 
     <noscript>
       <p class="calc-noscript">
@@ -195,6 +192,12 @@ const id = 'tl';
     </div>
 
     <article class="calc-article">
+      <p class="calc-article__intro">
+        Посчитайте, сколько плитки купить на пол или стену. Калькулятор раскладывает плитку рядами
+        «шов в шов» и считает каждую подрезанную у края плитку целой. Это оценка по сетке, а не план
+        раскладки: где пройдут швы и какие плитки придётся резать, решается при укладке.
+      </p>
+
       <section aria-labelledby="method-title">
         <h2 id="method-title">Как считается</h2>
         <ol>

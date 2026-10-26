@@ -37,7 +37,12 @@ const jsonLd = Astro.site
     margin: 0;
     padding: 0;
     list-style: none;
-    font-size: var(--font-size-sm);
+    /* Штамп чертежа: моноширинный, 12 px, верхний регистр */
+    font-family: var(--font-mono);
+    font-size: var(--font-size-stamp);
+    font-weight: var(--font-weight-mono);
+    letter-spacing: var(--letter-spacing-stamp);
+    text-transform: uppercase;
     color: var(--color-text-muted);
   }
 
@@ -52,7 +57,11 @@ const jsonLd = Astro.site
     color: var(--color-border-strong);
   }
 
+  /* Зона нажатия не меньше 24 px (WCAG 2.5.8) без лишней высоты над формой. */
   .breadcrumbs a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.5rem;
     color: var(--color-text-secondary);
   }
 

@@ -9,7 +9,7 @@
  * Запускается в CI после сборки и вручную. При любом провале — код выхода 1.
  */
 import { spawn } from 'node:child_process';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readdir, stat } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 
@@ -1180,6 +1180,214 @@ async function checkForcedColors(browser, viewport) {
   check(errors.length === 0, `${label}: нет ошибок в консоли (${errors.join(' | ') || '0'})`);
 }
 
+/** Контраст по WCAG 2.x для цветов вида rgb(…)/rgba(…) — полупрозрачный цвет накладывается на фон. */
+function contrastRatio(fg, bg) {
+  const parse = (color) => (color.match(/[\d.]+/g) ?? []).map(Number);
+  const [br, bgG, bb] = parse(bg);
+  const [fr, fgG, fb, alpha = 1] = parse(fg);
+  const mix = [
+    fr * alpha + br * (1 - alpha),
+    fgG * alpha + bgG * (1 - alpha),
+    fb * alpha + bb * (1 - alpha),
+  ];
+  const lum = ([r, g, b]) => {
+    const f = (c) => {
+      const v = c / 255;
+      return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+    };
+    return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+  };
+  const [a, b] = [lum(mix), lum([br, bgG, bb])].sort((x, y) => y - x);
+  return (a + 0.05) / (b + 0.05);
+}
+
+/** Цвет текста (или рамки) элемента и фон ближайшего предка с непрозрачным фоном. */
+async function colorPair(page, selector, property = 'color') {
+  return page.evaluate(
+    ({ target, prop }) => {
+      const element = document.querySelector(target);
+      if (!element) return null;
+      let node = element;
+      let bg = 'rgb(244, 246, 248)';
+      while (node) {
+        const color = getComputedStyle(node).backgroundColor;
+        const alpha = Number((color.match(/[\d.]+/g) ?? [])[3] ?? 1);
+        if (color !== 'transparent' && alpha > 0) {
+          bg = color;
+          break;
+        }
+        node = node.parentElement;
+      }
+      return { fg: getComputedStyle(element)[prop], bg };
+    },
+    { target: selector, prop: property },
+  );
+}
+
+/**
+ * Визуальная система «Чертёж» (DES-1): контраст пар «текст / фон» ≥ 4.5:1 и рамки полей ≥ 3:1 на вычисленных цветах,
+ * форма калькулятора на первом экране 390 × 844, шрифты загружены и в бюджете, нет сдвига при подгрузке шрифтов.
+ */
+async function checkDesign(browser, viewport) {
+  const label = `дизайн ${viewport.name}`;
+  const errors = [];
+  const { context, page } = await freshPage(browser, viewport, errors);
+
+  const pairs = [
+    ['/', 'h1', 'заголовок', 4.5],
+    ['/', '.hero__lead', 'лид героя', 4.5],
+    ['/', '.hero__status', 'штамп героя', 4.5],
+    ['/', '.calc-card__category', 'раздел на карточке', 4.5],
+    ['/', '.calc-card__action', '«Рассчитать →»', 4.5],
+    ['/', '.catalog-search__label', 'подпись поиска', 4.5],
+    [calcPath, '.breadcrumbs__item a', 'ссылка в крошках', 4.5],
+    [calcPath, '.breadcrumbs [aria-current]', 'текущая крошка', 4.5],
+    [calcPath, '.calc-intro__sheet', 'штамп листа', 4.5],
+    [calcPath, '.calc-intro__lead', 'лид калькулятора', 4.5],
+    [calcPath, '.calc-group__title', 'заголовок группы', 4.5],
+    [calcPath, '.field__label', 'подпись поля', 4.5],
+    [calcPath, '.field__hint', 'подсказка поля', 4.5],
+    [calcPath, '.field__unit', 'единица в поле', 4.5],
+    [calcPath, '.button--primary', 'основная кнопка', 4.5],
+    [calcPath, '.button--secondary', 'вторичная кнопка', 4.5],
+    [calcPath, '.calc-result__placeholder', 'подсказка результата', 4.5],
+    [calcPath, '.site-footer__links a', 'ссылка в подвале', 4.5],
+  ];
+  let current = '';
+  for (const [pagePath, selector, name, min] of pairs) {
+    if (pagePath !== current) {
+      await page.goto(baseUrl + pagePath, { waitUntil: 'networkidle' });
+      current = pagePath;
+    }
+    const pair = await colorPair(page, selector);
+    const ratio = pair ? contrastRatio(pair.fg, pair.bg) : 0;
+    check(ratio >= min, `${label}: контраст «${name}» ${ratio.toFixed(2)}:1 (≥ ${min})`);
+  }
+  // Номер группы «01 ·» — псевдоэлемент: цвет — размерный текст на белом.
+  const groupNumber = await page.evaluate(() => {
+    const title = document.querySelector('.calc-group__title');
+    return title ? getComputedStyle(title, '::before').color : '';
+  });
+  const groupRatio = contrastRatio(groupNumber, 'rgb(255, 255, 255)');
+  check(groupRatio >= 4.5, `${label}: контраст номера группы ${groupRatio.toFixed(2)}:1`);
+  // Рамка поля (WCAG 1.4.11): боковая к белому фону карточки ≥ 3:1, нижняя линия — чернилами.
+  const border = await colorPair(page, 'form .field__input', 'borderLeftColor');
+  const underline = await colorPair(page, 'form .field__input', 'borderBottomColor');
+  const borderRatio = border ? contrastRatio(border.fg, 'rgb(255, 255, 255)') : 0;
+  const underlineRatio = underline ? contrastRatio(underline.fg, 'rgb(255, 255, 255)') : 0;
+  check(
+    borderRatio >= 3 && underlineRatio >= 4.5,
+    `${label}: рамка поля ${borderRatio.toFixed(2)}:1, нижняя линия ${underlineRatio.toFixed(2)}:1`,
+  );
+  const fieldStyle = await page.evaluate(() => {
+    const input = document.querySelector('form .field__input');
+    if (!input) return null;
+    const style = getComputedStyle(input);
+    return {
+      font: style.fontFamily,
+      size: style.fontSize,
+      height: Math.round(input.getBoundingClientRect().height),
+      bottom: style.borderBottomWidth,
+    };
+  });
+  check(
+    fieldStyle !== null &&
+      fieldStyle.font.startsWith('"JetBrains Mono"') &&
+      fieldStyle.size === '18px' &&
+      fieldStyle.height >= 48 &&
+      fieldStyle.bottom === '2px',
+    `${label}: поле — JetBrains Mono 18 px, высота ${fieldStyle?.height} px, нижняя линия ${fieldStyle?.bottom}`,
+  );
+  // Рамка карточки группы — outline, legend её не разрывает.
+  const group = await page.evaluate(() => {
+    const element = document.querySelector('.calc-group');
+    if (!element) return null;
+    const style = getComputedStyle(element);
+    return { outline: style.outlineStyle, border: style.borderTopStyle };
+  });
+  check(
+    group?.outline === 'solid' && group.border === 'none',
+    `${label}: рамка группы полей — outline (legend её не разрывает)`,
+  );
+
+  // Шрифты сайта загружены и используются.
+  const fonts = await page.evaluate(async () => {
+    await document.fonts.ready;
+    return {
+      onest: document.fonts.check('400 16px Onest', 'Расчёт'),
+      mono: document.fonts.check('500 16px "JetBrains Mono"', '0123'),
+      body: getComputedStyle(document.body).fontFamily,
+    };
+  });
+  check(
+    fonts.onest && fonts.mono && fonts.body.startsWith('Onest'),
+    `${label}: шрифты Onest и JetBrains Mono загружены (${fonts.body.split(',')[0]})`,
+  );
+
+  if (viewport.name === '390') {
+    // Форма на первом экране 390 × 844: первое поле видно целиком, без прокрутки.
+    for (const calcPage of calculatorPaths) {
+      await page.goto(baseUrl + calcPage, { waitUntil: 'networkidle' });
+      const firstField = await page.evaluate(() => {
+        const input = document.querySelector('form input, form select');
+        return input ? Math.round(input.getBoundingClientRect().bottom) : 9999;
+      });
+      check(
+        firstField <= viewport.height,
+        `${label}: ${calcPage} — первое поле формы на первом экране (низ ${firstField} ≤ ${viewport.height} px)`,
+      );
+    }
+  }
+  await context.close();
+
+  if (viewport.name === '1440') {
+    // Бюджет шрифтов: все файлы public/fonts — до 150 КБ.
+    const dir = path.resolve('public/fonts');
+    const files = (await readdir(dir)).filter((file) => file.endsWith('.woff2'));
+    const sizes = await Promise.all(
+      files.map(async (file) => (await stat(path.join(dir, file))).size),
+    );
+    const total = sizes.reduce((sum, size) => sum + size, 0);
+    check(
+      total <= 150 * 1024 && files.length === 10,
+      `${label}: шрифты — ${files.length} файлов, ${(total / 1024).toFixed(1)} КБ (≤ 150 КБ)`,
+    );
+    const licenses = (await readdir(dir)).filter((file) => file.startsWith('OFL-'));
+    check(
+      licenses.length === 2,
+      `${label}: лицензии OFL рядом со шрифтами (${licenses.join(', ')})`,
+    );
+  }
+
+  // Сдвиг при подгрузке шрифтов: файлы отдаются с задержкой 800 мс, CLS считается до и после замены.
+  if (viewport.name === '390' || viewport.name === '1440') {
+    for (const target of ['/', calcPath]) {
+      const slow = await freshPage(browser, viewport, errors, () => {
+        window.__cls = 0;
+        new PerformanceObserver((list) => {
+          for (const entry of list.getEntries()) {
+            if (!entry.hadRecentInput) window.__cls += entry.value;
+          }
+        }).observe({ type: 'layout-shift', buffered: true });
+      });
+      await slow.page.route('**/fonts/*.woff2', async (route) => {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        await route.continue();
+      });
+      await slow.page.goto(baseUrl + target, { waitUntil: 'load' });
+      await slow.page.evaluate(() => document.fonts.ready);
+      await slow.page.waitForTimeout(300);
+      const cls = await slow.page.evaluate(() => window.__cls);
+      check(
+        cls < 0.05,
+        `${label}: ${target} — сдвиг при подгрузке шрифтов CLS ${cls.toFixed(4)} (< 0.05)`,
+      );
+      await slow.context.close();
+    }
+  }
+  check(errors.length === 0, `${label}: нет ошибок в консоли (${errors.join(' | ') || '0'})`);
+}
+
 async function checkLinks(page, label) {
   const hrefs = await page.$$eval('a[href]', (links) => links.map((a) => a.getAttribute('href')));
   const broken = [];
@@ -2280,6 +2488,7 @@ try {
       await checkRoomMemory(browser, viewport);
     if (viewport.name !== '768') await checkShare(browser, viewport);
     if (fullCheckViewports.has(viewport.name)) await checkForcedColors(browser, viewport);
+    if (viewport.name !== '768') await checkDesign(browser, viewport);
     check(
       consoleErrors.length === 0,
       `${viewport.name}: нет ошибок в консоли (${consoleErrors.join(' | ') || '0'})`,

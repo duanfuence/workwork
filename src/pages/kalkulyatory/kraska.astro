@@ -1,6 +1,7 @@
 ---
 import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import RelatedCalculators from '../../components/RelatedCalculators.astro';
+import CalculatorIntro from '../../components/calculator/CalculatorIntro.astro';
 import CalculatorResult from '../../components/calculator/CalculatorResult.astro';
 import NumberField from '../../components/calculator/NumberField.astro';
 import PresetSelect from '../../components/calculator/PresetSelect.astro';
@@ -21,15 +22,10 @@ const id = 'pt';
   <div class="container calc-page">
     <Breadcrumbs items={calculatorCrumbs(entry)} />
 
-    <header class="calc-intro">
-      <h1 class="calc-intro__title">{entry.title}</h1>
-      <p class="calc-intro__lead">
-        Посчитайте, сколько литров краски нужно на стены и потолок прямоугольного помещения.
-        Калькулятор считает площадь окрашивания, умножает её на число слоёв и делит на укрывистость
-        с упаковки. Результат ориентировочный: фактический расход зависит от поверхности,
-        инструмента и самой краски.
-      </p>
-    </header>
+    <CalculatorIntro
+      entry={entry}
+      lead="Сколько литров краски нужно на стены и потолок — по площади, слоям и укрывистости."
+    />
 
     <noscript>
       <p class="calc-noscript">
@@ -209,6 +205,13 @@ const id = 'pt';
     </div>
 
     <article class="calc-article">
+      <p class="calc-article__intro">
+        Посчитайте, сколько литров краски нужно на стены и потолок прямоугольного помещения.
+        Калькулятор считает площадь окрашивания, умножает её на число слоёв и делит на укрывистость
+        с упаковки. Результат ориентировочный: фактический расход зависит от поверхности,
+        инструмента и самой краски.
+      </p>
+
       <section aria-labelledby="method-title">
         <h2 id="method-title">Как считается</h2>
         <ol>

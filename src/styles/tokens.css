@@ -1,5 +1,5 @@
 /*
- * Дизайн-токены ДомРасчёта. Описание и правила использования — docs/DESIGN_SYSTEM.md.
+ * Дизайн-токены ДомРасчёта — направление «Чертёж» (DES-1). Описание, контрасты и правила — docs/DESIGN_SYSTEM.md.
  * Компоненты используют только семантические токены (--color-text, --space-4 и т. д.),
  * а не «сырые» значения цветов и размеров.
  */
@@ -7,63 +7,85 @@
   color-scheme: light;
 
   /* Палитра (базовые значения) */
-  --palette-stone-0: #ffffff;
-  --palette-stone-50: #f7f7f4;
-  --palette-stone-100: #efefea;
-  --palette-stone-200: #e2e2db;
-  --palette-stone-300: #cfcfc6;
-  --palette-stone-400: #858882;
-  --palette-stone-500: #636662;
-  --palette-stone-700: #3e423f;
-  --palette-stone-900: #1c1f1d;
-  --palette-green-50: #ecf5f1;
-  --palette-green-100: #d5eae1;
-  --palette-green-600: #1d6b57;
-  --palette-green-700: #175747;
-  --palette-green-800: #114236;
-  --palette-amber-50: #fbf3e2;
-  --palette-amber-800: #7a4f0b;
-  --palette-red-50: #fdf0ee;
-  --palette-red-700: #b42318;
+  --palette-paper: #f4f6f8;
+  --palette-white: #ffffff;
+  --palette-paper-muted: #f0f3f7;
+  --palette-ink: #13243d;
+  --palette-ink-hover: #24395c;
+  --palette-ink-secondary: #4b5b70;
+  --palette-ink-muted: #5a6879;
+  --palette-line: #c9d3df;
+  --palette-control: #7a8899;
+  --palette-blue: #2c5bb5;
+  --palette-blue-hover: #234a94;
+  --palette-blue-active: #1b3a75;
+  --palette-blue-soft: #eaf0fb;
+  --palette-blue-ring: #d6e2f7;
+  --palette-orange-line: #e45a24;
+  --palette-orange-text: #b5400e;
+  --palette-orange-soft: #fdf1ea;
+  --palette-red: #b42318;
+  --palette-red-soft: #fdeeec;
 
   /* Цвета: семантика */
-  --color-bg: var(--palette-stone-50);
-  --color-surface: var(--palette-stone-0);
-  --color-surface-muted: var(--palette-stone-100);
-  --color-text: var(--palette-stone-900);
-  --color-text-muted: var(--palette-stone-500);
-  --color-text-secondary: var(--palette-stone-700);
-  --color-border: var(--palette-stone-200);
-  --color-border-strong: var(--palette-stone-300);
-  /* Граница полей ввода и списков: ≥ 3:1 к фону (WCAG 1.4.11), иначе белое поле не видно на белой карточке */
-  --color-border-control: var(--palette-stone-400);
-  --color-accent: var(--palette-green-600);
-  --color-accent-hover: var(--palette-green-700);
-  --color-accent-active: var(--palette-green-800);
-  --color-accent-soft: var(--palette-green-50);
-  --color-accent-soft-hover: var(--palette-green-100);
-  --color-on-accent: var(--palette-stone-0);
-  --color-badge-soon-bg: var(--palette-amber-50);
-  --color-badge-soon-text: var(--palette-amber-800);
-  --color-focus-ring: var(--palette-green-600);
-  --color-danger: var(--palette-red-700);
-  --color-danger-soft: var(--palette-red-50);
+  --color-bg: var(--palette-paper);
+  /* Сетка чертежа на фоне страницы: линии через 16 px */
+  --color-grid-line: rgb(19 36 61 / 0.06);
+  --grid-step: 16px;
+  --color-surface: var(--palette-white);
+  --color-surface-muted: var(--palette-paper-muted);
+  --color-text: var(--palette-ink);
+  --color-text-secondary: var(--palette-ink-secondary);
+  --color-text-muted: var(--palette-ink-muted);
+  --color-border: var(--palette-line);
+  --color-border-strong: var(--palette-line);
+  /* Граница полей ввода и списков: ≥ 3:1 к фону (WCAG 1.4.11); снизу — линия «бланка» цветом чернил */
+  --color-border-control: var(--palette-control);
+  --color-control-underline: var(--palette-ink);
+  --color-accent: var(--palette-blue);
+  --color-accent-hover: var(--palette-blue-hover);
+  --color-accent-active: var(--palette-blue-active);
+  --color-accent-soft: var(--palette-blue-soft);
+  --color-accent-soft-hover: var(--palette-blue-ring);
+  --color-on-accent: var(--palette-white);
+  /* Основная кнопка и тёмные полосы — «чернила» */
+  --color-primary: var(--palette-ink);
+  --color-primary-hover: var(--palette-ink-hover);
+  --color-on-primary: var(--palette-white);
+  /* Размерный акцент: линии и графика — яркий, текст (вычитания, пометки) — тёмный */
+  --color-dimension: var(--palette-orange-line);
+  --color-dimension-text: var(--palette-orange-text);
+  --color-badge-soon-bg: var(--palette-orange-soft);
+  --color-badge-soon-text: var(--palette-orange-text);
+  --color-focus-ring: var(--palette-blue);
+  --color-danger: var(--palette-red);
+  --color-danger-soft: var(--palette-red-soft);
 
-  /* Типографика: системные шрифты — без загрузки веб-шрифтов */
-  --font-sans:
-    system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+  /*
+   * Типографика: Onest — текст и заголовки, JetBrains Mono — числа, значения полей, штампы (public/fonts, D-029).
+   * Запасные начертания с подобранными метриками (fonts.css) — без заметного сдвига при подгрузке.
+   */
+  --font-sans: 'Onest', 'Onest Fallback', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono:
+    'JetBrains Mono', 'JetBrains Mono Fallback', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --font-size-stamp: 0.75rem; /* 12px — штампы и хлебные крошки */
   --font-size-xs: 0.8125rem; /* 13px */
   --font-size-sm: 0.875rem; /* 14px */
   --font-size-md: 1rem; /* 16px — основной текст, не меньше 16px на мобильных */
-  --font-size-lg: 1.125rem; /* 18px */
+  --font-size-lg: 1.125rem; /* 18px — значения полей */
   --font-size-xl: 1.375rem; /* 22px */
   --font-size-2xl: clamp(1.5rem, 1.2rem + 1.2vw, 1.875rem);
-  --font-size-3xl: clamp(2rem, 1.5rem + 2.4vw, 3rem);
+  --font-size-3xl: clamp(1.875rem, 1.4rem + 2.2vw, 2.75rem);
+  --font-size-display: clamp(3rem, 2.2rem + 3.6vw, 4.5rem); /* ~72 px — «К покупке» */
+  /* Загружены Onest 400, 600, 800 и JetBrains Mono 500, 700: другие веса браузер берёт из ближайших */
   --font-weight-regular: 400;
-  --font-weight-medium: 500;
+  --font-weight-medium: 600;
   --font-weight-semibold: 600;
-  --font-weight-bold: 700;
-  --line-height-tight: 1.2;
+  --font-weight-bold: 800;
+  --font-weight-mono: 500;
+  --font-weight-mono-bold: 700;
+  --letter-spacing-stamp: 0.06em;
+  --line-height-tight: 1.15;
   --line-height-snug: 1.35;
   --line-height-base: 1.6;
 
@@ -84,25 +106,27 @@
   --container-gutter: var(--space-4);
   --header-height: 3.5rem;
   --tap-target-min: 2.75rem; /* 44px — минимальная зона нажатия */
+  --control-height: 3rem; /* 48px — поля ввода и списки */
 
-  /* Радиусы */
-  --radius-sm: 0.375rem;
-  --radius-md: 0.625rem;
-  --radius-lg: 0.875rem;
+  /* Радиусы: маленькие, как у чертежа */
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --radius-lg: 4px;
   --radius-pill: 999px;
 
-  /* Границы и тени */
+  /* Границы и тени: рамки вместо теней */
   --border-width: 1px;
   --border: var(--border-width) solid var(--color-border);
   --border-strong: var(--border-width) solid var(--color-border-strong);
   --border-control: var(--border-width) solid var(--color-border-control);
-  --shadow-sm: 0 1px 2px rgb(28 31 29 / 0.06);
-  --shadow-md: 0 4px 16px rgb(28 31 29 / 0.08);
-  /* Тень панели у нижнего края экрана — вверх */
-  --shadow-up: 0 -4px 16px rgb(28 31 29 / 0.12);
+  --border-ink: var(--border-width) solid var(--color-text);
+  --shadow-sm: none;
+  --shadow-md: 0 6px 20px rgb(19 36 61 / 0.1);
+  --shadow-up: 0 -2px 0 rgb(19 36 61 / 0.06);
 
   /* Состояния интерактивных элементов */
-  --focus-ring: 0 0 0 3px var(--color-surface), 0 0 0 5px var(--color-focus-ring);
+  --focus-ring: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-focus-ring);
+  --control-focus-ring: 0 0 0 3px var(--color-accent-soft-hover);
   --opacity-disabled: 0.5;
   --transition-fast: 120ms ease-out;
   --transition-base: 200ms ease-out;

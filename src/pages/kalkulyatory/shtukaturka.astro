@@ -1,6 +1,7 @@
 ---
 import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import RelatedCalculators from '../../components/RelatedCalculators.astro';
+import CalculatorIntro from '../../components/calculator/CalculatorIntro.astro';
 import CalculatorResult from '../../components/calculator/CalculatorResult.astro';
 import NumberField from '../../components/calculator/NumberField.astro';
 import PresetSelect from '../../components/calculator/PresetSelect.astro';
@@ -21,14 +22,10 @@ const id = 'pl';
   <div class="container calc-page">
     <Breadcrumbs items={calculatorCrumbs(entry)} />
 
-    <header class="calc-intro">
-      <h1 class="calc-intro__title">{entry.title}</h1>
-      <p class="calc-intro__lead">
-        Посчитайте, сколько штукатурной смеси и мешков купить на стены. Расчёт ориентировочный:
-        фактический расход зависит от смеси, основания, неровностей стен и допустимой толщины слоя.
-        Расход на 1 мм возьмите из инструкции к вашей смеси.
-      </p>
-    </header>
+    <CalculatorIntro
+      entry={entry}
+      lead="Сколько смеси и мешков нужно на стены — по площади, толщине слоя и расходу с мешка."
+    />
 
     <noscript>
       <p class="calc-noscript">
@@ -228,6 +225,12 @@ const id = 'pl';
     </div>
 
     <article class="calc-article">
+      <p class="calc-article__intro">
+        Посчитайте, сколько штукатурной смеси и мешков купить на стены. Расчёт ориентировочный:
+        фактический расход зависит от смеси, основания, неровностей стен и допустимой толщины слоя.
+        Расход на 1 мм возьмите из инструкции к вашей смеси.
+      </p>
+
       <section aria-labelledby="method-title">
         <h2 id="method-title">Как считается</h2>
         <ol>

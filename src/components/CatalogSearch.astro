@@ -34,7 +34,7 @@ const { listId, sectionId } = Astro.props;
       id="catalog-search-input"
       type="search"
       name="q"
-      placeholder="Например: плитка, обои, краска"
+      placeholder="Например: обои, плитка"
       autocomplete="off"
       enterkeyhint="search"
       aria-describedby="catalog-search-status"
@@ -102,8 +102,11 @@ const { listId, sectionId } = Astro.props;
   }
 
   .catalog-search__label {
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-semibold);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-stamp);
+    font-weight: var(--font-weight-mono);
+    letter-spacing: var(--letter-spacing-stamp);
+    text-transform: uppercase;
     color: var(--color-text-secondary);
   }
 
@@ -126,7 +129,8 @@ const { listId, sectionId } = Astro.props;
     padding: var(--space-3) var(--space-4) var(--space-3) calc(var(--space-4) * 2 + 1.25rem);
     background: var(--color-surface);
     border: var(--border-control);
-    border-radius: var(--radius-md);
+    border-bottom: 2px solid var(--color-control-underline);
+    border-radius: var(--radius-sm);
     font-size: var(--font-size-md);
     transition:
       border-color var(--transition-fast),
@@ -146,6 +150,8 @@ const { listId, sectionId } = Astro.props;
     outline: 2px solid transparent;
     outline-offset: 2px;
     border-color: var(--color-accent);
-    box-shadow: 0 0 0 3px var(--color-accent-soft-hover);
+    box-shadow:
+      inset 0 0 0 1px var(--color-accent),
+      var(--control-focus-ring);
   }
 </style>
