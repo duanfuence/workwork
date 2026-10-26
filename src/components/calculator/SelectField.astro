@@ -25,28 +25,30 @@ const describedBy = [hint ? hintId : null, errorId].filter(Boolean).join(' ');
   <label class="field__label" for={id}>
     {label}
   </label>
-  <div class="field__control">
-    <select
-      class="field__select"
-      id={id}
-      name={name}
-      aria-describedby={describedBy}
-      aria-required="true"
-      data-label={label}
-    >
-      {options.map((option) => (
-        <option value={option.value} selected={option.value === value}>
-          {option.label}
-        </option>
-      ))}
-    </select>
+  <div class="field__body">
+    <div class="field__control">
+      <select
+        class="field__select"
+        id={id}
+        name={name}
+        aria-describedby={describedBy}
+        aria-required="true"
+        data-label={label}
+      >
+        {options.map((option) => (
+          <option value={option.value} selected={option.value === value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </div>
+    {hint && (
+      <p class="field__hint" id={hintId}>
+        {hint}
+      </p>
+    )}
+    <p class="field__error" id={errorId} data-error-for={name} hidden></p>
   </div>
-  {hint && (
-    <p class="field__hint" id={hintId}>
-      {hint}
-    </p>
-  )}
-  <p class="field__error" id={errorId} data-error-for={name} hidden></p>
 </div>
 
 <style>
@@ -55,6 +57,13 @@ const describedBy = [hint ? hintId : null, errorId].filter(Boolean).join(' ');
     align-content: start;
     gap: var(--space-1);
     min-width: 0;
+  }
+
+  /* Поле, подсказка и ошибка — одна строка сетки: в ряду формы выравниваются по подписи (calculator.css). */
+  .field__body {
+    display: grid;
+    align-content: start;
+    gap: var(--space-1);
   }
 
   .field__label {
@@ -86,7 +95,7 @@ const describedBy = [hint ? hintId : null, errorId].filter(Boolean).join(' ');
     min-height: var(--tap-target-min);
     padding: var(--space-2) 2.5rem var(--space-2) var(--space-3);
     background: var(--color-surface);
-    border: var(--border-strong);
+    border: var(--border-control);
     border-radius: var(--radius-md);
     font: inherit;
     font-size: var(--font-size-md);

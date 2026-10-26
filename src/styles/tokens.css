@@ -12,6 +12,7 @@
   --palette-stone-100: #efefea;
   --palette-stone-200: #e2e2db;
   --palette-stone-300: #cfcfc6;
+  --palette-stone-400: #858882;
   --palette-stone-500: #636662;
   --palette-stone-700: #3e423f;
   --palette-stone-900: #1c1f1d;
@@ -34,6 +35,8 @@
   --color-text-secondary: var(--palette-stone-700);
   --color-border: var(--palette-stone-200);
   --color-border-strong: var(--palette-stone-300);
+  /* Граница полей ввода и списков: ≥ 3:1 к фону (WCAG 1.4.11), иначе белое поле не видно на белой карточке */
+  --color-border-control: var(--palette-stone-400);
   --color-accent: var(--palette-green-600);
   --color-accent-hover: var(--palette-green-700);
   --color-accent-active: var(--palette-green-800);
@@ -92,6 +95,7 @@
   --border-width: 1px;
   --border: var(--border-width) solid var(--color-border);
   --border-strong: var(--border-width) solid var(--color-border-strong);
+  --border-control: var(--border-width) solid var(--color-border-control);
   --shadow-sm: 0 1px 2px rgb(28 31 29 / 0.06);
   --shadow-md: 0 4px 16px rgb(28 31 29 / 0.08);
 

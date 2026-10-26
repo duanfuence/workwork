@@ -89,7 +89,8 @@ export const calculators: readonly CalculatorEntry[] = [
     slug: 'shpaklevka',
     title: 'Калькулятор шпаклёвки',
     category: 'repair',
-    description: 'Расход шпаклёвки по площади, толщине слоя и типу смеси.',
+    description:
+      'Расход шпаклёвки и количество упаковок по площади стен, числу слоёв и расходу на слой.',
     path: '/kalkulyatory/shpaklevka/',
     status: 'available',
     popular: true,
@@ -97,7 +98,7 @@ export const calculators: readonly CalculatorEntry[] = [
     seo: {
       title: 'Калькулятор шпаклёвки — расход на м² стен',
       description:
-        'Рассчитайте расход шпаклёвки по площади стен и толщине слоя и количество мешков.',
+        'Рассчитайте расход шпаклёвки по площади стен, числу слоёв и расходу на слой, а также количество упаковок.',
       keywords: ['калькулятор шпаклёвки', 'расход шпаклёвки на м2', 'сколько шпаклёвки нужно'],
     },
   },

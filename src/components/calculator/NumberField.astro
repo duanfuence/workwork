@@ -1,11 +1,16 @@
 ---
+import { spokenUnit } from '../../lib/units';
+
 interface Props {
   /** Имя поля формы. */
   name: string;
   /** Префикс id, уникальный для формы. */
   idPrefix: string;
   label: string;
-  /** Единица измерения справа от поля: «м», «см», «шт.», «₽». */
+  /**
+   * Единица измерения справа от поля: «м», «см», «шт.», «₽». Видимое сокращение скрыто от скринридера,
+   * в доступное имя поля входит словесная форма из src/lib/units.ts («Длина (в метрах)»).
+   */
   unit?: string;
   hint?: string;
   /** Начальное значение (только там, где оно не вводит в заблуждение). */
@@ -38,34 +43,37 @@ const describedBy = [hint ? hintId : null, errorId].filter(Boolean).join(' ');
 <div class="field">
   <label class="field__label" for={id}>
     {label}
+    {unit && <span class="visually-hidden">{` (${spokenUnit(unit)})`}</span>}
   </label>
-  <div class="field__control">
-    <input
-      class="field__input"
-      id={id}
-      name={name}
-      type="text"
-      inputmode={inputmode}
-      autocomplete="off"
-      spellcheck="false"
-      value={value}
-      placeholder={placeholder}
-      aria-describedby={describedBy}
-      aria-required={optional ? undefined : 'true'}
-      data-label={label}
-    />
-    {unit && (
-      <span class="field__unit" aria-hidden="true">
-        {unit}
-      </span>
+  <div class="field__body">
+    <div class="field__control">
+      <input
+        class="field__input"
+        id={id}
+        name={name}
+        type="text"
+        inputmode={inputmode}
+        autocomplete="off"
+        spellcheck="false"
+        value={value}
+        placeholder={placeholder}
+        aria-describedby={describedBy}
+        aria-required={optional ? undefined : 'true'}
+        data-label={label}
+      />
+      {unit && (
+        <span class="field__unit" aria-hidden="true">
+          {unit}
+        </span>
+      )}
+    </div>
+    {hint && (
+      <p class="field__hint" id={hintId}>
+        {hint}
+      </p>
     )}
+    <p class="field__error" id={errorId} data-error-for={name} hidden></p>
   </div>
-  {hint && (
-    <p class="field__hint" id={hintId}>
-      {hint}
-    </p>
-  )}
-  <p class="field__error" id={errorId} data-error-for={name} hidden></p>
 </div>
 
 <style>
@@ -74,6 +82,13 @@ const describedBy = [hint ? hintId : null, errorId].filter(Boolean).join(' ');
     align-content: start;
     gap: var(--space-1);
     min-width: 0;
+  }
+
+  /* Поле, подсказка и ошибка — одна строка сетки: в ряду формы выравниваются по подписи (calculator.css). */
+  .field__body {
+    display: grid;
+    align-content: start;
+    gap: var(--space-1);
   }
 
   .field__label {
@@ -91,7 +106,7 @@ const describedBy = [hint ? hintId : null, errorId].filter(Boolean).join(' ');
     min-height: var(--tap-target-min);
     padding: var(--space-2) 2.75rem var(--space-2) var(--space-3);
     background: var(--color-surface);
-    border: var(--border-strong);
+    border: var(--border-control);
     border-radius: var(--radius-md);
     font-size: var(--font-size-md);
     font-variant-numeric: tabular-nums;

@@ -103,6 +103,18 @@
   gap: var(--space-4);
 }
 
+/*
+ * Поля одного ряда делят две строки сетки — подпись и тело (поле, подсказка, ошибка): если подпись
+ * соседа переносится на две строки, поля всё равно начинаются на одном уровне. Высота подписи
+ * не фиксируется; без поддержки subgrid остаётся прежняя раскладка.
+ */
+@supports (grid-template-rows: subgrid) {
+  .calc-group__fields > .field {
+    grid-row: span 2;
+    grid-template-rows: subgrid;
+  }
+}
+
 .calc-actions {
   display: flex;
   flex-wrap: wrap;

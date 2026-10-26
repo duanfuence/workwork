@@ -93,6 +93,96 @@ async function checkOverflow(page, label) {
   );
 }
 
+/**
+ * Общие требования к полям форм (аудит, A11Y-1, A11Y-2, UI-1): единица измерения входит в подпись
+ * словами (« (в метрах)»), рамка поля контрастна к фону (≥ 3:1, WCAG 1.4.11), поля одного ряда
+ * начинаются на одном уровне, в одной колонке между полями ровно один промежуток сетки.
+ */
+async function checkFormFields(page, viewport) {
+  const calculatorPaths = [calcPath, laminatePath, paintPath, tilePath, plasterPath, puttyPath];
+  for (const calculatorPath of calculatorPaths) {
+    const label = `поля ${calculatorPath.split('/')[2]} ${viewport.name}`;
+    await page.goto(baseUrl + calculatorPath, { waitUntil: 'networkidle' });
+    await page.locator('form button[type="submit"]').click();
+    await page.waitForTimeout(100);
+    const result = await page.evaluate(() => {
+      const parse = (color) => {
+        const parts = color.match(/[\d.]+/g).map(Number);
+        return parts.slice(0, 3);
+      };
+      const luminance = ([r, g, b]) => {
+        const f = (v) => ((v /= 255) <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+        return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+      };
+      const contrast = (a, b) => {
+        const [x, y] = [luminance(a), luminance(b)].sort((m, n) => n - m);
+        return (x + 0.05) / (y + 0.05);
+      };
+      const background = (element) => {
+        for (let e = element; e; e = e.parentElement) {
+          const color = getComputedStyle(e).backgroundColor;
+          if (!color.endsWith(', 0)') && color !== 'transparent') return parse(color);
+        }
+        return [255, 255, 255];
+      };
+      const noUnit = [];
+      let minBorder = Infinity;
+      for (const input of document.querySelectorAll('.field__input, .field__select')) {
+        const field = input.closest('.field');
+        const unit = field.querySelector('.field__unit');
+        const labelText = field.querySelector('.field__label').textContent;
+        if (unit && !/\S \(в [^()]+\)$/.test(labelText.trim())) noUnit.push(labelText.trim());
+        if (input.getAttribute('aria-invalid') === 'true') continue;
+        const border = parse(getComputedStyle(input).borderTopColor);
+        minBorder = Math.min(
+          minBorder,
+          contrast(border, background(input)),
+          contrast(border, background(field.parentElement)),
+        );
+      }
+      const misaligned = [];
+      const gaps = new Set();
+      for (const group of document.querySelectorAll('.calc-group__fields')) {
+        const fields = [...group.querySelectorAll(':scope > .field')];
+        const rows = new Map();
+        for (const field of fields) {
+          const top = Math.round(field.getBoundingClientRect().top);
+          rows.set(top, [...(rows.get(top) ?? []), field]);
+        }
+        for (const row of rows.values()) {
+          const tops = row.map(
+            (f) => f.querySelector('.field__control').getBoundingClientRect().top,
+          );
+          if (Math.max(...tops) - Math.min(...tops) > 1) {
+            misaligned.push(row.map((f) => f.querySelector('[name]').name).join('+'));
+          }
+        }
+        if (rows.size === fields.length) {
+          for (let i = 1; i < fields.length; i++) {
+            const body = fields[i - 1].querySelector('.field__body').getBoundingClientRect();
+            const next = fields[i].getBoundingClientRect();
+            gaps.add(Math.round(next.top - body.bottom));
+          }
+        }
+      }
+      return { noUnit, minBorder, misaligned, gaps: [...gaps] };
+    });
+    check(
+      result.noUnit.length === 0,
+      `${label}: единица в подписи словами (${result.noUnit.join(', ') || 'у всех'})`,
+    );
+    check(result.minBorder >= 3, `${label}: контраст рамки ${result.minBorder.toFixed(2)} ≥ 3`);
+    check(
+      result.misaligned.length === 0,
+      `${label}: поля в рядах выровнены (${result.misaligned.join(', ') || 'да'})`,
+    );
+    check(
+      result.gaps.every((gap) => gap === 16),
+      `${label}: промежуток между полями в колонке 16 px (${result.gaps.join(', ') || '—'})`,
+    );
+  }
+}
+
 async function checkLinks(page, label) {
   const hrefs = await page.$$eval('a[href]', (links) => links.map((a) => a.getAttribute('href')));
   const broken = [];
@@ -1095,6 +1185,7 @@ try {
     await checkTile(page, viewport);
     await checkPlaster(page, viewport);
     await checkPutty(page, viewport);
+    await checkFormFields(page, viewport);
     check(
       consoleErrors.length === 0,
       `${viewport.name}: нет ошибок в консоли (${consoleErrors.join(' | ') || '0'})`,
