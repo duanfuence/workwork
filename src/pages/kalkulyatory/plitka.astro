@@ -336,6 +336,15 @@ const id = 'tl';
           'areaNote',
           `Справочно: площадь ÷ площадь плитки — ${tilesText(value.areaTiles)}. Это деление не учитывает подрезку у краёв и швы, поэтому не заменяет расчёт по сетке.`,
         );
+        view.report(
+          [
+            `${value.surface === 'wall' ? 'Стена' : 'Пол'}${surfaces}: ${formatNumber(value.area, 2)} м²`,
+            `Раскладка ${value.alongLength} × ${value.alongWidth}${surfaces}, запас ${formatNumber(value.reserve, 1)} %`,
+          ],
+          value.packs !== null && value.tilesPerPack !== null && value.tilesToBuy !== null
+            ? `${value.packs} ${pluralizeRu(value.packs, packWords)} по ${value.tilesPerPack} шт. (${value.tilesToBuy} шт.)`
+            : tilesText(value.tilesWithReserve),
+        );
       },
     });
   }

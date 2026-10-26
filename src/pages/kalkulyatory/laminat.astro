@@ -590,6 +590,13 @@ const id = 'lm';
             `Последний ряд узкий (${value.lastRowWidth} мм). Обычно первый и последний ряды выравнивают — по ${Math.round((w + value.lastRowWidth) / 2)} мм; число досок от этого не меняется.`,
           );
         }
+        view.report(
+          [
+            `Комната ${formatNumber(value.roomArea, 2)} м² (${value.roomLengthMm} × ${value.roomWidthMm} мм)`,
+            `Доска ${value.boardLength} × ${value.boardWidth} мм, по плану ${boardsText(value.boards)}, запас ${formatNumber(value.reserve, 1)} %`,
+          ],
+          `${packsText(value.packs)} (${boardsText(value.boardsToBuy)}, ${formatNumber(value.areaToBuy, 2)} м²)${value.totalCost === null ? '' : ` на ${formatRubles(value.totalCost)}`}`,
+        );
       },
     });
   }

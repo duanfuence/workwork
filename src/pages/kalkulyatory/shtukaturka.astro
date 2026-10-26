@@ -373,6 +373,15 @@ const id = 'pl';
           'formula',
           `${areaText}${formatNumber(value.plasterArea, 2)} м² × ${formatNumber(value.thickness, 1)} мм × ${formatNumber(value.consumption, 2)} кг ≈ ${formatNumber(value.mass, 1)} кг; с запасом ${formatNumber(value.reserve, 1)} % — ${formatNumber(value.massWithReserve, 1)} кг${bags}.`,
         );
+        view.report(
+          [
+            `Площадь ${formatNumber(value.plasterArea, 2)} м²${value.mode === 'room' ? ' (стены помещения)' : ''}`,
+            `Слой ${formatNumber(value.thickness, 1)} мм, расход ${formatNumber(value.consumption, 2)} кг/м² на 1 мм, запас ${formatNumber(value.reserve, 1)} %`,
+          ],
+          value.bags !== null && value.bagMass !== null && value.massToBuy !== null
+            ? `${value.bags} ${pluralizeRu(value.bags, bagWords)} по ${formatNumber(value.bagMass, 1)} кг (${formatNumber(value.massToBuy, 1)} кг)`
+            : `${formatNumber(value.massWithReserve, 1)} кг смеси`,
+        );
       },
     });
   }

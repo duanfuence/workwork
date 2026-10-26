@@ -952,6 +952,147 @@ async function checkRoomMemory(browser, viewport) {
   check(errors.length === 0, `${label}: нет ошибок в консоли (${errors.join(' | ') || '0'})`);
 }
 
+/**
+ * Ссылка на расчёт и «Скопировать итог» (D-027) на шпаклёвке (Шп10): буфер обмена, ссылка в новом контексте —
+ * та же форма и тот же результат, приоритет над сохранёнными размерами, битые ссылки, буфер недоступен.
+ */
+async function checkShare(browser, viewport) {
+  const label = `ссылка на расчёт ${viewport.name}`;
+  const errors = [];
+  const { context, page } = await freshPage(browser, viewport, errors);
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: baseUrl });
+  const clipboard = () => page.evaluate(() => navigator.clipboard.readText());
+  const status = page.locator('[data-share-status]');
+
+  await page.goto(baseUrl + puttyPath, { waitUntil: 'networkidle' });
+  check(
+    !(await page.locator('[data-share]').isVisible()),
+    `${label}: до расчёта кнопок нет (блок результата пуст)`,
+  );
+  await fillPuttyRoom(page);
+  const buttons = page.locator('[data-share] button');
+  const heights = await buttons.evaluateAll((items) =>
+    items.map((item) => Math.round(item.getBoundingClientRect().height)),
+  );
+  check(
+    (await buttons.count()) === 2 && heights.every((height) => height >= 44),
+    `${label}: после расчёта — «Ссылка на расчёт» и «Скопировать итог», высота ${heights.join(' / ')} px`,
+  );
+  await checkOverflow(page, `${label}, кнопки в результате`);
+
+  await page.locator('[data-share-link]').click();
+  await page.waitForTimeout(150);
+  const url = await clipboard();
+  const expectedQuery =
+    'v=1&mode=room&roomLength=4&roomWidth=3&wallHeight=2.7&openingsArea=3.9&ceiling=yes&layers=2' +
+    '&consumption=1.1&packMass=20&reserve=10';
+  check(
+    url === `${baseUrl}${puttyPath}?${expectedQuery}`,
+    `${label}: в буфере ссылка со значениями видимых полей (${url})`,
+  );
+  check(
+    plain(await status.textContent()) === 'Скопировано',
+    `${label}: подтверждение «Скопировано»`,
+  );
+
+  await page.locator('[data-share-copy]').click();
+  await page.waitForTimeout(150);
+  const text = await clipboard();
+  const expectedText = [
+    'Калькулятор шпаклёвки — ДомРасчёт',
+    'Площадь 45,9 м² (с потолком)',
+    '2 слоя по 1,1 кг/м², запас 10 %',
+    'К покупке: 6 упаковок по 20 кг (120 кг)',
+    url,
+  ].join('\n');
+  check(
+    plain(text) === plain(expectedText),
+    `${label}: «Скопировать итог» — ${JSON.stringify(text)}`,
+  );
+  if (viewport.name !== '320') {
+    await page.locator('[data-share]').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: path.join(outDir, `share-${viewport.name}.png`) });
+  }
+  await context.close();
+
+  // Ссылка в новой вкладке другого браузера: форма заполнена, результат тот же; сохранённые размеры не мешают.
+  const opened = await freshPage(browser, viewport, errors, (key) => {
+    window.localStorage.setItem(key, '{"v":1,"roomLength":6,"roomWidth":5,"wallHeight":3}');
+  });
+  const other = opened.page;
+  await other.goto(url, { waitUntil: 'networkidle' });
+  const value = (name) => other.locator(`form [name="${name}"]`).inputValue();
+  const outOther = async (name) => plain(await other.locator(`[data-out="${name}"]`).textContent());
+  check(
+    (await other.locator('[data-calculator-result]').getAttribute('data-state')) === 'ready' &&
+      (await value('mode')) === 'room' &&
+      (await value('roomLength')) === '4' &&
+      (await value('wallHeight')) === '2,7' &&
+      (await value('ceiling')) === 'yes' &&
+      (await outOther('massWithReserve')) === '111,1' &&
+      (await outOther('packs')) === '6',
+    `${label}: открытая ссылка заполнила форму и сразу показала 111,1 кг, 6 упаковок`,
+  );
+  check(
+    (await other.locator('[data-room-notice]').count()) === 0,
+    `${label}: значения ссылки важнее сохранённых размеров (6 × 5 × 3 не подставлены)`,
+  );
+  const canonical = await other
+    .locator('link[rel="canonical"]')
+    .getAttribute('href')
+    .catch(() => null);
+  check(
+    siteOrigin ? canonical === `${siteOrigin}${puttyPath}` : canonical === null,
+    `${label}: canonical без параметров (${canonical ?? 'нет — сборка без SITE_URL'})`,
+  );
+
+  // Битые ссылки: буквы вместо чисел, лишние и неизвестные параметры, без версии.
+  await other.goto(
+    `${baseUrl}${puttyPath}?v=1&roomLength=abc&roomWidth=3&mode=ceiling&wallHeight=%3Cscript%3E&utm_source=x&layers=1e400`,
+    { waitUntil: 'networkidle' },
+  );
+  check(
+    (await other.locator('[data-calculator-result]').getAttribute('data-state')) === 'invalid' &&
+      (await value('roomLength')) === '' &&
+      (await value('roomWidth')) === '3' &&
+      (await value('mode')) === 'room' &&
+      (await value('wallHeight')) === '',
+    `${label}: битая ссылка — неверные параметры пропущены, остальное проверено полями`,
+  );
+  await other.goto(`${baseUrl}${puttyPath}?roomLength=4&roomWidth=3`, { waitUntil: 'networkidle' });
+  check(
+    (await other.locator('[data-calculator-result]').getAttribute('data-state')) === 'empty',
+    `${label}: параметры без v=1 — не ссылка на расчёт, форма не считается`,
+  );
+  await opened.context.close();
+
+  // Буфер обмена недоступен — ссылка в поле, выделена для копирования вручную.
+  const noClipboard = await freshPage(browser, viewport, errors, () => {
+    Object.defineProperty(navigator, 'clipboard', { get: () => undefined });
+  });
+  await noClipboard.page.goto(url, { waitUntil: 'networkidle' });
+  await noClipboard.page.locator('[data-share-link]').click();
+  await noClipboard.page.waitForTimeout(150);
+  const manual = await noClipboard.page.evaluate(() => {
+    const area = document.querySelector('[data-share-text]');
+    return {
+      visible: area instanceof HTMLTextAreaElement && area.offsetParent !== null,
+      value: area instanceof HTMLTextAreaElement ? area.value : '',
+      focused: document.activeElement === area,
+      selected:
+        area instanceof HTMLTextAreaElement &&
+        area.selectionEnd - area.selectionStart === area.value.length,
+    };
+  });
+  check(
+    manual.visible && manual.value === url && manual.focused && manual.selected,
+    `${label}: буфер недоступен — ссылка в поле, в фокусе и выделена`,
+  );
+  await checkOverflow(noClipboard.page, `${label}, поле для копирования`);
+  await noClipboard.context.close();
+  check(errors.length === 0, `${label}: нет ошибок в консоли (${errors.join(' | ') || '0'})`);
+}
+
 async function checkLinks(page, label) {
   const hrefs = await page.$$eval('a[href]', (links) => links.map((a) => a.getAttribute('href')));
   const broken = [];
@@ -2050,6 +2191,7 @@ try {
     if (viewport.name !== '768') await checkResultBar(page, viewport);
     if (viewport.name === '320' || viewport.name === '390')
       await checkRoomMemory(browser, viewport);
+    if (viewport.name !== '768') await checkShare(browser, viewport);
     check(
       consoleErrors.length === 0,
       `${viewport.name}: нет ошибок в консоли (${consoleErrors.join(' | ') || '0'})`,

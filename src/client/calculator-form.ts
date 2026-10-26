@@ -16,6 +16,8 @@
  *   видны, пока в выборе `<name>` значение `<value>`; скрытые поля `evaluate` страницы не разбирает;
  * - необязательно: поля помещения `roomLength`, `roomWidth`, `wallHeight` — размеры комнаты сохраняются в браузере
  *   после успешного расчёта и подставляются в пустые поля другого калькулятора (D-026);
+ * - кнопки «Ссылка на расчёт» и «Скопировать итог» `[data-share]` (CalculatorResult) и `view.report(…)` из `render` —
+ *   ключевые параметры и что купить; ссылка `?v=1&…` при открытии заполняет форму и сразу считает (D-027);
  * - главный итог `.calc-result__main` и короткий итог `view.summary(…)` из `render` — для панели итога
  *   `[data-result-bar]` (на экране уже 960 px, когда итог не виден) и для объявления диктору
  *   `[data-result-announce]` (по «Рассчитать» и после паузы ввода, D-024). Оба элемента даёт CalculatorResult.
@@ -48,6 +50,14 @@ import {
   type RoomControls,
   type RoomField,
 } from '../lib/room-memory';
+import {
+  buildShareQuery,
+  parseShareQuery,
+  shareText,
+  startValues,
+  type ShareControl,
+  type ShareValue,
+} from '../lib/share-link';
 
 type State = ResultState;
 
@@ -61,6 +71,8 @@ export interface ResultView {
   list(name: string, items: readonly string[]): void;
   /** Короткий итог одной строкой — для панели итога и диктора: «11,9 л краски · 3 банки». */
   summary(text: string): void;
+  /** Для «Скопировать итог»: ключевые параметры строками и что купить («5 банок по 2,7 л (13,5 л)»). */
+  report(params: readonly string[], purchase: string): void;
 }
 
 type Control = HTMLInputElement | HTMLSelectElement;
@@ -105,6 +117,8 @@ export function initCalculatorForm<F extends string, R>({
   // Был успешный расчёт после последнего сброса: до него панели итога нет.
   let calculated = false;
   let summaryText = '';
+  let reportParams: readonly string[] = [];
+  let reportPurchase = '';
 
   // Выбор ориентира: подставляет значение в поле; правка поля переключает выбор на «Своё значение».
   const presets = [...form.querySelectorAll<HTMLSelectElement>('select[data-preset-for]')].flatMap(
@@ -199,6 +213,10 @@ export function initCalculatorForm<F extends string, R>({
     },
     summary(text) {
       summaryText = text;
+    },
+    report(params, purchase) {
+      reportParams = params;
+      reportPurchase = purchase;
     },
   };
 
@@ -385,6 +403,8 @@ export function initCalculatorForm<F extends string, R>({
     if (calculation.ok) {
       showErrors({});
       summaryText = '';
+      reportParams = [];
+      reportPurchase = '';
       render(calculation.result, view);
       // Страница без view.summary — в панели текст главного итога.
       if (summaryText === '')
@@ -441,6 +461,7 @@ export function initCalculatorForm<F extends string, R>({
     announce('');
     // Значения полей сбрасываются после события reset.
     hideRoomNotice();
+    hideShareFeedback();
     requestAnimationFrame(() => {
       applyVisibility();
       showErrors({});
@@ -449,9 +470,9 @@ export function initCalculatorForm<F extends string, R>({
     });
   });
 
-  // Сохранённые размеры — только в пустые поля; расчёт сам не запускается.
-  const restoreRoom = () => {
-    roomFilled = roomFill(parseStoredRoom(storage.read()), roomControls());
+  // Сохранённые размеры — только в пустые поля (roomFill); расчёт сам не запускается.
+  const restoreRoom = (fill: Partial<Record<RoomField, string>>) => {
+    roomFilled = fill;
     const sizes = roomNoticeSizes(roomFilled);
     if (sizes === '') return;
     for (const [field, input] of roomInputs) {
@@ -487,5 +508,123 @@ export function initCalculatorForm<F extends string, R>({
     else form.prepend(notice);
     roomNotice = notice;
   };
-  restoreRoom();
+
+  // Ссылка на расчёт и копирование итога (D-027).
+  const named: Control[] = [...inputs.values(), ...presets.map(({ select }) => select)];
+  const shareControls: ShareControl[] = named.map((control) =>
+    control instanceof HTMLSelectElement
+      ? {
+          name: control.name,
+          kind: 'choice',
+          options: [...control.options].map((option) => option.value),
+        }
+      : { name: control.name, kind: 'number' },
+  );
+  const shareUrl = () => {
+    const values: ShareValue[] = named
+      .filter((control) => control.closest('[hidden]') === null)
+      .map((control) => ({
+        name: control.name,
+        kind: control instanceof HTMLSelectElement ? 'choice' : 'number',
+        value: control.value,
+      }));
+    return `${window.location.origin}${window.location.pathname}?${buildShareQuery(values)}`;
+  };
+  const pageTitle = () => document.querySelector('h1')?.textContent?.trim() ?? document.title;
+
+  const share = result.querySelector<HTMLElement>('[data-share]');
+  const shareStatus = share?.querySelector<HTMLElement>('[data-share-status]');
+  const manual = share?.querySelector<HTMLElement>('[data-share-manual]');
+  const manualText = share?.querySelector<HTMLTextAreaElement>('[data-share-text]');
+  let statusTimer = 0;
+  function hideShareFeedback() {
+    window.clearTimeout(statusTimer);
+    if (shareStatus) shareStatus.textContent = '';
+    if (manual) manual.hidden = true;
+  }
+  // «Скопировано» объявляется один раз: текст записывается после очистки и через 3 с убирается молча.
+  const confirmCopied = () => {
+    hideShareFeedback();
+    statusTimer = window.setTimeout(() => {
+      if (shareStatus) shareStatus.textContent = 'Скопировано';
+      statusTimer = window.setTimeout(() => {
+        if (shareStatus) shareStatus.textContent = '';
+      }, 3000);
+    }, 50);
+  };
+  // Буфер обмена недоступен (нет разрешения, не HTTPS) — текст в поле, выделен для копирования вручную.
+  const showManual = (text: string) => {
+    hideShareFeedback();
+    if (!manual || !manualText) return;
+    manualText.value = text;
+    manual.hidden = false;
+    manualText.focus();
+    manualText.select();
+  };
+  const copyText = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const copyOrShow = async (text: string) => {
+    if (await copyText(text)) confirmCopied();
+    else showManual(text);
+  };
+
+  if (share) {
+    share.hidden = false;
+    share.querySelector('[data-share-link]')?.addEventListener('click', () => {
+      void (async () => {
+        const url = shareUrl();
+        // На телефоне — системное меню «Поделиться»; отмена — не ошибка.
+        if ('share' in navigator && window.matchMedia('(pointer: coarse)').matches) {
+          try {
+            await navigator.share({ title: pageTitle(), url });
+            return;
+          } catch (error) {
+            if (error instanceof DOMException && error.name === 'AbortError') return;
+          }
+        }
+        await copyOrShow(url);
+      })();
+    });
+    share.querySelector('[data-share-copy]')?.addEventListener('click', () => {
+      const text = shareText({
+        title: pageTitle(),
+        params: reportParams,
+        purchase: reportPurchase || summaryText,
+        url: shareUrl(),
+      });
+      void copyOrShow(text);
+    });
+  }
+
+  // Открытие ссылки на расчёт: форма заполняется и сразу считается; значения ссылки важнее сохранённых
+  // размеров комнаты. Сначала выборы (режим, тип материала) — от режима зависит, какие поля видны.
+  const applyLink = (values: Record<string, string>) => {
+    for (const control of named) {
+      const value = values[control.name];
+      if (control instanceof HTMLSelectElement && value !== undefined) control.value = value;
+    }
+    applyVisibility();
+    for (const control of named) {
+      const value = values[control.name];
+      if (control instanceof HTMLInputElement && value !== undefined) control.value = value;
+    }
+    for (const { select, input, choices } of presets) {
+      select.value = choiceAfterEdit(choices, select.value, input.value);
+    }
+    live = true;
+    update(false);
+  };
+
+  const start = startValues(
+    parseShareQuery(window.location.search, shareControls),
+    roomFill(parseStoredRoom(storage.read()), roomControls()),
+  );
+  if (start.source === 'link') applyLink(start.values);
+  else if (start.source === 'memory') restoreRoom(start.values);
 }

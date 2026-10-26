@@ -468,3 +468,52 @@
 .calc-memory__clear:hover {
   color: var(--color-accent-hover);
 }
+
+/* «Ссылка на расчёт» и «Скопировать итог» в результате (D-027); без JavaScript блока нет. */
+.calc-share {
+  display: grid;
+  gap: var(--space-2);
+  padding-top: var(--space-4);
+  border-top: var(--border);
+}
+
+.calc-share__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.calc-share__button {
+  flex: 1 1 10rem;
+}
+
+/* Место под «Скопировано» занято заранее: подтверждение не сдвигает блок. */
+.calc-share__status {
+  min-height: calc(var(--font-size-sm) * var(--line-height-base));
+  color: var(--color-accent);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.calc-share__manual {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.calc-share__label {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.calc-share__text {
+  width: 100%;
+  min-height: var(--tap-target-min);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface);
+  border: var(--border-control);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  resize: vertical;
+}

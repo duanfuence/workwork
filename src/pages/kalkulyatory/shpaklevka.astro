@@ -399,6 +399,15 @@ const id = 'pt';
           'formula',
           `${areaText}${formatNumber(value.puttyArea, 2)} м² × ${formatNumber(value.consumption, 2)} кг/м² × ${value.layers} ${pluralizeRu(value.layers, layerWords)} ≈ ${formatNumber(value.mass, 1)} кг; с запасом ${formatNumber(value.reserve, 1)} % — ${formatNumber(value.massWithReserve, 1)} кг${packs}.`,
         );
+        view.report(
+          [
+            `Площадь ${formatNumber(value.puttyArea, 2)} м²${value.ceilingIncluded ? ' (с потолком)' : ''}`,
+            `${value.layers} ${pluralizeRu(value.layers, layerWords)} по ${formatNumber(value.consumption, 2)} кг/м², запас ${formatNumber(value.reserve, 1)} %`,
+          ],
+          value.packs !== null && value.packMass !== null && value.massToBuy !== null
+            ? `${value.packs} ${pluralizeRu(value.packs, packWords)} по ${formatNumber(value.packMass, 1)} кг (${formatNumber(value.massToBuy, 1)} кг)`
+            : `${formatNumber(value.massWithReserve, 1)} кг шпаклёвки`,
+        );
       },
     });
   }

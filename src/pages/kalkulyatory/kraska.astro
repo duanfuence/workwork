@@ -348,6 +348,15 @@ const id = 'pt';
           'formula',
           `${area(value.wallArea)} − ${area(value.openingsArea)}${ceiling} = ${area(value.paintArea)} м²; ${area(value.paintArea)} × ${value.coats} ÷ ${formatNumber(value.coverage, 1)} ≈ ${liters(value.liters)} л; с запасом ${formatNumber(value.reserve, 1)} % — ${liters(value.litersWithReserve)} л.`,
         );
+        view.report(
+          [
+            `Площадь окрашивания ${area(value.paintArea)} м²${value.ceilingIncluded ? ' (с потолком)' : ''}`,
+            `${value.coats} ${pluralizeRu(value.coats, ['слой', 'слоя', 'слоёв'])}, укрывистость ${formatNumber(value.coverage, 1)} м²/л, запас ${formatNumber(value.reserve, 1)} %`,
+          ],
+          value.cans !== null && value.canVolume !== null && value.litersToBuy !== null
+            ? `${value.cans} ${pluralizeRu(value.cans, canWords)} по ${formatNumber(value.canVolume, 3)} л (${formatNumber(value.litersToBuy, 3)} л)`
+            : `${liters(value.litersWithReserve)} л краски`,
+        );
       },
     });
   }

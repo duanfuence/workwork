@@ -462,6 +462,13 @@ const id = 'wp';
             'Проёмы не уменьшили расход: они уже двух полос или куски над и под ними с подгонкой рисунка не короче полной полосы.',
           );
         }
+        view.report(
+          [
+            `Периметр ${formatNumber(value.perimeter, 3)} м, площадь стен ${formatNumber(value.wallArea)} м²`,
+            `Полоса ${formatNumber(value.stripLength, 3)} м, из рулона ${value.stripsPerRoll} ${pluralizeRu(value.stripsPerRoll, stripWordForms)}`,
+          ],
+          `${value.rolls} ${pluralizeRu(value.rolls, rollWordForms)}${value.totalCost === null ? '' : ` на ${formatRubles(value.totalCost)}`}`,
+        );
       },
     });
   }

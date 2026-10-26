@@ -9,6 +9,8 @@
  *   ввода, а не на каждое нажатие клавиши;
  * - панель итога `[data-result-bar]` — на экране уже 960 px, когда итог вне экрана: короткий итог
  *   и переход «К результату». Не live-регион: объявляет только область выше.
+ * И для ссылки на расчёт (D-027): кнопки «Ссылка на расчёт» и «Скопировать итог» `[data-share]` — скрыты, пока
+ * их не покажет скрипт: без JavaScript их нет; подтверждение «Скопировано» и поле для копирования вручную.
  */
 interface Props {
   /** id заголовка; на него переходит фокус после расчёта. */
@@ -36,6 +38,30 @@ const { headingId, placeholder } = Astro.props;
 
   <div data-state-panel="ready" hidden>
     <slot />
+
+    <div class="calc-share" data-share hidden>
+      <div class="calc-share__actions">
+        <button type="button" class="button button--secondary calc-share__button" data-share-link>
+          Ссылка на расчёт
+        </button>
+        <button type="button" class="button button--secondary calc-share__button" data-share-copy>
+          Скопировать итог
+        </button>
+      </div>
+      <p class="calc-share__status" role="status" data-share-status></p>
+      <div class="calc-share__manual" data-share-manual hidden>
+        <label class="calc-share__label" for={`${headingId}-share-text`}>
+          Буфер обмена недоступен — выделите и скопируйте вручную:
+        </label>
+        <textarea
+          class="calc-share__text"
+          id={`${headingId}-share-text`}
+          rows="4"
+          readonly
+          data-share-text
+        ></textarea>
+      </div>
+    </div>
   </div>
 
   <p class="visually-hidden" role="status" data-result-announce></p>
