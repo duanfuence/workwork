@@ -1093,6 +1093,93 @@ async function checkShare(browser, viewport) {
   check(errors.length === 0, `${label}: нет ошибок в консоли (${errors.join(' | ') || '0'})`);
 }
 
+/**
+ * Высокая контрастность (forced-colors): тени отключены — у элемента в фокусе должен быть видимый outline
+ * (ссылки, кнопки, поля, списки, поиск, «Очистить», кнопки ссылки, панель итога).
+ */
+async function checkForcedColors(browser, viewport) {
+  const label = `высокая контрастность ${viewport.name}`;
+  const errors = [];
+  const { context, page } = await freshPage(browser, viewport, errors);
+  await page.emulateMedia({ forcedColors: 'active' });
+  const focusOutline = (selector) =>
+    page.evaluate((target) => {
+      const element = document.querySelector(target);
+      if (!(element instanceof HTMLElement)) return { found: false };
+      element.focus();
+      const style = getComputedStyle(element);
+      const color = style.outlineColor;
+      const transparent = color === 'transparent' || /rgba\(.*,\s*0\)$/.test(color);
+      return {
+        found: true,
+        focused: document.activeElement === element && element.matches(':focus-visible'),
+        visible:
+          style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) >= 1 && !transparent,
+        detail: `${style.outlineStyle} ${style.outlineWidth} ${color}`,
+      };
+    }, selector);
+  const expectOutline = async (selector, name) => {
+    const result = await focusOutline(selector);
+    check(
+      result.found && result.focused && result.visible,
+      `${label}: ${name} в фокусе — видимый outline (${result.detail ?? 'не найден'})`,
+    );
+  };
+
+  await page.goto(baseUrl + '/', { waitUntil: 'networkidle' });
+  check(
+    await page.evaluate(() => window.matchMedia('(forced-colors: active)').matches),
+    `${label}: эмуляция forced-colors включена`,
+  );
+  // Клавиатура: :focus-visible у ссылок и кнопок — после нажатия клавиши, как у человека с клавиатуры.
+  await page.keyboard.press('Tab');
+  await expectOutline('#catalog-list a', 'ссылка-карточка');
+  await expectOutline('.site-header a', 'ссылка в шапке');
+  await expectOutline('.catalog-search__input', 'поиск');
+
+  if (viewport.name !== '1440') {
+    const icon = await page.evaluate(() => {
+      const line = document.querySelector('.nav-toggle__icon');
+      const button = document.querySelector('.nav-toggle');
+      if (!line || !button) return { line: 'нет', button: '' };
+      return {
+        line: getComputedStyle(line).backgroundColor,
+        button: getComputedStyle(button).backgroundColor,
+      };
+    });
+    check(
+      icon.line !== 'нет' &&
+        !/rgba\(.*,\s*0\)$|transparent/.test(icon.line) &&
+        icon.line !== icon.button,
+      `${label}: значок «Меню» виден (линии ${icon.line} на фоне ${icon.button})`,
+    );
+  }
+
+  await page.goto(baseUrl + puttyPath, { waitUntil: 'networkidle' });
+  await page.keyboard.press('Tab');
+  await expectOutline('form [name="roomLength"]', 'поле ввода');
+  await expectOutline('form [name="mode"]', 'выпадающий список');
+  await expectOutline('form button[type="submit"]', 'кнопка «Рассчитать»');
+  await fillPuttyRoom(page);
+  await page.keyboard.press('Shift+Tab');
+  await expectOutline('[data-share-link]', 'кнопка «Ссылка на расчёт»');
+  if (viewport.name !== '1440') {
+    await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+    await page.waitForTimeout(350);
+    await expectOutline('[data-result-bar]', 'панель итога');
+  }
+  await page.evaluate(
+    (key) => window.localStorage.setItem(key, '{"v":1,"roomLength":4,"roomWidth":3}'),
+    roomKey,
+  );
+  await page.goto(baseUrl + paintPath, { waitUntil: 'networkidle' });
+  await page.keyboard.press('Tab');
+  await expectOutline('.calc-memory__clear', '«Очистить»');
+  await page.screenshot({ path: path.join(outDir, `forced-colors-${viewport.name}.png`) });
+  await context.close();
+  check(errors.length === 0, `${label}: нет ошибок в консоли (${errors.join(' | ') || '0'})`);
+}
+
 async function checkLinks(page, label) {
   const hrefs = await page.$$eval('a[href]', (links) => links.map((a) => a.getAttribute('href')));
   const broken = [];
@@ -2192,6 +2279,7 @@ try {
     if (viewport.name === '320' || viewport.name === '390')
       await checkRoomMemory(browser, viewport);
     if (viewport.name !== '768') await checkShare(browser, viewport);
+    if (fullCheckViewports.has(viewport.name)) await checkForcedColors(browser, viewport);
     check(
       consoleErrors.length === 0,
       `${viewport.name}: нет ошибок в консоли (${consoleErrors.join(' | ') || '0'})`,

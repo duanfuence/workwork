@@ -141,8 +141,10 @@ const { listId, sectionId } = Astro.props;
     border-color: var(--color-text-muted);
   }
 
+  /* Прозрачный outline виден в режиме высокой контрастности, где тени отключены (global.css). */
   .catalog-search__input:focus-visible {
-    outline: none;
+    outline: 2px solid transparent;
+    outline-offset: 2px;
     border-color: var(--color-accent);
     box-shadow: 0 0 0 3px var(--color-accent-soft-hover);
   }

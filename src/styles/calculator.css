@@ -379,8 +379,9 @@
   display: none;
 }
 
-/* Кольцо фокуса внутри: снаружи у края экрана его не видно. */
+/* Кольцо фокуса внутри: снаружи у края экрана его не видно (и outline для высокой контрастности — тоже внутри). */
 .result-bar:focus-visible {
+  outline-offset: -6px;
   border-radius: 0;
   box-shadow:
     var(--shadow-up),

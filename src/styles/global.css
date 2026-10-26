@@ -58,8 +58,13 @@ a:hover {
   color: var(--color-accent-hover);
 }
 
+/*
+ * Фокус рисует тень (--focus-ring). Прозрачный outline — запасной вариант для режима высокой контрастности
+ * (forced-colors): там тени отключаются, а цвет outline заменяется системным — фокус остаётся видимым.
+ */
 :focus-visible {
-  outline: none;
+  outline: 2px solid transparent;
+  outline-offset: 2px;
   box-shadow: var(--focus-ring);
   border-radius: var(--radius-sm);
 }
