@@ -17,7 +17,7 @@
 ## Структура
 
 ```
-astro.config.mjs          конфигурация Astro (статика, trailingSlash: always)
+astro.config.mjs          конфигурация Astro (статика, trailingSlash: always, site из SITE_URL)
 src/
   config/
     site.ts               название, описание, язык, цвет темы
@@ -33,6 +33,11 @@ src/
     plural.ts             русские формы множественного числа
     number.ts             разбор чисел из полей, ceilDiv, перевод м/см → целые мм
     validation.ts         общие проверки полей: checkRequired, checkOptional, hasPrecision, fmt
+    site-url.ts           проверка SITE_URL (https, без пути) → адрес сайта или undefined
+    seo.ts                канонический адрес, sitemap.xml, robots.txt (чистые функции)
+    breadcrumbs.ts        цепочка калькулятора и её JSON-LD BreadcrumbList — один источник
+  integrations/
+    seo-files.mjs         SITE_URL из окружения; хук сборки пишет robots.txt и (с адресом) sitemap.xml
     format.ts             числа и рубли по-русски (Intl, ru-RU)
     form.ts               общий разбор текстовых полей в числа и объединение ошибок (без DOM)
     calculators/
@@ -58,6 +63,7 @@ src/
     global.css            базовые стили и утилиты (.container, .section, .visually-hidden, .button)
     calculator.css        общие стили страниц калькуляторов
 public/favicon.svg
+public/og.png             Open Graph-изображение 1200 × 630 (npm run og:image из scripts/og/og-image.html)
 scripts/ui-check.mjs      Playwright-проверка главной и калькуляторов (локально и в CI)
 ```
 

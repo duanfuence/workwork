@@ -4,6 +4,7 @@ import CalculatorResult from '../../components/calculator/CalculatorResult.astro
 import NumberField from '../../components/calculator/NumberField.astro';
 import { calculators } from '../../data/calculators';
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import { calculatorCrumbs } from '../../lib/breadcrumbs';
 import '../../styles/calculator.css';
 
 const entry = calculators.find((item) => item.id === 'plaster');
@@ -14,13 +15,7 @@ const id = 'pl';
 
 <BaseLayout title={entry.seo.title} description={entry.seo.description}>
   <div class="container calc-page">
-    <Breadcrumbs
-      items={[
-        { label: 'Главная', href: '/' },
-        { label: 'Калькуляторы', href: '/#catalog' },
-        { label: entry.title },
-      ]}
-    />
+    <Breadcrumbs items={calculatorCrumbs(entry)} />
 
     <header class="calc-intro">
       <h1 class="calc-intro__title">{entry.title}</h1>

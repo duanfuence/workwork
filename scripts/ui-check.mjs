@@ -31,6 +31,14 @@ const paintPath = '/kalkulyatory/kraska/';
 const tilePath = '/kalkulyatory/plitka/';
 const plasterPath = '/kalkulyatory/shtukaturka/';
 const puttyPath = '/kalkulyatory/shpaklevka/';
+const calculatorPaths = [calcPath, laminatePath, paintPath, tilePath, puttyPath, plasterPath];
+/**
+ * Адрес сайта, с которым собран dist/ (SITE_URL при сборке). С ним проверяется SEO-разметка
+ * (canonical, og:image, JSON-LD, sitemap.xml), без него — что её нет.
+ */
+const siteOrigin = process.env.SITE_URL?.trim()
+  ? new URL(process.env.SITE_URL.trim()).origin
+  : null;
 const viewports = [
   { name: '320', width: 320, height: 640, isMobile: true },
   { name: '390', width: 390, height: 844, isMobile: true },
@@ -100,7 +108,6 @@ async function checkOverflow(page, label) {
  * начинаются на одном уровне, в одной колонке между полями ровно один промежуток сетки.
  */
 async function checkFormFields(page, viewport) {
-  const calculatorPaths = [calcPath, laminatePath, paintPath, tilePath, plasterPath, puttyPath];
   for (const calculatorPath of calculatorPaths) {
     const label = `поля ${calculatorPath.split('/')[2]} ${viewport.name}`;
     await page.goto(baseUrl + calculatorPath, { waitUntil: 'networkidle' });
@@ -184,6 +191,127 @@ async function checkFormFields(page, viewport) {
   }
 }
 
+/** SEO-разметка и файлы для поисковых систем: один раз, на широком экране. */
+async function checkSeo(page) {
+  const mode = siteOrigin ? `SEO (${siteOrigin})` : 'SEO без SITE_URL';
+  const readHead = () =>
+    page.evaluate(() => {
+      const attr = (selector, name) => document.querySelector(selector)?.getAttribute(name) ?? null;
+      return {
+        canonical: attr('link[rel="canonical"]', 'href'),
+        ogUrl: attr('meta[property="og:url"]', 'content'),
+        ogImage: attr('meta[property="og:image"]', 'content'),
+        ogImageSize: `${attr('meta[property="og:image:width"]', 'content')}×${attr('meta[property="og:image:height"]', 'content')}`,
+        ogImageAlt: attr('meta[property="og:image:alt"]', 'content'),
+        twitterCard: attr('meta[name="twitter:card"]', 'content'),
+        robots: attr('meta[name="robots"]', 'content'),
+        jsonLd: [...document.querySelectorAll('script[type="application/ld+json"]')].map(
+          (script) => script.textContent,
+        ),
+        crumbs: [...document.querySelectorAll('.breadcrumbs__item')].map((item) =>
+          item.textContent.trim(),
+        ),
+      };
+    });
+
+  for (const pagePath of ['/', ...calculatorPaths]) {
+    const label = `${mode} ${pagePath}`;
+    await page.goto(baseUrl + pagePath, { waitUntil: 'networkidle' });
+    const head = await readHead();
+    if (!siteOrigin) {
+      check(
+        !head.canonical && !head.ogUrl && !head.ogImage && !head.twitterCard,
+        `${label}: нет canonical, og:url, og:image и twitter:card`,
+      );
+      check(head.jsonLd.length === 0, `${label}: нет JSON-LD`);
+      continue;
+    }
+    const expected = siteOrigin + pagePath;
+    check(head.canonical === expected, `${label}: canonical ${head.canonical}`);
+    check(head.ogUrl === expected, `${label}: og:url совпадает с canonical`);
+    check(
+      head.ogImage === `${siteOrigin}/og.png` &&
+        head.ogImageSize === '1200×630' &&
+        Boolean(head.ogImageAlt) &&
+        head.twitterCard === 'summary_large_image',
+      `${label}: og:image ${head.ogImage}, ${head.ogImageSize}, alt, twitter:card`,
+    );
+    if (pagePath === '/') {
+      check(head.jsonLd.length === 0, `${label}: на главной нет JSON-LD`);
+      continue;
+    }
+    let list;
+    try {
+      list = head.jsonLd.length === 1 ? JSON.parse(head.jsonLd[0]) : null;
+    } catch {
+      list = null;
+    }
+    check(
+      list?.['@type'] === 'BreadcrumbList',
+      `${label}: один JSON-LD BreadcrumbList, разбирается JSON.parse`,
+    );
+    const items = list?.itemListElement ?? [];
+    check(
+      items.map((item) => item.name).join(' / ') === head.crumbs.join(' / ') &&
+        items.every((item, index) => item.position === index + 1),
+      `${label}: BreadcrumbList совпадает с видимой цепочкой (${head.crumbs.join(' / ')})`,
+    );
+    check(
+      items.every((item) => item.item.startsWith(`${siteOrigin}/`)) &&
+        items.at(-1)?.item === expected,
+      `${label}: адреса в BreadcrumbList абсолютные, последний — canonical`,
+    );
+  }
+
+  const notFound = await page.goto(baseUrl + '/kalkulyatory/nesushchestvuyushchiy/');
+  const head404 = await readHead();
+  check(
+    notFound?.status() === 404 &&
+      head404.robots === 'noindex' &&
+      !head404.canonical &&
+      !head404.ogUrl,
+    `${mode} 404: noindex, без canonical и og:url`,
+  );
+
+  const robots = await fetch(`${baseUrl}/robots.txt`);
+  const robotsText = robots.ok ? await robots.text() : '';
+  check(
+    robots.ok && robotsText.startsWith('User-agent: *\nAllow: /') && !/^host:/im.test(robotsText),
+    `${mode}: robots.txt разрешает всё, без Host`,
+  );
+  const sitemap = await fetch(`${baseUrl}/sitemap.xml`);
+  if (!siteOrigin) {
+    check(!/^sitemap:/im.test(robotsText), `${mode}: в robots.txt нет строки Sitemap`);
+    check(sitemap.status === 404, `${mode}: sitemap.xml не создан (${sitemap.status})`);
+    return;
+  }
+  check(
+    robotsText.includes(`\nSitemap: ${siteOrigin}/sitemap.xml\n`),
+    `${mode}: robots.txt ссылается на абсолютный sitemap.xml`,
+  );
+  const xml = sitemap.ok ? await sitemap.text() : '';
+  const locs = [...xml.matchAll(/<loc>([^<]*)<\/loc>/g)].map((match) => match[1]);
+  const expectedLocs = ['/', ...calculatorPaths].map((pagePath) => siteOrigin + pagePath);
+  check(
+    sitemap.ok &&
+      [...locs].sort().join() === [...expectedLocs].sort().join() &&
+      !xml.includes('lastmod'),
+    `${mode}: sitemap.xml — главная и ${calculatorPaths.length} калькуляторов, без lastmod`,
+  );
+  const statuses = await Promise.all(
+    locs.map(async (loc) => (await fetch(baseUrl + new URL(loc).pathname)).status),
+  );
+  check(
+    statuses.every((status) => status === 200),
+    `${mode}: все адреса из sitemap.xml отвечают 200`,
+  );
+  const og = await fetch(`${baseUrl}/og.png`);
+  check(
+    og.ok && og.headers.get('content-type') === 'image/png',
+    `${mode}: /og.png отдаётся (${og.status}, ${og.headers.get('content-type')})`,
+  );
+}
+
 async function checkLinks(page, label) {
   const hrefs = await page.$$eval('a[href]', (links) => links.map((a) => a.getAttribute('href')));
   const broken = [];
@@ -210,8 +338,11 @@ async function checkHome(page, viewport) {
   check(response?.status() === 200, `${label}: ответ 200`);
   const meta = await checkCommon(page, label);
   check(meta.title.startsWith('ДомРасчёт'), `${label}: title «${meta.title}»`);
-  const h1 = (await page.textContent('h1'))?.trim();
-  check(h1 === 'ДомРасчёт', `${label}: h1 кириллицей «${h1}»`);
+  const h1 = plain(await page.textContent('h1'));
+  check(
+    h1 === 'ДомРасчёт — калькуляторы для ремонта и строительства',
+    `${label}: h1 с брендом и запросом «${h1}»`,
+  );
   await checkOverflow(page, label);
   if (!fullCheckViewports.has(viewport.name)) {
     await page.screenshot({ path: path.join(outDir, `home-${viewport.name}.png`), fullPage: true });
@@ -1194,9 +1325,10 @@ try {
       `${viewport.name}: нет ошибок в консоли (${consoleErrors.join(' | ') || '0'})`,
     );
 
-    // 404 — после проверки консоли: браузер сам пишет в неё об ответе 404.
+    // 404 и SEO — после проверки консоли: браузер сам пишет в неё об ответах 404.
     const notFound = await page.goto(baseUrl + '/kalkulyatory/nesushchestvuyushchiy/');
     check(notFound?.status() === 404, `${viewport.name}: несуществующий калькулятор отдаёт 404`);
+    if (viewport.name === '1440') await checkSeo(page);
     await context.close();
   }
 

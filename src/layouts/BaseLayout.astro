@@ -1,5 +1,6 @@
 ---
 import { site } from '../config/site';
+import { canonicalUrl } from '../lib/seo';
 import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
 import '../styles/global.css';
@@ -16,8 +17,11 @@ const { title, description = site.description, noindex = false } = Astro.props;
 const fullTitle = title
   ? `${title} — ${site.name}`
   : `${site.name} — ${site.tagline.toLowerCase()}`;
-// canonical и og:url выводятся только когда в astro.config задан реальный `site`.
-const canonical = Astro.site ? new URL(Astro.url.pathname, Astro.site).href : undefined;
+// Всё, что требует абсолютного адреса, — только при заданном `site` (SITE_URL при сборке).
+// У служебных страниц (noindex, 404) canonical и og:url нет.
+const origin = Astro.site?.origin;
+const canonical = origin && !noindex ? canonicalUrl(origin, Astro.url.pathname) : undefined;
+const ogImage = origin ? `${origin}/og.png` : undefined;
 ---
 
 <!doctype html>
@@ -38,6 +42,16 @@ const canonical = Astro.site ? new URL(Astro.url.pathname, Astro.site).href : un
     <meta property="og:title" content={fullTitle} />
     <meta property="og:description" content={description} />
     {canonical && <meta property="og:url" content={canonical} />}
+    {ogImage && (
+      <>
+        <meta property="og:image" content={ogImage} />
+        <meta property="og:image:type" content="image/png" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:image:alt" content={`${site.name} — ${site.tagline.toLowerCase()}`} />
+        <meta name="twitter:card" content="summary_large_image" />
+      </>
+    )}
     <script is:inline>
       document.documentElement.classList.add('js');
     </script>

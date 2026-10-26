@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <title>ДомРасчёт — изображение для соцсетей</title>
+    <!--
+      Шаблон Open Graph-изображения 1200 × 630. Цвета — дизайн-токены сайта, логотип — как в шапке.
+      Картинка пересоздаётся командой npm run og:image (scripts/og-image.mjs) → public/og.png.
+    -->
+    <link rel="stylesheet" href="../../src/styles/tokens.css" />
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+
+      html,
+      body {
+        width: 1200px;
+        height: 630px;
+      }
+
+      body {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 88px 96px 0;
+        background: var(--color-bg);
+        color: var(--color-text);
+        font-family: Inter, var(--font-sans);
+        overflow: hidden;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 32px;
+      }
+
+      .brand__mark {
+        flex: none;
+        width: 128px;
+        height: 128px;
+        color: var(--color-accent);
+      }
+
+      .brand__name {
+        font-size: 104px;
+        font-weight: var(--font-weight-bold);
+        letter-spacing: -0.03em;
+        line-height: 1;
+      }
+
+      .tagline {
+        max-width: 960px;
+        margin-top: 56px;
+        color: var(--color-text-secondary);
+        font-size: 56px;
+        font-weight: var(--font-weight-semibold);
+        letter-spacing: -0.015em;
+        line-height: 1.15;
+      }
+
+      .footer {
+        display: flex;
+        align-items: center;
+        margin: 0 -96px;
+        padding: 0 96px;
+        height: 104px;
+        background: var(--color-surface);
+        border-top: 6px solid var(--color-accent);
+      }
+
+      .badge {
+        padding: 12px 28px;
+        background: var(--color-accent-soft);
+        border-radius: var(--radius-pill);
+        color: var(--color-accent-hover);
+        font-size: 30px;
+        font-weight: var(--font-weight-semibold);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="brand">
+        <svg class="brand__mark" viewBox="0 0 32 32" aria-hidden="true">
+          <rect width="32" height="32" rx="7" fill="currentColor"></rect>
+          <path
+            d="M8 15.5 16 9l8 6.5V24a1 1 0 0 1-1 1h-4.5v-5.5h-5V25H9a1 1 0 0 1-1-1z"
+            fill="var(--color-on-accent)"
+          ></path>
+        </svg>
+        <p class="brand__name">ДомРасчёт</p>
+      </div>
+      <p class="tagline">Бесплатные калькуляторы для ремонта и строительства</p>
+    </main>
+    <div class="footer">
+      <p class="badge">Без регистрации, с любого устройства</p>
+    </div>
+  </body>
+</html>

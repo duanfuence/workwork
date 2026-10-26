@@ -1,15 +1,17 @@
 ---
-export interface Crumb {
-  label: string;
-  /** Нет у текущей страницы. */
-  href?: string;
-}
+/**
+ * Видимая навигационная цепочка и (при заданном `site`) её JSON-LD BreadcrumbList — из одних `items`.
+ */
+import { breadcrumbList, serializeJsonLd, type Crumb } from '../lib/breadcrumbs';
 
 interface Props {
   items: readonly Crumb[];
 }
 
 const { items } = Astro.props;
+const jsonLd = Astro.site
+  ? serializeJsonLd(breadcrumbList(items, Astro.site.origin, Astro.url.pathname))
+  : undefined;
 ---
 
 <nav class="breadcrumbs" aria-label="Навигационная цепочка">
@@ -25,6 +27,7 @@ const { items } = Astro.props;
     ))}
   </ol>
 </nav>
+{jsonLd && <script type="application/ld+json" is:inline set:html={jsonLd} />}
 
 <style>
   .breadcrumbs__list {
