@@ -72,12 +72,13 @@ describe('целостность каталога', () => {
     expect([...calculatorPagePaths].sort()).toEqual([...availablePaths].sort());
   });
 
-  it('опубликованы калькуляторы обоев, ламината, краски, плитки и штукатурки, остальные пока в статусе «Скоро»', () => {
+  it('опубликованы все шесть калькуляторов первой очереди', () => {
     expect(calculators.filter((entry) => entry.status === 'available').map((e) => e.id)).toEqual([
       'wallpaper',
       'laminate',
       'paint',
       'tile',
+      'putty',
       'plaster',
     ]);
   });

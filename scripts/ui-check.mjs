@@ -29,6 +29,7 @@ const laminatePath = '/kalkulyatory/laminat/';
 const paintPath = '/kalkulyatory/kraska/';
 const tilePath = '/kalkulyatory/plitka/';
 const plasterPath = '/kalkulyatory/shtukaturka/';
+const puttyPath = '/kalkulyatory/shpaklevka/';
 const viewports = [
   { name: '320', width: 320, height: 640, isMobile: true },
   { name: '390', width: 390, height: 844, isMobile: true },
@@ -126,19 +127,20 @@ async function checkHome(page, viewport) {
     return;
   }
 
-  // Каталог: обои, ламинат, краска, плитка и штукатурка опубликованы, остальные — «Скоро» без ссылок
+  // Каталог: все шесть калькуляторов первой очереди опубликованы, карточек «Скоро» нет
   const cards = page.locator('#catalog-list > li');
   check((await cards.count()) === 6, `${label}: 6 карточек калькуляторов`);
   const cardLinks = await page
     .locator('#catalog-list a')
     .evaluateAll((links) => links.map((a) => a.getAttribute('href')));
   check(
-    cardLinks.join(',') === [calcPath, laminatePath, paintPath, tilePath, plasterPath].join(','),
+    cardLinks.join(',') ===
+      [calcPath, laminatePath, paintPath, tilePath, puttyPath, plasterPath].join(','),
     `${label}: ссылки только у готовых калькуляторов (${cardLinks.join(', ')})`,
   );
   check(
-    (await page.locator('#catalog-list .badge--soon').count()) === 1,
-    `${label}: 1 карточка со статусом «Скоро»`,
+    (await page.locator('#catalog-list .badge--soon').count()) === 0,
+    `${label}: нет карточек со статусом «Скоро»`,
   );
   check(
     plain(await page.locator('#catalog-list > li').first().textContent()).includes(
@@ -688,6 +690,80 @@ async function checkPlaster(page, viewport) {
   );
 }
 
+async function checkPutty(page, viewport) {
+  const label = `шпаклёвка ${viewport.name}`;
+  const response = await page.goto(baseUrl + puttyPath, { waitUntil: 'networkidle' });
+  check(response?.status() === 200, `${label}: ответ 200`);
+  const meta = await checkCommon(page, label);
+  check(
+    meta.title === 'Калькулятор шпаклёвки — расход на м² стен — ДомРасчёт',
+    `${label}: title «${meta.title}»`,
+  );
+  await checkOverflow(page, label);
+  if (viewport.name !== '390') return;
+
+  const field = (name) => page.locator(`[name="${name}"]`);
+  const error = async (name) =>
+    plain(await page.locator(`[data-error-for="${name}"]`).textContent());
+  const state = () => page.locator('[data-calculator-result]').getAttribute('data-state');
+  const out = async (name) => plain(await page.locator(`[data-out="${name}"]`).textContent());
+  const fill = async (values) => {
+    for (const [name, value] of Object.entries(values)) await field(name).fill(value);
+  };
+  check(
+    (await field('wallCount').inputValue()) === '1' &&
+      (await field('layers').inputValue()) === '1' &&
+      (await field('consumption').inputValue()) === '' &&
+      (await field('reserve').inputValue()) === '10',
+    `${label}: по умолчанию 1 стена, 1 слой, запас 10 %, расход пуст`,
+  );
+  await page.locator('form[data-putty-form] button[type="submit"]').click();
+  check(
+    (await state()) === 'invalid' && (await page.locator('[data-error-summary] li').count()) === 3,
+    `${label}: пустая форма — 3 ошибки (длина, высота, расход)`,
+  );
+  // Шп2 (PUTTY.md): 4 стены 4 × 2,7, проёмы 3,9, 2 слоя по 1,1 кг/м², запас 10 %, упаковка 20 кг.
+  await fill({ wallLength: '4', wallHeight: '2,7', wallCount: '4', openingsArea: '3,9' });
+  await fill({ layers: '2', consumption: '1,1', packMass: '20' });
+  check(
+    (await state()) === 'ready' &&
+      (await out('wallArea')) === '43,2' &&
+      (await out('openingsArea')) === '3,9' &&
+      (await out('puttyArea')) === '39,3' &&
+      (await out('mass')) === '86,5' &&
+      (await out('massWithReserve')) === '95,2' &&
+      (await out('packs')) === '5' &&
+      (await out('massToBuy')) === '100',
+    `${label}: Шп2 — 39,3 м², 86,5 кг, с запасом 95,2 кг, 5 упаковок (100 кг)`,
+  );
+  await fill({ packMass: '' });
+  check(
+    (await state()) === 'ready' &&
+      (await page.locator('[data-row="packs"]').isHidden()) &&
+      (await out('massWithReserve')) === '95,2',
+    `${label}: без массы упаковки — только килограммы`,
+  );
+  await fill({ layers: '1,5' });
+  check(
+    (await state()) === 'invalid' && (await error('layers')) === 'Введите целое число.',
+    `${label}: дробное число слоёв — ошибка у поля`,
+  );
+  await fill({ layers: '2', openingsArea: '50' });
+  check(
+    (await error('openingsArea')) === 'Больше площади стен (43,2 м²).',
+    `${label}: проёмы больше стен — ошибка у поля`,
+  );
+  await fill({ openingsArea: '3,9', packMass: '20' });
+  await checkOverflow(page, `${label}, с результатом`);
+  await page.screenshot({ path: path.join(outDir, `putty-${viewport.name}.png`), fullPage: true });
+  await page.locator('form[data-putty-form] button[type="reset"]').click();
+  await page.waitForTimeout(100);
+  check(
+    (await state()) === 'empty' && (await field('layers').inputValue()) === '1',
+    `${label}: «Сбросить» — результат пуст, значения по умолчанию`,
+  );
+}
+
 async function checkLaminate(page, viewport) {
   const label = `ламинат ${viewport.name}`;
   // С главной — по карточке
@@ -1018,14 +1094,15 @@ try {
     await checkPaint(page, viewport);
     await checkTile(page, viewport);
     await checkPlaster(page, viewport);
+    await checkPutty(page, viewport);
     check(
       consoleErrors.length === 0,
       `${viewport.name}: нет ошибок в консоли (${consoleErrors.join(' | ') || '0'})`,
     );
 
     // 404 — после проверки консоли: браузер сам пишет в неё об ответе 404.
-    const notFound = await page.goto(baseUrl + '/kalkulyatory/shpaklevka/');
-    check(notFound?.status() === 404, `${viewport.name}: неготовый калькулятор отдаёт 404`);
+    const notFound = await page.goto(baseUrl + '/kalkulyatory/nesushchestvuyushchiy/');
+    check(notFound?.status() === 404, `${viewport.name}: несуществующий калькулятор отдаёт 404`);
     await context.close();
   }
 

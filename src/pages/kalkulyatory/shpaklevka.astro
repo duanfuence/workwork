@@ -1,0 +1,323 @@
+---
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import CalculatorResult from '../../components/calculator/CalculatorResult.astro';
+import NumberField from '../../components/calculator/NumberField.astro';
+import { calculators } from '../../data/calculators';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import '../../styles/calculator.css';
+
+const entry = calculators.find((item) => item.id === 'putty');
+if (!entry) throw new Error('В каталоге нет калькулятора шпаклёвки (id: putty)');
+
+const id = 'pt';
+---
+
+<BaseLayout title={entry.seo.title} description={entry.seo.description}>
+  <div class="container calc-page">
+    <Breadcrumbs
+      items={[
+        { label: 'Главная', href: '/' },
+        { label: 'Калькуляторы', href: '/#catalog' },
+        { label: entry.title },
+      ]}
+    />
+
+    <header class="calc-intro">
+      <h1 class="calc-intro__title">{entry.title}</h1>
+      <p class="calc-intro__lead">
+        Посчитайте, сколько шпаклёвки и упаковок купить на стены. Расчёт ориентировочный: реальный
+        расход зависит от состава шпаклёвки, состояния поверхности, толщины нанесения и рекомендаций
+        производителя. Расход на один слой возьмите из инструкции к вашей смеси.
+      </p>
+    </header>
+
+    <noscript>
+      <p class="calc-noscript">
+        Для расчёта нужен включённый JavaScript. Способ расчёта описан ниже — по нему можно
+        посчитать вручную.
+      </p>
+    </noscript>
+
+    <div class="calc-layout">
+      <form class="calc-form" data-putty-form novalidate aria-labelledby="calc-form-title">
+        <h2 class="visually-hidden" id="calc-form-title">
+          Параметры расчёта
+        </h2>
+
+        <fieldset class="calc-group">
+          <legend class="calc-group__title">Стены</legend>
+          <div class="calc-group__fields">
+            <NumberField name="wallLength" idPrefix={id} label="Длина стены" unit="м" />
+            <NumberField name="wallHeight" idPrefix={id} label="Высота стены" unit="м" />
+            <NumberField
+              name="wallCount"
+              idPrefix={id}
+              label="Одинаковых стен"
+              unit="шт."
+              inputmode="numeric"
+              value="1"
+              hint="Стены разного размера посчитайте по отдельности."
+            />
+            <NumberField
+              name="openingsArea"
+              idPrefix={id}
+              label="Площадь окон и дверей"
+              unit="м²"
+              optional
+              hint="Суммарно на все стены, вычитается. Пусто — 0."
+            />
+          </div>
+        </fieldset>
+
+        <fieldset class="calc-group">
+          <legend class="calc-group__title">Шпаклёвка</legend>
+          <div class="calc-group__fields">
+            <NumberField
+              name="layers"
+              idPrefix={id}
+              label="Количество слоёв"
+              unit="шт."
+              inputmode="numeric"
+              value="1"
+              hint="Целое число, 1–10. Сколько слоёв нужно, зависит от поверхности и смеси."
+            />
+            <NumberField
+              name="consumption"
+              idPrefix={id}
+              label="Расход на один слой"
+              unit="кг/м²"
+              placeholder="из инструкции"
+              hint="Указан на упаковке или в инструкции; у стартовых и финишных смесей он разный."
+            />
+            <NumberField
+              name="packMass"
+              idPrefix={id}
+              label="Масса упаковки"
+              unit="кг"
+              optional
+              hint="Мешка или ведра — чтобы посчитать упаковки. Пусто — только килограммы."
+            />
+          </div>
+        </fieldset>
+
+        <fieldset class="calc-group">
+          <legend class="calc-group__title">
+            Запас <span class="calc-group__optional">необязательно</span>
+          </legend>
+          <div class="calc-group__fields">
+            <NumberField
+              name="reserve"
+              idPrefix={id}
+              label="Запас"
+              unit="%"
+              value="10"
+              optional
+              hint="На неровности, впитывание основания и потери при работе. Пусто — 0 %."
+            />
+          </div>
+        </fieldset>
+
+        <div class="calc-actions">
+          <button class="button button--primary" type="submit">
+            Рассчитать
+          </button>
+          <button class="button button--secondary" type="reset">
+            Сбросить
+          </button>
+        </div>
+      </form>
+
+      <CalculatorResult
+        headingId="calc-result-title"
+        placeholder="Заполните размеры стен и расход шпаклёвки и нажмите «Рассчитать». После первого расчёта результат обновляется сразу при изменении параметров."
+      >
+        <p class="calc-result__main" role="status">
+          <span class="calc-result__number" data-out="massWithReserve"></span>
+          <span class="calc-result__unit">кг шпаклёвки</span>
+        </p>
+        <p class="calc-result__cost" data-row="packs" hidden>
+          Упаковок по <span data-out="packMass"></span> кг: <strong data-out="packs"></strong>
+          {' — это '}
+          <span data-out="massToBuy"></span> кг.
+        </p>
+
+        <dl class="calc-result__list">
+          <div>
+            <dt>Площадь стен</dt>
+            <dd>
+              <span data-out="wallArea"></span> м²
+            </dd>
+          </div>
+          <div>
+            <dt>Окна и двери</dt>
+            <dd>
+              <span data-out="openingsArea"></span> м²
+            </dd>
+          </div>
+          <div>
+            <dt>Шпаклевать</dt>
+            <dd>
+              <span data-out="puttyArea"></span> м²
+            </dd>
+          </div>
+          <div>
+            <dt>Расход без запаса</dt>
+            <dd>
+              <span data-out="mass"></span> кг
+            </dd>
+          </div>
+          <div>
+            <dt>
+              С запасом <span data-out="reserve"></span> %
+            </dt>
+            <dd>
+              <span data-out="massWithReserve2"></span> кг
+            </dd>
+          </div>
+        </dl>
+
+        <div class="calc-result__section">
+          <h3 class="calc-result__subtitle">Как получилось</h3>
+          <p class="calc-result__note" data-out="formula"></p>
+        </div>
+        <p class="calc-result__note">
+          Результат ориентировочный. Реальный расход зависит от состава шпаклёвки, состояния и
+          впитываемости поверхности, толщины нанесения и рекомендаций производителя.
+        </p>
+      </CalculatorResult>
+    </div>
+
+    <article class="calc-article">
+      <section aria-labelledby="method-title">
+        <h2 id="method-title">Как считается</h2>
+        <ol>
+          <li>Площадь стен: длина × высота × число одинаковых стен.</li>
+          <li>Из неё вычитается площадь окон и дверей — получается площадь шпаклевания.</li>
+          <li>Расход: площадь × расход на один слой × число слоёв.</li>
+          <li>
+            К расходу добавляется запас; упаковки округляются вверх до целой упаковки. Массы
+            показаны с округлением вверх до 0,1 кг.
+          </li>
+        </ol>
+      </section>
+
+      <section aria-labelledby="formula-title">
+        <h2 id="formula-title">Формулы</h2>
+        <dl class="formula-list">
+          <div>
+            <dt>Площадь</dt>
+            <dd>
+              <code>длина × высота × число стен − окна и двери</code>
+            </dd>
+          </div>
+          <div>
+            <dt>Расход</dt>
+            <dd>
+              <code>площадь × расход на слой (кг/м²) × число слоёв</code>
+            </dd>
+          </div>
+          <div>
+            <dt>С запасом и упаковки</dt>
+            <dd>
+              <code>расход × (1 + запас ÷ 100)</code>, упаковок
+              <code>⌈расход с запасом ÷ масса упаковки⌉</code>
+            </dd>
+          </div>
+        </dl>
+        <p>
+          <strong>Пример.</strong> 4 стены 4 × 2,7 м, окна и двери 3,9 м²: шпаклевать 43,2 − 3,9 =
+          39,3 м². 2 слоя по 1,1 кг/м²: 39,3 × 1,1 × 2 = 86,46 кг. С запасом 10 % — 95,106 кг,
+          упаковок по 20 кг — ⌈4,76⌉ = 5, это 100 кг.
+        </p>
+      </section>
+
+      <section aria-labelledby="limits-title">
+        <h2 id="limits-title">Что калькулятор не учитывает</h2>
+        <ul>
+          <li>
+            Разные смеси в одном расчёте: стартовую и финишную шпаклёвку посчитайте по отдельности,
+            каждую со своим расходом.
+          </li>
+          <li>
+            Толщину нанесения: расход на слой задаёте вы, по инструкции и с учётом неровностей.
+          </li>
+          <li>Откосы окон и дверей — их можно посчитать отдельной стеной.</li>
+          <li>Грунтовку, армирующую сетку, углы и потери при шлифовке.</li>
+          <li>Разные стены в одном расчёте — посчитайте их по отдельности.</li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="faq-title">
+        <h2 id="faq-title">Частые вопросы</h2>
+        <div class="faq">
+          <h3>Где взять расход на один слой?</h3>
+          <p>
+            На упаковке или в инструкции производителя. Обычно он указан в килограммах на 1 м² — для
+            определённой толщины слоя. Если в инструкции расход дан на 1 мм, умножьте его на толщину
+            вашего слоя в миллиметрах. Расход стартовых и финишных шпаклёвок заметно различается,
+            поэтому калькулятор не подставляет универсальное значение.
+          </p>
+
+          <h3>Сколько слоёв нужно?</h3>
+          <p>
+            Зависит от поверхности и смеси: ровной стене под покраску может хватить финишного слоя,
+            неровной нужен стартовый. Число и толщину слоёв лучше сверить с инструкцией к смеси.
+          </p>
+
+          <h3>Почему фактический расход отличается?</h3>
+          <p>
+            На расход влияют впитываемость основания, качество грунтовки, перепады стены, способ
+            нанесения и шлифовка. Поэтому результат — оценка, а запас помогает не докупать смесь в
+            процессе.
+          </p>
+        </div>
+      </section>
+    </article>
+  </div>
+</BaseLayout>
+
+<script>
+  import { initCalculatorForm } from '../../client/calculator-form';
+  import { evaluatePuttyForm, puttyFields } from '../../lib/calculators/putty-form';
+  import { formatNumber } from '../../lib/format';
+  import { pluralizeRu } from '../../lib/plural';
+
+  const form = document.querySelector<HTMLFormElement>('[data-putty-form]');
+  const result = document.querySelector<HTMLElement>('[data-calculator-result]');
+  const layerWords = ['слой', 'слоя', 'слоёв'] as const;
+  const packWords = ['упаковка', 'упаковки', 'упаковок'] as const;
+
+  if (form && result) {
+    initCalculatorForm({
+      form,
+      result,
+      fields: puttyFields,
+      evaluate: evaluatePuttyForm,
+      render(value, view) {
+        view.text('massWithReserve', formatNumber(value.massWithReserve, 1));
+        view.text('massWithReserve2', formatNumber(value.massWithReserve, 1));
+        view.text('mass', formatNumber(value.mass, 1));
+        view.text('reserve', formatNumber(value.reserve, 1));
+        view.text('wallArea', formatNumber(value.wallArea, 2));
+        view.text('openingsArea', formatNumber(value.openingsArea, 2));
+        view.text('puttyArea', formatNumber(value.puttyArea, 2));
+
+        view.show('packs', value.packs !== null);
+        if (value.packs !== null && value.packMass !== null && value.massToBuy !== null) {
+          view.text('packs', String(value.packs));
+          view.text('packMass', formatNumber(value.packMass, 1));
+          view.text('massToBuy', formatNumber(value.massToBuy, 1));
+        }
+
+        const packs =
+          value.packs === null
+            ? ''
+            : `; упаковок по ${formatNumber(value.packMass ?? 0, 1)} кг — ${value.packs} ${pluralizeRu(value.packs, packWords)} (вверх до целой)`;
+        view.text(
+          'formula',
+          `${formatNumber(value.puttyArea, 2)} м² × ${formatNumber(value.consumption, 2)} кг/м² × ${value.layers} ${pluralizeRu(value.layers, layerWords)} ≈ ${formatNumber(value.mass, 1)} кг; с запасом ${formatNumber(value.reserve, 1)} % — ${formatNumber(value.massWithReserve, 1)} кг${packs}.`,
+        );
+      },
+    });
+  }
+</script>

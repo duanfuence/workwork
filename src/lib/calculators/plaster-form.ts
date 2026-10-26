@@ -9,8 +9,8 @@ export const plasterFields = [
   'openingsArea',
   'thickness',
   'consumption',
-  'reserve',
   'bagMass',
+  'reserve',
 ] as const satisfies readonly PlasterField[];
 
 export type PlasterFormValues = Record<PlasterField, string>;

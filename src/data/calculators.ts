@@ -91,7 +91,7 @@ export const calculators: readonly CalculatorEntry[] = [
     category: 'repair',
     description: 'Расход шпаклёвки по площади, толщине слоя и типу смеси.',
     path: '/kalkulyatory/shpaklevka/',
-    status: 'planned',
+    status: 'available',
     popular: true,
     searchTerms: ['шпаклёвка', 'шпатлевка', 'шпатлёвка', 'выравнивание', 'стены', 'смесь', 'мешки'],
     seo: {
