@@ -1872,6 +1872,188 @@ async function checkTypography(browser, viewport) {
   check(real.length === 0, `${label}: нет ошибок в консоли (${real.join(' | ') || '0'})`);
 }
 
+/**
+ * Живая схема над формой (DES-1, часть 3; docs/SCHEMATIC.md): на шести калькуляторах — role="img" с подписью,
+ * без JavaScript — заготовка в HTML; при вводе (ещё до «Рассчитать») подпись и рисунок меняются, но не
+ * объявляются; режим «отдельные стены», направление досок, сброс; контраст подписей; высокая контрастность.
+ * Подписи сверяются с контрольными примерами С1, С5, С6, С8.
+ */
+async function checkSchematic(browser, viewport) {
+  const label = `схема ${viewport.name}`;
+  const errors = [];
+  const { context, page } = await freshPage(browser, viewport, errors);
+  const placeholders = {
+    [calcPath]: 'Схема помещения: размеры ещё не введены.',
+    [paintPath]: 'Схема помещения: размеры ещё не введены.',
+    [puttyPath]: 'Схема помещения: размеры ещё не введены.',
+    [plasterPath]: 'Схема помещения: размеры ещё не введены.',
+    [laminatePath]:
+      'Схема укладки ламината: размеры комнаты ещё не введены; ряды вдоль длины комнаты.',
+    [tilePath]: 'Схема раскладки плитки для пола: размеры ещё не введены.',
+  };
+  const schematic = () =>
+    page.evaluate(() => {
+      const svg = document.querySelector('form svg[data-schematic]');
+      return {
+        role: svg?.getAttribute('role') ?? '',
+        label: svg?.getAttribute('aria-label') ?? '',
+        live: Boolean(svg?.closest('[aria-live], [role="status"], [role="alert"]')),
+        markup: svg?.innerHTML ?? '',
+        text: svg?.textContent ?? '',
+        width: Math.round(svg?.getBoundingClientRect().width ?? 0),
+        announced: document.querySelector('[data-result-announce]')?.textContent ?? '',
+      };
+    });
+  for (const [target, expected] of Object.entries(placeholders)) {
+    // Без JavaScript — та же заготовка прямо в HTML страницы.
+    const html = await (await page.request.get(baseUrl + target)).text();
+    check(
+      html.includes('data-schematic=') && html.includes(`aria-label="${expected}"`),
+      `${label}: ${target} — заготовка схемы в HTML без JavaScript`,
+    );
+    await page.goto(baseUrl + target, { waitUntil: 'networkidle' });
+    const state = await schematic();
+    check(
+      state.role === 'img' && plain(state.label) === expected && !state.live && state.width > 0,
+      `${label}: ${target} — role="img", «${state.label}», не live-регион, ширина ${state.width} px`,
+    );
+  }
+
+  // Краска (С1): при вводе до «Рассчитать» схема перерисована, подпись новая, диктору ничего не объявлено.
+  await page.goto(baseUrl + paintPath, { waitUntil: 'networkidle' });
+  const empty = await schematic();
+  for (const [name, value] of Object.entries({
+    roomLength: '4',
+    roomWidth: '3',
+    wallHeight: '2,7',
+  }))
+    await page.fill(`form [name="${name}"]`, value);
+  await page.waitForTimeout(1300);
+  const room = await schematic();
+  check(
+    plain(room.label) ===
+      'Схема помещения в метрах: длина 4, ширина 3, высота стен 2,7. Площадь стен 37,8 квадратного метра.' &&
+      room.markup !== empty.markup &&
+      room.markup.includes('width="144" height="108"') &&
+      plain(room.text).includes('S стен = 37,8 м²') &&
+      room.announced === '',
+    `${label}: краска 4 × 3 × 2,7 — подпись «${room.label}», рисунок обновлён, не объявлено`,
+  );
+  const colors = await page.evaluate(() => {
+    const style = (selector, property) => {
+      const element = document.querySelector(selector);
+      return element ? getComputedStyle(element).getPropertyValue(property) : '';
+    };
+    return {
+      dim: style('.schematic__dim-text', 'fill'),
+      note: style('.schematic__note', 'fill'),
+      plate: style('.schematic__plate', 'fill'),
+      font: style('.schematic__dim-text', 'font-family'),
+    };
+  });
+  const dimContrast = contrastRatio(colors.dim, 'rgb(255, 255, 255)');
+  const noteContrast = contrastRatio(colors.note, colors.plate);
+  check(
+    dimContrast >= 4.5 && noteContrast >= 4.5 && colors.font.includes('JetBrains Mono'),
+    `${label}: подписи размеров ${dimContrast.toFixed(2)}:1, таблички ${noteContrast.toFixed(2)}:1, JetBrains Mono`,
+  );
+  await checkOverflow(page, `${label}, краска со схемой`);
+  if (viewport.name === '390') {
+    await page
+      .locator('.calc-schematic')
+      .screenshot({ path: path.join(outDir, 'schematic-paint-390.png') });
+  }
+  await page.locator('form button[type="reset"]').click();
+  await page.waitForTimeout(150);
+  check(
+    plain((await schematic()).label) === placeholders[paintPath],
+    `${label}: «Сбросить» — снова заготовка`,
+  );
+
+  // Шпаклёвка (С8): «отдельные стены» — развёртка стены.
+  await page.goto(baseUrl + puttyPath, { waitUntil: 'networkidle' });
+  await page.selectOption('form [name="mode"]', 'walls');
+  const wallsEmpty = await schematic();
+  for (const [name, value] of Object.entries({
+    wallLength: '4',
+    wallHeight: '2,7',
+    wallCount: '2',
+  }))
+    await page.fill(`form [name="${name}"]`, value);
+  const walls = await schematic();
+  check(
+    plain(wallsEmpty.label) === 'Схема стены: размеры ещё не введены.' &&
+      plain(walls.label) ===
+        'Схема стены в метрах: длина 4, высота 2,7, одинаковых стен 2. Площадь 21,6 квадратного метра.',
+    `${label}: «отдельные стены» — «${walls.label}»`,
+  );
+
+  // Ламинат (С5) и смена направления рядов.
+  await page.goto(baseUrl + laminatePath, { waitUntil: 'networkidle' });
+  for (const [name, value] of Object.entries({
+    roomLength: '4',
+    roomWidth: '3',
+    boardLength: '1380',
+    boardWidth: '193',
+  }))
+    await page.fill(`form [name="${name}"]`, value);
+  const laminate = await schematic();
+  await page.selectOption('form [name="direction"]', 'width');
+  const across = await schematic();
+  check(
+    plain(laminate.label) ===
+      'Схема укладки ламината в метрах: длина комнаты 4, ширина 3; доски 1380 на 193 миллиметра, ' +
+        'ряды вдоль длины комнаты. Площадь пола 12 квадратных метров.' &&
+      plain(across.label).includes('ряды вдоль ширины комнаты') &&
+      across.markup !== laminate.markup,
+    `${label}: ламинат — «${laminate.label}», вдоль ширины — рисунок и подпись меняются`,
+  );
+  if (viewport.name === '390') {
+    await page
+      .locator('.calc-schematic')
+      .screenshot({ path: path.join(outDir, 'schematic-laminate-390.png') });
+  }
+
+  // Плитка (С6).
+  await page.goto(baseUrl + tilePath, { waitUntil: 'networkidle' });
+  for (const [name, value] of Object.entries({
+    surfaceLength: '3',
+    surfaceWidth: '2,5',
+    tileLength: '300',
+    tileWidth: '300',
+  }))
+    await page.fill(`form [name="${name}"]`, value);
+  const tile = await schematic();
+  check(
+    plain(tile.label) ===
+      'Схема раскладки плитки для пола в метрах: длина 3, ширина 2,5; плитка 300 на 300 миллиметров, ' +
+        'шов 2 миллиметра. Площадь 7,5 квадратного метра.',
+    `${label}: плитка — «${tile.label}»`,
+  );
+  if (viewport.name === '390') {
+    await page
+      .locator('.calc-schematic')
+      .screenshot({ path: path.join(outDir, 'schematic-tile-390.png') });
+  }
+
+  // Высокая контрастность: контур и подписи — системными цветами, контур отличается от фона.
+  if (viewport.name === '1440') {
+    await page.emulateMedia({ forcedColors: 'active' });
+    const forced = await page.evaluate(() => {
+      const roomRect = document.querySelector('.schematic__room');
+      const style = roomRect ? getComputedStyle(roomRect) : null;
+      return { stroke: style?.stroke ?? '', fill: style?.fill ?? '' };
+    });
+    check(
+      forced.stroke !== '' && forced.stroke !== forced.fill,
+      `${label}: высокая контрастность — контур ${forced.stroke} на ${forced.fill}`,
+    );
+    await page.emulateMedia({ forcedColors: 'none' });
+  }
+  await context.close();
+  check(errors.length === 0, `${label}: нет ошибок в консоли (${errors.join(' | ') || '0'})`);
+}
+
 async function checkLinks(page, label) {
   const hrefs = await page.$$eval('a[href]', (links) => links.map((a) => a.getAttribute('href')));
   const broken = [];
@@ -2974,6 +3156,7 @@ try {
     if (fullCheckViewports.has(viewport.name)) await checkForcedColors(browser, viewport);
     if (viewport.name !== '768') await checkDesign(browser, viewport);
     if (viewport.name !== '768') await checkSpec(browser, viewport);
+    if (viewport.name !== '768') await checkSchematic(browser, viewport);
     if (viewport.name === '320' || viewport.name === '390')
       await checkTypography(browser, viewport);
     check(

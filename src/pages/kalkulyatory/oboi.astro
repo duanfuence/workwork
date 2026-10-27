@@ -5,6 +5,7 @@ import CalculatorIntro from '../../components/calculator/CalculatorIntro.astro';
 import CalculatorResult from '../../components/calculator/CalculatorResult.astro';
 import RoomNext from '../../components/calculator/RoomNext.astro';
 import NumberField from '../../components/calculator/NumberField.astro';
+import Schematic from '../../components/calculator/Schematic.astro';
 import { calculators } from '../../data/calculators';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { calculatorCrumbs } from '../../lib/breadcrumbs';
@@ -37,6 +38,8 @@ const id = 'wp';
         <h2 class="visually-hidden" id="calc-form-title">
           Параметры расчёта
         </h2>
+
+        <Schematic kind="room" />
 
         <fieldset class="calc-group">
           <legend class="calc-group__title">Размеры комнаты</legend>

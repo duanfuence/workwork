@@ -20,7 +20,9 @@
  *   ключевые параметры и что купить; ссылка `?v=1&…` при открытии заполняет форму и сразу считает (D-027);
  * - главный итог `.calc-result__main` и короткий итог `view.summary(…)` из `render` — для панели итога
  *   `[data-result-bar]` (на экране уже 960 px, когда итог не виден) и для объявления диктору
- *   `[data-result-announce]` (по «Рассчитать» и после паузы ввода, D-024). Оба элемента даёт CalculatorResult.
+ *   `[data-result-announce]` (по «Рассчитать» и после паузы ввода, D-024). Оба элемента даёт CalculatorResult;
+ * - необязательно: живая схема `svg[data-schematic="<вид>"]` (компонент Schematic) — перерисовывается по тексту полей
+ *   при любом вводе, геометрия и подпись — `schematicModel` из src/lib/schematic.ts (docs/SCHEMATIC.md).
  */
 import { typograph } from '../lib/format';
 import type { Calculation, FieldErrors } from '../lib/form';
@@ -59,6 +61,7 @@ import {
   type ShareControl,
   type ShareValue,
 } from '../lib/share-link';
+import { isSchematicKind, schematicModel, schematicSvg } from '../lib/schematic';
 import { parseTypicalRange, typicalWarning } from '../lib/typical-value';
 
 type State = ResultState;
@@ -112,6 +115,28 @@ export function initCalculatorForm<F extends string, R>({
     }
   };
   applyVisibility();
+
+  // Живая схема над формой (docs/SCHEMATIC.md): перерисовывается при любом вводе, ещё до первого расчёта.
+  // Подпись aria-label меняется молча — схема не live-регион, итог по-прежнему объявляется отдельно.
+  const schematic = form.querySelector<SVGSVGElement>('svg[data-schematic]');
+  const schematicKind = schematic?.dataset['schematic'];
+  let schematicMarkup = '';
+  const drawSchematic = () => {
+    if (!schematic || !isSchematicKind(schematicKind)) return;
+    const values: Record<string, string> = {};
+    for (const element of form.elements) {
+      if (element instanceof HTMLInputElement || element instanceof HTMLSelectElement)
+        if (element.name) values[element.name] = element.value;
+    }
+    const model = schematicModel(schematicKind, values);
+    const markup = schematicSvg(model);
+    if (markup !== schematicMarkup) {
+      schematic.innerHTML = markup;
+      schematicMarkup = markup;
+    }
+    if (schematic.getAttribute('aria-label') !== model.label)
+      schematic.setAttribute('aria-label', model.label);
+  };
 
   // До первой отправки ошибки не показываются; после — пересчёт при каждом вводе.
   let live = false;
@@ -512,6 +537,7 @@ export function initCalculatorForm<F extends string, R>({
   });
 
   form.addEventListener('input', () => {
+    drawSchematic();
     if (!live) return;
     update(false);
     announceAfterPause();
@@ -530,6 +556,7 @@ export function initCalculatorForm<F extends string, R>({
       showErrors({});
       showPresetNotes();
       setState('empty');
+      drawSchematic();
     });
   });
 
@@ -561,6 +588,7 @@ export function initCalculatorForm<F extends string, R>({
       }
       hideRoomNotice();
       showRoomNextHint();
+      drawSchematic();
       (first ?? roomInputs[0]?.[1])?.focus();
       if (live) update(false);
     });
@@ -703,4 +731,5 @@ export function initCalculatorForm<F extends string, R>({
   showRoomNextHint();
   if (start.source === 'link') applyLink(start.values);
   else if (start.source === 'memory') restoreRoom(start.values);
+  drawSchematic();
 }

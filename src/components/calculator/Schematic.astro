@@ -1,0 +1,38 @@
+---
+/**
+ * Живая схема над формой (DES-1, часть 3; docs/SCHEMATIC.md). Без JavaScript — заготовка по значениям
+ * по умолчанию («длина», «ширина»); общий механизм форм перерисовывает её при вводе (`data-schematic`).
+ * Цвета — токены в calculator.css; диктор слышит только подпись `aria-label`, она не озвучивается при вводе.
+ */
+import {
+  schematicFrame,
+  schematicModel,
+  schematicSvg,
+  type SchematicKind,
+} from '../../lib/schematic';
+
+interface Props {
+  kind: SchematicKind;
+  /** Значения полей по умолчанию, от которых зависит вид: направление досок, поверхность, режим. */
+  initial?: Readonly<Record<string, string>>;
+}
+
+const { kind, initial = {} } = Astro.props;
+const model = schematicModel(kind, initial);
+---
+
+<figure class="calc-schematic">
+  <figcaption class="stamp calc-schematic__caption" aria-hidden="true">
+    Схема
+  </figcaption>
+  <svg
+    class="schematic"
+    viewBox={`0 0 ${schematicFrame.width} ${schematicFrame.height}`}
+    width={schematicFrame.width}
+    height={schematicFrame.height}
+    role="img"
+    aria-label={model.label}
+    data-schematic={kind}
+    set:html={schematicSvg(model)}
+  />
+</figure>

@@ -143,6 +143,12 @@
         font-weight: 500;
       }
 
+      .plan__plate {
+        fill: var(--color-surface);
+        stroke: var(--color-border);
+        stroke-width: 2;
+      }
+
       .plan__note {
         fill: var(--color-text);
         font-family: 'JetBrains Mono', monospace;
@@ -196,7 +202,7 @@
           Сколько материалов купить&nbsp;— и&nbsp;из&nbsp;чего складывается каждая цифра
         </p>
       </div>
-      <!-- План комнаты с размерными линиями: 4,00 × 3,00 м, высота стен 2,70 м. -->
+      <!-- План комнаты как живая схема калькулятора (docs/SCHEMATIC.md, пример С1): 4,00 × 3,00 м, h = 2,70 м. -->
       <svg class="plan" viewBox="0 0 380 330" aria-hidden="true">
         <rect class="plan__room" x="70" y="20" width="290" height="240"></rect>
         <path class="plan__dim" d="M70 290h290M70 280v20M360 280v20"></path>
@@ -211,6 +217,7 @@
         >
           3,00 м
         </text>
+        <rect class="plan__plate" x="97.5" y="98" width="235" height="84"></rect>
         <text class="plan__note" x="215" y="132" text-anchor="middle">h = 2,70 м</text>
         <text class="plan__note" x="215" y="166" text-anchor="middle">S стен = 37,8 м²</text>
       </svg>

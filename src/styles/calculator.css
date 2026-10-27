@@ -62,6 +62,118 @@
 }
 
 /*
+ * Живая схема над формой (DES-1, docs/SCHEMATIC.md): лист со штампом «СХЕМА» и SVG 300 × 150. Компактная —
+ * первое поле формы остаётся на первом экране 390 × 844. Цвета — токены; без анимаций.
+ */
+.calc-schematic {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-3) var(--space-3) var(--space-2);
+  background: var(--color-surface);
+  outline: var(--border);
+  outline-offset: calc(-1 * var(--border-width));
+  border-radius: var(--radius-lg);
+}
+
+.calc-schematic__caption {
+  color: var(--color-text-muted);
+}
+
+.schematic {
+  display: block;
+  width: 100%;
+  max-width: 26rem;
+  height: auto;
+  overflow: visible;
+}
+
+.schematic__room {
+  fill: var(--color-surface);
+  stroke: var(--color-text);
+  stroke-width: 3;
+}
+
+/* Заготовка: контур пунктиром — размеры ещё не введены. */
+.schematic__room--placeholder {
+  stroke: var(--color-border-control);
+  stroke-dasharray: 6 4;
+  stroke-width: 2;
+}
+
+.schematic__hatch {
+  fill: none;
+  stroke: var(--color-border);
+  stroke-width: 1;
+}
+
+.schematic__joint {
+  fill: none;
+  stroke: var(--color-border-control);
+  stroke-width: 1;
+}
+
+.schematic__gap {
+  fill: var(--color-surface);
+}
+
+.schematic__break {
+  fill: none;
+  stroke: var(--color-text);
+  stroke-width: 1.5;
+}
+
+.schematic__dim {
+  fill: none;
+  stroke: var(--color-dimension);
+  stroke-width: 1.25;
+}
+
+.schematic__dim-text,
+.schematic__note {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: var(--font-weight-mono);
+}
+
+.schematic__dim-text {
+  fill: var(--color-dimension-text);
+}
+
+.schematic__plate {
+  fill: var(--color-surface);
+  stroke: var(--color-border);
+  stroke-width: 1;
+}
+
+.schematic__note {
+  fill: var(--color-text);
+}
+
+/* Высокая контрастность: SVG не перекрашивается браузером — системные цвета явно. */
+@media (forced-colors: active) {
+  .schematic__room,
+  .schematic__plate,
+  .schematic__gap {
+    fill: Canvas;
+  }
+
+  .schematic__room,
+  .schematic__hatch,
+  .schematic__joint,
+  .schematic__break,
+  .schematic__dim,
+  .schematic__plate {
+    stroke: CanvasText;
+  }
+
+  .schematic__dim-text,
+  .schematic__note {
+    fill: CanvasText;
+  }
+}
+
+/*
  * Группа полей — белая карточка-лист. Рамку рисует outline, а не border fieldset: border fieldset разрывается
  * под legend (особенно при переносе заголовка), outline — нет. Заголовок — штамп «01 · КОМНАТА».
  */
