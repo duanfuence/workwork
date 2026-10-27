@@ -980,8 +980,57 @@ async function checkShare(browser, viewport) {
   );
   await checkOverflow(page, `${label}, кнопки в результате`);
 
+  // Подтверждение — на кнопке: размеры кнопок и полосы не меняются, под кнопками нет резерва места.
+  const shareBox = () =>
+    page.evaluate(() => {
+      const share = document.querySelector('[data-share]');
+      const actions = share?.querySelector('.calc-share__actions');
+      const rect = (element) =>
+        element?.getBoundingClientRect() ?? { width: 0, height: 0, bottom: 0 };
+      const copied = share?.querySelector('[data-copied]');
+      const done = copied?.querySelector('.calc-share__done');
+      return {
+        widths: [...(share?.querySelectorAll('button') ?? [])].map((button) =>
+          Math.round(button.getBoundingClientRect().width),
+        ),
+        height: Math.round(rect(share).height),
+        below: Math.round(rect(share).bottom - rect(actions).bottom),
+        copied: [...(share?.querySelectorAll('[data-copied]') ?? [])].map((button) =>
+          button.hasAttribute('data-share-link') ? 'link' : 'copy',
+        ),
+        done: done && getComputedStyle(done).opacity === '1' ? (done.textContent ?? '').trim() : '',
+        captionOpacity: copied
+          ? getComputedStyle(copied.querySelector('.calc-share__caption')).opacity
+          : '',
+        fits: done ? done.getBoundingClientRect().width <= copied.clientWidth : true,
+      };
+    });
+  const beforeCopy = await shareBox();
+  check(
+    beforeCopy.below <= 1 && beforeCopy.copied.length === 0,
+    `${label}: под кнопками нет пустой полосы (${beforeCopy.below} px)`,
+  );
+
   await page.locator('[data-share-link]').click();
   await page.waitForTimeout(150);
+  const afterCopy = await shareBox();
+  check(
+    afterCopy.copied.join() === 'link' &&
+      afterCopy.done === 'Скопировано ✓' &&
+      afterCopy.captionOpacity === '0' &&
+      afterCopy.fits,
+    `${label}: на кнопке «${afterCopy.done}», надпись скрыта, текст помещается`,
+  );
+  check(
+    afterCopy.widths.join() === beforeCopy.widths.join() && afterCopy.height === beforeCopy.height,
+    `${label}: ширина кнопок ${afterCopy.widths.join(' / ')} px и высота полосы ${afterCopy.height} px не изменились`,
+  );
+  check(
+    (await page
+      .getByRole('button', { name: 'Поделиться ссылкой на расчёт', exact: true })
+      .count()) === 1,
+    `${label}: имя кнопки для диктора не изменилось («Поделиться ссылкой на расчёт»)`,
+  );
   const url = await clipboard();
   const expectedQuery =
     'v=1&mode=room&roomLength=4&roomWidth=3&wallHeight=2.7&openingsArea=3.9&ceiling=yes&layers=2' +
@@ -1011,6 +1060,16 @@ async function checkShare(browser, viewport) {
   check(
     plain(text) === plain(expectedText),
     `${label}: «Скопировать» — список покупок ${JSON.stringify(text)}`,
+  );
+  check(
+    (await shareBox()).copied.join() === 'copy',
+    `${label}: «Скопировано ✓» перешло на «Скопировать», с «Поделиться» снято`,
+  );
+  await page.waitForTimeout(2100);
+  const restored = await shareBox();
+  check(
+    restored.copied.length === 0 && plain(await status.textContent()) === '',
+    `${label}: через 2 с надпись вернулась, строка состояния очищена молча`,
   );
   if (viewport.name !== '320') {
     await page.locator('[data-share]').scrollIntoViewIfNeeded();
@@ -1468,7 +1527,7 @@ async function checkSpec(browser, viewport) {
   );
   const minSize = viewport.name === '1440' ? 64 : 48;
   check(
-    spec.first === 'К покупке' &&
+    plain(spec.first) === 'К покупке' &&
       spec.number === '9' &&
       spec.numberFont.startsWith('"JetBrains Mono"') &&
       spec.numberSize >= minSize &&
@@ -1480,7 +1539,7 @@ async function checkSpec(browser, viewport) {
     `${label}: «Как получилось» — значения моноширинные, точечная выноска`,
   );
   check(
-    spec.minus === '2,1 м²' &&
+    plain(spec.minus) === '2,1 м²' &&
       spec.minusSign.includes('−') &&
       contrastRatio(spec.minusColor, 'rgb(255, 255, 255)') >= 4.5 &&
       spec.minusColor === 'rgb(181, 64, 14)',
@@ -1552,16 +1611,23 @@ async function checkSpec(browser, viewport) {
  * Русская типографика (правки после просмотра): ни одна строка текста не начинается с «—», «%», «₽» или единицы
  * измерения. Перенос определяется по координатам символов: символ на новой строке того же блока.
  */
-async function lineStartViolations(page) {
+/**
+ * Переносы строк по русской типографике: строка не начинается с «—», «%» или единицы измерения и не
+ * заканчивается однобуквенным предлогом или союзом (в, и, с, к, о, у, а). Строка определяется по положению слов:
+ * слово ниже предыдущего в том же блоке начинает новую строку, предыдущее — последнее на своей.
+ */
+async function lineBreakViolations(page) {
   return page.evaluate(() => {
     const units = /^(—|%|₽|(м²|м³|мм|см|км|м|мл|л|кг|шт)(?![а-яёa-z]))/i;
+    const hanging = /^[«„"(]*(в|и|с|к|о|у|а)$/i;
     const blockOf = (element) => {
       let node = element;
       while (node && getComputedStyle(node).display.startsWith('inline')) node = node.parentElement;
       return node;
     };
     const range = document.createRange();
-    const found = [];
+    const starts = [];
+    const ends = [];
     let previous = null;
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
@@ -1581,17 +1647,37 @@ async function lineStartViolations(page) {
         const rect = range.getClientRects()[0];
         if (!rect) continue;
         if (previous && previous.block === block && rect.top > previous.top + 2) {
-          const start = text.slice(index, index + 4);
-          if (units.test(start)) {
-            const context = `${(previous.text ?? '').slice(-12)}⏎${text.slice(index, index + 16)}`;
-            found.push(context.replace(/\s+/g, ' '));
-          }
+          const context = `${previous.context}⏎${text.slice(index, index + 16)}`.replace(
+            /\s+/g,
+            ' ',
+          );
+          if (units.test(text.slice(index, index + 4))) starts.push(context);
+          if (hanging.test(previous.word)) ends.push(context);
         }
-        previous = { block, top: rect.top, text: text.slice(0, index + 1) };
+        const word = /^[^ \t\n\r\f]*/.exec(text.slice(index))?.[0] ?? '';
+        previous = {
+          block,
+          top: rect.top,
+          word,
+          context: text.slice(Math.max(0, index - 12), index + word.length),
+        };
       }
     }
-    return found;
+    return { starts, ends };
   });
+}
+
+/** Проверка переносов на открытой странице: оба правила, первые 5 нарушений — в тексте проверки. */
+async function checkLineBreaks(page, label) {
+  const { starts, ends } = await lineBreakViolations(page);
+  check(
+    starts.length === 0,
+    `${label} — нет строк, начинающихся с «—», «%» или единицы ${starts.slice(0, 5).join(' | ')}`,
+  );
+  check(
+    ends.length === 0,
+    `${label} — нет строк, оканчивающихся на «в», «и», «с», «к», «о», «у», «а» ${ends.slice(0, 5).join(' | ')}`,
+  );
 }
 
 async function checkTypography(browser, viewport) {
@@ -1601,11 +1687,7 @@ async function checkTypography(browser, viewport) {
   const pages = ['/', catalogPath, ...calculatorPaths, '/nesushchestvuyushchaya/'];
   for (const target of pages) {
     await page.goto(baseUrl + target, { waitUntil: 'networkidle' });
-    const found = await lineStartViolations(page);
-    check(
-      found.length === 0,
-      `${label}: ${target} — нет строк, начинающихся с «—», «%» или единицы ${found.slice(0, 5).join(' | ')}`,
-    );
+    await checkLineBreaks(page, `${label}: ${target}`);
   }
   // Результат краски — динамические строки (формула, пояснения): К покупке, «Как получилось», формула.
   await page.goto(baseUrl + paintPath, { waitUntil: 'networkidle' });
@@ -1621,11 +1703,76 @@ async function checkTypography(browser, viewport) {
   await page.selectOption('form [name="ceiling"]', 'yes');
   await page.locator('form button[type="submit"]').click();
   await page.waitForTimeout(200);
-  const found = await lineStartViolations(page);
-  check(
-    found.length === 0,
-    `${label}: результат краски — нет строк, начинающихся с «—», «%» или единицы ${found.slice(0, 5).join(' | ')}`,
-  );
+  await checkLineBreaks(page, `${label}: результат краски`);
+  // Результаты остальных калькуляторов — их примечания и пояснения (обычные значения, расчёт должен пройти).
+  const filled = {
+    [calcPath]: {
+      roomLength: '4',
+      roomWidth: '3',
+      wallHeight: '2,7',
+      windowCount: '1',
+      windowWidth: '1,5',
+      windowHeight: '1,4',
+      doorCount: '1',
+      doorWidth: '0,8',
+      doorHeight: '2',
+      rollPrice: '1200',
+    },
+    [laminatePath]: {
+      roomLength: '4',
+      roomWidth: '3',
+      boardLength: '1380',
+      boardWidth: '193',
+      boardsPerPack: '8',
+      packPrice: '1500',
+    },
+    [tilePath]: {
+      surfaceLength: '3',
+      surfaceWidth: '2,5',
+      tileLength: '300',
+      tileWidth: '300',
+      tilesPerPack: '11',
+    },
+    [puttyPath]: {
+      roomLength: '4',
+      roomWidth: '3',
+      wallHeight: '2,7',
+      openingsArea: '3,9',
+      consumption: '1,1',
+      packMass: '20',
+    },
+    [plasterPath]: {
+      roomLength: '4',
+      roomWidth: '3',
+      wallHeight: '2,7',
+      openingsArea: '3,9',
+      consumption: '0,9',
+      bagMass: '30',
+    },
+  };
+  for (const [target, values] of Object.entries(filled)) {
+    await page.goto(baseUrl + target, { waitUntil: 'networkidle' });
+    for (const [name, value] of Object.entries(values))
+      await page.fill(`form [name="${name}"]`, value);
+    await page.locator('form button[type="submit"]').click();
+    await page.waitForTimeout(200);
+    const state = await page.locator('[data-calculator-result]').getAttribute('data-state');
+    check(state === 'ready', `${label}: ${target} — расчёт выполнен (${state})`);
+    await checkLineBreaks(page, `${label}: результат ${target}`);
+  }
+  await page.goto(baseUrl + paintPath, { waitUntil: 'networkidle' });
+  for (const [name, value] of Object.entries({
+    roomLength: '4',
+    roomWidth: '3',
+    wallHeight: '2,7',
+    openingsArea: '3,9',
+    coverage: '1',
+    canVolume: '2,7',
+  }))
+    await page.fill(`form [name="${name}"]`, value);
+  await page.selectOption('form [name="ceiling"]', 'yes');
+  await page.locator('form button[type="submit"]').click();
+  await page.waitForTimeout(200);
 
   // Предупреждение о нетипичном значении: укрывистость 1 м²/л — у поля и в результате, расчёт выполнен.
   const warning = await page.evaluate(() => {

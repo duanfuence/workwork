@@ -600,20 +600,29 @@ export function initCalculatorForm<F extends string, R>({
   const shareStatus = share?.querySelector<HTMLElement>('[data-share-status]');
   const manual = share?.querySelector<HTMLElement>('[data-share-manual]');
   const manualText = share?.querySelector<HTMLTextAreaElement>('[data-share-text]');
+  /** Сколько держится «Скопировано ✓» на кнопке. */
+  const copiedMs = 2000;
   let statusTimer = 0;
+  let copiedTimer = 0;
   function hideShareFeedback() {
     window.clearTimeout(statusTimer);
+    window.clearTimeout(copiedTimer);
     if (shareStatus) shareStatus.textContent = '';
+    for (const button of share?.querySelectorAll('[data-copied]') ?? [])
+      button.removeAttribute('data-copied');
     if (manual) manual.hidden = true;
   }
-  // «Скопировано» объявляется один раз: текст записывается после очистки и через 3 с убирается молча.
-  const confirmCopied = () => {
+  // Подтверждение на самой кнопке: «Скопировано ✓» на 2 с (CSS по data-copied, размер кнопки не меняется).
+  // Диктору «Скопировано» объявляется один раз: текст записывается после очистки и затем убирается молча.
+  const confirmCopied = (button: HTMLElement) => {
     hideShareFeedback();
+    button.setAttribute('data-copied', '');
+    copiedTimer = window.setTimeout(() => button.removeAttribute('data-copied'), copiedMs);
     statusTimer = window.setTimeout(() => {
       if (shareStatus) shareStatus.textContent = 'Скопировано';
       statusTimer = window.setTimeout(() => {
         if (shareStatus) shareStatus.textContent = '';
-      }, 3000);
+      }, copiedMs);
     }, 50);
   };
   // Буфер обмена недоступен (нет разрешения, не HTTPS) — текст в поле, выделен для копирования вручную.
@@ -633,14 +642,15 @@ export function initCalculatorForm<F extends string, R>({
       return false;
     }
   };
-  const copyOrShow = async (text: string) => {
-    if (await copyText(text)) confirmCopied();
+  const copyOrShow = async (text: string, button: HTMLElement) => {
+    if (await copyText(text)) confirmCopied(button);
     else showManual(text);
   };
 
   if (share) {
     share.hidden = false;
-    share.querySelector('[data-share-link]')?.addEventListener('click', () => {
+    share.querySelector<HTMLElement>('[data-share-link]')?.addEventListener('click', (event) => {
+      const button = event.currentTarget as HTMLElement;
       void (async () => {
         const url = shareUrl();
         // На телефоне — системное меню «Поделиться»; отмена — не ошибка.
@@ -652,17 +662,18 @@ export function initCalculatorForm<F extends string, R>({
             if (error instanceof DOMException && error.name === 'AbortError') return;
           }
         }
-        await copyOrShow(url);
+        await copyOrShow(url, button);
       })();
     });
-    share.querySelector('[data-share-copy]')?.addEventListener('click', () => {
+    share.querySelector<HTMLElement>('[data-share-copy]')?.addEventListener('click', (event) => {
+      const button = event.currentTarget as HTMLElement;
       const text = shareText({
         title: pageTitle(),
         params: reportParams,
         purchase: reportPurchase || summaryText,
         url: shareUrl(),
       });
-      void copyOrShow(text);
+      void copyOrShow(text, button);
     });
   }
 

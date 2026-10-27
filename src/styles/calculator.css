@@ -639,8 +639,13 @@
 }
 
 .calc-share .calc-share__button {
+  /* Ширина — половина полосы, от надписи не зависит: «Скопировано ✓» не сдвигает соседнюю кнопку. */
+  display: inline-grid;
+  place-items: center;
   flex: 1 1 0;
+  min-width: 0;
   min-height: var(--control-height);
+  white-space: nowrap;
   border: 0;
   border-radius: 0;
   font-family: var(--font-mono);
@@ -660,13 +665,26 @@
   box-shadow: inset 0 0 0 2px var(--color-focus-ring);
 }
 
-/* Место под «Скопировано» занято заранее: подтверждение не сдвигает блок. */
-.calc-share__status {
-  padding: var(--space-1) var(--space-5);
-  min-height: calc(var(--font-size-sm) * var(--line-height-base) + var(--space-2));
+/*
+ * «Скопировано ✓» — в той же ячейке сетки, что и надпись, поэтому размер кнопки не меняется. Надпись скрыта
+ * прозрачностью, а не visibility: так она остаётся в имени кнопки для диктора.
+ */
+.calc-share__caption,
+.calc-share__done {
+  grid-area: 1 / 1;
+}
+
+.calc-share__done {
+  opacity: 0;
   color: var(--color-accent);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
+}
+
+.calc-share__button[data-copied] .calc-share__caption {
+  opacity: 0;
+}
+
+.calc-share__button[data-copied] .calc-share__done {
+  opacity: 1;
 }
 
 .calc-share__manual {

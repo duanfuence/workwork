@@ -41,27 +41,39 @@ const { headingId, placeholder, title } = Astro.props;
   </div>
 
   <div data-state-panel="invalid" hidden>
-    <p class="calc-result__invalid">Расчёт не выполнен: исправьте значения в полях.</p>
+    <p class="calc-result__invalid">Расчёт не&nbsp;выполнен: исправьте значения в&nbsp;полях.</p>
     <ul class="calc-result__error-list" data-error-summary></ul>
   </div>
 
   <div class="calc-result__ready" data-state-panel="ready" hidden>
-    <p class="stamp calc-result__label">К покупке</p>
+    <p class="stamp calc-result__label">К&nbsp;покупке</p>
     <slot />
 
     <div class="calc-share" data-share hidden>
       <div class="calc-share__actions">
+        <!--
+          Подтверждение — на самой кнопке: «Скопировано ✓» на 2 с вместо надписи (для диктора — скрыто,
+          имя кнопки не меняется; «Скопировано» он слышит один раз из строки состояния ниже).
+        -->
         <button type="button" class="button button--secondary calc-share__button" data-share-copy>
-          Скопировать<span class="visually-hidden"> список покупок</span>
+          <span class="calc-share__caption">Скопировать</span>
+          <span class="visually-hidden">список покупок</span>
+          <span class="calc-share__done" aria-hidden="true">
+            Скопировано ✓
+          </span>
         </button>
         <button type="button" class="button button--secondary calc-share__button" data-share-link>
-          Поделиться<span class="visually-hidden"> ссылкой на расчёт</span>
+          <span class="calc-share__caption">Поделиться</span>
+          <span class="visually-hidden">ссылкой на расчёт</span>
+          <span class="calc-share__done" aria-hidden="true">
+            Скопировано ✓
+          </span>
         </button>
       </div>
-      <p class="calc-share__status" role="status" data-share-status></p>
+      <p class="visually-hidden" role="status" data-share-status></p>
       <div class="calc-share__manual" data-share-manual hidden>
         <label class="calc-share__label" for={`${headingId}-share-text`}>
-          Буфер обмена недоступен&nbsp;— выделите и скопируйте вручную:
+          Буфер обмена недоступен&nbsp;— выделите и&nbsp;скопируйте вручную:
         </label>
         <textarea
           class="calc-share__text"
@@ -79,5 +91,5 @@ const { headingId, placeholder, title } = Astro.props;
 
 <button type="button" class="result-bar" data-result-bar hidden>
   <span class="result-bar__text" data-result-bar-text></span>{' '}
-  <span class="result-bar__action">К результату</span>
+  <span class="result-bar__action">К&nbsp;результату</span>
 </button>

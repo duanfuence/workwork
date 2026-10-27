@@ -3,6 +3,7 @@ import { navLinks } from '../config/navigation';
 import { site } from '../config/site';
 import { calculators } from '../data/calculators';
 import { getAvailableCalculators } from '../lib/catalog';
+import { typograph } from '../lib/format';
 
 const available = getAvailableCalculators(calculators);
 
@@ -13,10 +14,10 @@ const year = new Date().getFullYear();
   <div class="container site-footer__inner">
     <div class="site-footer__about">
       <p class="site-footer__name">{site.name}</p>
-      <p class="site-footer__text">{site.tagline}.</p>
+      <p class="site-footer__text">{typograph(site.tagline)}.</p>
       <p class="site-footer__text">
-        Результаты расчётов ориентировочные: точный расход зависит от материала и условий работы.
-        Сверяйтесь с рекомендациями производителя.
+        Результаты расчётов ориентировочные: точный расход зависит от&nbsp;материала и&nbsp;условий
+        работы. Сверяйтесь с&nbsp;рекомендациями производителя.
       </p>
     </div>
     <nav class="site-footer__nav" aria-labelledby="footer-calculators-title">
