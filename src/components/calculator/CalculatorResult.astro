@@ -1,4 +1,6 @@
 ---
+import { typograph } from '../../lib/format';
+
 /**
  * Блок результата калькулятора: заголовок и три состояния — до расчёта, ошибки, результат.
  * Содержимое состояния «результат» (числа, строки, пояснения) передаётся через слот.
@@ -35,7 +37,7 @@ const { headingId, placeholder, title } = Astro.props;
   </h2>
 
   <div data-state-panel="empty">
-    <p class="calc-result__placeholder">{placeholder}</p>
+    <p class="calc-result__placeholder">{typograph(placeholder)}</p>
   </div>
 
   <div data-state-panel="invalid" hidden>
@@ -59,7 +61,7 @@ const { headingId, placeholder, title } = Astro.props;
       <p class="calc-share__status" role="status" data-share-status></p>
       <div class="calc-share__manual" data-share-manual hidden>
         <label class="calc-share__label" for={`${headingId}-share-text`}>
-          Буфер обмена недоступен — выделите и скопируйте вручную:
+          Буфер обмена недоступен&nbsp;— выделите и скопируйте вручную:
         </label>
         <textarea
           class="calc-share__text"

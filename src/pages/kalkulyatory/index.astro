@@ -7,7 +7,7 @@ import { categories } from '../../data/categories';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { catalogCrumbs } from '../../lib/breadcrumbs';
 import { getAvailableCalculators, getCatalogSections } from '../../lib/catalog';
-import { listRu } from '../../lib/format';
+import { listRu, typograph } from '../../lib/format';
 import { calculatorWordForms, pluralizeRu } from '../../lib/plural';
 
 // Всё — из каталога: разделы и карточки только с опубликованными калькуляторами.
@@ -15,6 +15,11 @@ const sections = getCatalogSections(calculators, categories);
 const available = getAvailableCalculators(calculators);
 const materials = listRu(available.map((entry) => entry.shortTitle.toLowerCase()));
 const count = `${available.length} ${pluralizeRu(available.length, calculatorWordForms)}`;
+
+const lead = typograph(
+  `${count} для ремонта и отделки: ${materials}. Укажите размеры помещения и материала — ` +
+    'калькулятор посчитает, сколько купить, и покажет формулу, по которой получен результат.',
+);
 
 const title = 'Строительные калькуляторы онлайн для ремонта и отделки';
 // description — до 160 символов (SEO_STRATEGY.md); когда перечень не помещается, — без него.
@@ -34,10 +39,7 @@ const description =
         {`Каталог · ${available.length} ${pluralizeRu(available.length, ['лист', 'листа', 'листов'])}`}
       </p>
       <h1 class="catalog-intro__title">Строительные калькуляторы онлайн</h1>
-      <p class="catalog-intro__lead">
-        {count} для ремонта и отделки: {materials}. Укажите размеры помещения и материала —
-        калькулятор посчитает, сколько купить, и покажет формулу, по которой получен результат.
-      </p>
+      <p class="catalog-intro__lead">{lead}</p>
       <CatalogSearch listId="catalog-groups" sectionId="catalog-groups" />
     </header>
 
@@ -54,7 +56,7 @@ const description =
             <h2 class="section-title" id={`${section.category.id}-title`}>
               {section.category.title}
             </h2>
-            <p class="section-lead">{section.category.description}</p>
+            <p class="section-lead">{typograph(section.category.description)}</p>
           </div>
           <ul class="card-grid">
             {section.entries.map((entry) => (
@@ -72,7 +74,7 @@ const description =
 
 <style>
   .catalog-page {
-    padding-block: var(--space-6) var(--space-12);
+    padding-block: var(--space-6) var(--space-8);
   }
 
   .catalog-intro {

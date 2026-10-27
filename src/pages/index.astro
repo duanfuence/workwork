@@ -7,6 +7,7 @@ import { site } from '../config/site';
 import { calculators } from '../data/calculators';
 import { categories } from '../data/categories';
 import { getCatalogSections, getPopularCalculators, isAvailable } from '../lib/catalog';
+import { typograph } from '../lib/format';
 import BaseLayout from '../layouts/BaseLayout.astro';
 
 // Только опубликованные: на сайте не обещаем будущие калькуляторы.
@@ -23,7 +24,8 @@ const sections = getCatalogSections(calculators, categories);
         {site.name} — калькуляторы для ремонта и строительства
       </h1>
       <p class="hero__lead">
-        Сколько материалов купить на комнату — и из чего складывается каждая цифра.
+        Сколько материалов купить на&nbsp;комнату&nbsp;— и&nbsp;из&nbsp;чего складывается каждая
+        цифра.
       </p>
       <CatalogSearch listId="catalog-list" sectionId="catalog" />
     </div>
@@ -79,16 +81,18 @@ const sections = getCatalogSections(calculators, categories);
     <div class="container about">
       <div class="section-header">
         <h2 class="section-title" id="about-title">
-          О сервисе
+          О&nbsp;сервисе
         </h2>
         <p class="section-lead">
-          {site.name} — русскоязычный сервис расчётов для домашнего ремонта и строительства.
+          {typograph(
+            `${site.name} — русскоязычный сервис расчётов для домашнего ремонта и строительства.`,
+          )}
         </p>
       </div>
       <ul class="principles">
         <li>
-          <h3>Бесплатно и без регистрации</h3>
-          <p>Расчёты доступны сразу — без аккаунта и оплаты.</p>
+          <h3>Бесплатно и&nbsp;без регистрации</h3>
+          <p>Расчёты доступны сразу&nbsp;— без аккаунта и оплаты.</p>
         </li>
         <li>
           <h3>Понятные формулы</h3>
@@ -98,7 +102,7 @@ const sections = getCatalogSections(calculators, categories);
           </p>
         </li>
         <li>
-          <h3>Удобно с телефона</h3>
+          <h3>Удобно с&nbsp;телефона</h3>
           <p>Сайт рассчитан на работу прямо в магазине стройматериалов или на объекте.</p>
         </li>
       </ul>
@@ -146,7 +150,7 @@ const sections = getCatalogSections(calculators, categories);
 
   .section--muted {
     background: var(--color-surface);
-    border-block: var(--border);
+    border-top: var(--border);
   }
 
   .catalog-more {

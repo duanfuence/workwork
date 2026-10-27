@@ -7,6 +7,7 @@ import { catalogPath } from '../config/navigation';
 import { calculators } from '../data/calculators';
 import type { CalculatorEntry } from '../data/catalog.types';
 import { getRelatedCalculators } from '../lib/catalog';
+import { typograph } from '../lib/format';
 
 interface Props {
   current: CalculatorEntry;
@@ -26,7 +27,7 @@ const related = getRelatedCalculators(calculators, current);
         <li>
           <a class="related__link" href={entry.path}>
             <span class="related__name">{entry.title}</span>
-            <span class="related__text">{entry.description}</span>
+            <span class="related__text">{typograph(entry.description)}</span>
           </a>
         </li>
       ))}

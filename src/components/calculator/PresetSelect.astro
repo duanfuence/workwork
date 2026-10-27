@@ -5,6 +5,7 @@
  */
 import {
   presetRange,
+  presetTypicalRange,
   presetsFor,
   presetUnits,
   type MaterialPreset,
@@ -52,5 +53,6 @@ const options = [
   value={customChoice}
   options={options}
   presetFor={`${idPrefix}-${field}`}
+  typical={JSON.stringify(presetTypicalRange(calculator))}
   hint="Ориентир по данным производителей — подставится в поле расхода; точное значение — на упаковке."
 />

@@ -10,6 +10,7 @@ import {
   presetUnits,
   type PresetCalculator,
 } from '../../data/material-presets';
+import { typograph } from '../../lib/format';
 import { presetFieldText } from '../../lib/presets';
 
 interface Props {
@@ -33,7 +34,7 @@ const intro =
 
 <section aria-labelledby="presets-title">
   <h2 id="presets-title">Ориентиры, если упаковки ещё нет</h2>
-  <p>{intro}</p>
+  <p>{typograph(intro)}</p>
   <div class="preset-table">
     <table>
       <caption class="preset-table__caption">{caption}</caption>
@@ -67,7 +68,9 @@ const intro =
     {presets.map((preset) => (
       <li>
         <strong>{`${preset.label}.`}</strong>
-        {` ${preset.note} По данным: ${preset.sources.map((source) => source.name).join(', ')}.`}
+        {typograph(
+          ` ${preset.note} По данным: ${preset.sources.map((source) => source.name).join(', ')}.`,
+        )}
       </li>
     ))}
   </ul>

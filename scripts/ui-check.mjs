@@ -1352,7 +1352,7 @@ async function checkDesign(browser, viewport) {
     );
     const total = sizes.reduce((sum, size) => sum + size, 0);
     check(
-      total <= 150 * 1024 && files.length === 10,
+      total <= 150 * 1024 && files.length === 15,
       `${label}: шрифты — ${files.length} файлов, ${(total / 1024).toFixed(1)} КБ (≤ 150 КБ)`,
     );
     const licenses = (await readdir(dir)).filter((file) => file.startsWith('OFL-'));
@@ -1546,6 +1546,183 @@ async function checkSpec(browser, viewport) {
   );
   await denied.context.close();
   check(errors.length === 0, `${label}: нет ошибок в консоли (${errors.join(' | ') || '0'})`);
+}
+
+/**
+ * Русская типографика (правки после просмотра): ни одна строка текста не начинается с «—», «%», «₽» или единицы
+ * измерения. Перенос определяется по координатам символов: символ на новой строке того же блока.
+ */
+async function lineStartViolations(page) {
+  return page.evaluate(() => {
+    const units = /^(—|%|₽|(м²|м³|мм|см|км|м|мл|л|кг|шт)(?![а-яёa-z]))/i;
+    const blockOf = (element) => {
+      let node = element;
+      while (node && getComputedStyle(node).display.startsWith('inline')) node = node.parentElement;
+      return node;
+    };
+    const range = document.createRange();
+    const found = [];
+    let previous = null;
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const parent = node.parentElement;
+      if (!parent || parent.closest('script, style, noscript, svg, .visually-hidden, [hidden]'))
+        continue;
+      if (parent.getClientRects().length === 0) continue;
+      const block = blockOf(parent);
+      const text = node.textContent ?? '';
+      // Достаточно первого символа каждого слова: перенос строки бывает только перед словом.
+      for (let index = 0; index < text.length; index += 1) {
+        // Разделители слов — только обычные пробелы: неразрывный пробел строку не разрывает.
+        if (/[ \t\n\r\f]/.test(text[index] ?? '')) continue;
+        if (index > 0 && !/[ \t\n\r\f]/.test(text[index - 1] ?? '')) continue;
+        range.setStart(node, index);
+        range.setEnd(node, index + 1);
+        const rect = range.getClientRects()[0];
+        if (!rect) continue;
+        if (previous && previous.block === block && rect.top > previous.top + 2) {
+          const start = text.slice(index, index + 4);
+          if (units.test(start)) {
+            const context = `${(previous.text ?? '').slice(-12)}⏎${text.slice(index, index + 16)}`;
+            found.push(context.replace(/\s+/g, ' '));
+          }
+        }
+        previous = { block, top: rect.top, text: text.slice(0, index + 1) };
+      }
+    }
+    return found;
+  });
+}
+
+async function checkTypography(browser, viewport) {
+  const label = `типографика ${viewport.name}`;
+  const errors = [];
+  const { context, page } = await freshPage(browser, viewport, errors);
+  const pages = ['/', catalogPath, ...calculatorPaths, '/nesushchestvuyushchaya/'];
+  for (const target of pages) {
+    await page.goto(baseUrl + target, { waitUntil: 'networkidle' });
+    const found = await lineStartViolations(page);
+    check(
+      found.length === 0,
+      `${label}: ${target} — нет строк, начинающихся с «—», «%» или единицы ${found.slice(0, 5).join(' | ')}`,
+    );
+  }
+  // Результат краски — динамические строки (формула, пояснения): К покупке, «Как получилось», формула.
+  await page.goto(baseUrl + paintPath, { waitUntil: 'networkidle' });
+  for (const [name, value] of Object.entries({
+    roomLength: '4',
+    roomWidth: '3',
+    wallHeight: '2,7',
+    openingsArea: '3,9',
+    coverage: '1',
+    canVolume: '2,7',
+  }))
+    await page.fill(`form [name="${name}"]`, value);
+  await page.selectOption('form [name="ceiling"]', 'yes');
+  await page.locator('form button[type="submit"]').click();
+  await page.waitForTimeout(200);
+  const found = await lineStartViolations(page);
+  check(
+    found.length === 0,
+    `${label}: результат краски — нет строк, начинающихся с «—», «%» или единицы ${found.slice(0, 5).join(' | ')}`,
+  );
+
+  // Предупреждение о нетипичном значении: укрывистость 1 м²/л — у поля и в результате, расчёт выполнен.
+  const warning = await page.evaluate(() => {
+    const input = document.querySelector('form [name="coverage"]');
+    const field = document.querySelector('[data-warning-for="coverage"]');
+    const inResult = document.querySelector('.calc-result__warning');
+    return {
+      state: document.querySelector('[data-calculator-result]')?.getAttribute('data-state'),
+      field: field && !field.hidden ? (field.textContent ?? '').replace(/\s+/g, ' ') : '',
+      result: inResult && !inResult.hidden ? (inResult.textContent ?? '').replace(/\s+/g, ' ') : '',
+      described: (input?.getAttribute('aria-describedby') ?? '')
+        .split(' ')
+        .includes(field?.id ?? '-'),
+      live: Boolean(
+        field?.closest('[role="status"], [aria-live]') || inResult?.closest('[aria-live]'),
+      ),
+      invalid: input?.getAttribute('aria-invalid') === 'true',
+    };
+  });
+  const expectedWarning = 'Обычно 7–14 м²/л — проверьте этикетку.';
+  check(
+    warning.state === 'ready' &&
+      warning.field === expectedWarning &&
+      warning.result === expectedWarning &&
+      warning.described &&
+      !warning.live &&
+      !warning.invalid,
+    `${label}: укрывистость 1 м²/л — расчёт выполнен, у поля и в результате «${warning.field}», в описании поля, не live-регион, не ошибка`,
+  );
+  // Ошибка поля важнее предупреждения: при укрывистости 0 — только текст ошибки.
+  await page.fill('form [name="coverage"]', '0');
+  await page.waitForTimeout(150);
+  check(
+    (await page.locator('form [name="coverage"]').getAttribute('aria-invalid')) === 'true' &&
+      !(await page.locator('[data-warning-for="coverage"]').isVisible()),
+    `${label}: укрывистость 0 — ошибка поля без предупреждения`,
+  );
+  await page.fill('form [name="coverage"]', '8');
+  await page.waitForTimeout(150);
+  check(
+    !(await page.locator('[data-warning-for="coverage"]').isVisible()) &&
+      !(await page.locator('.calc-result__warning').isVisible()),
+    `${label}: укрывистость 8 м²/л — предупреждения нет`,
+  );
+
+  // Крупное число: запятая — в отдельном поджатом span, текст числа не меняется; у целых чисел span нет.
+  const decimals = async () =>
+    page.evaluate(() => {
+      const number = document.querySelector('.calc-result__number');
+      const separator = number?.querySelector('.calc-result__decimal');
+      return {
+        text: (number?.textContent ?? '').replace(/\s+/g, ' '),
+        margin: separator ? parseFloat(getComputedStyle(separator).marginLeft) : 0,
+        separators: number?.querySelectorAll('.calc-result__decimal').length ?? 0,
+      };
+    });
+  const tight = await decimals();
+  // 37,8 − 3,9 + 12 = 45,9 м²; 45,9 × 2 ÷ 8 = 11,475 л; с запасом 10 % — 12,6225 → 12,7 л.
+  check(
+    tight.text === '12,7' && tight.separators === 1 && tight.margin < 0,
+    `${label}: «${tight.text}» — запятая поджата (отступ ${tight.margin.toFixed(1)} px)`,
+  );
+  // 6 × 5 × 3 м: 2 × 11 × 3 = 66 м²; 2 слоя по 1 м²/л — 132 л, с запасом 10 % — 145,2 л.
+  for (const [name, value] of Object.entries({
+    roomLength: '6',
+    roomWidth: '5',
+    wallHeight: '3',
+    openingsArea: '',
+    coverage: '1',
+  }))
+    await page.fill(`form [name="${name}"]`, value);
+  await page.selectOption('form [name="ceiling"]', 'no');
+  await page.waitForTimeout(150);
+  const large = await decimals();
+  check(
+    large.text === '145,2' && large.separators === 1,
+    `${label}: «${large.text}» — запятая в отдельном span`,
+  );
+  if (viewport.name === '390') {
+    await page.locator('[data-calculator-result]').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: path.join(outDir, `decimal-145-${viewport.name}.png`) });
+  }
+  await page.fill('form [name="coverage"]', '6');
+  await page.waitForTimeout(150);
+  const whole = await decimals();
+  // 66 × 2 ÷ 6 = 22 л; с запасом 10 % — 24,2 л → для целого: запас 0.
+  await page.fill('form [name="reserve"]', '0');
+  await page.waitForTimeout(150);
+  const integer = await decimals();
+  check(
+    whole.text === '24,2' && integer.text === '22' && integer.separators === 0,
+    `${label}: целое «${integer.text}» — без отдельного span, «${whole.text}» — с ним`,
+  );
+  await context.close();
+  // Ответ 404 у страницы «не найдено» браузер сам пишет в консоль — это ожидаемо.
+  const real = errors.filter((message) => !message.includes('status of 404'));
+  check(real.length === 0, `${label}: нет ошибок в консоли (${real.join(' | ') || '0'})`);
 }
 
 async function checkLinks(page, label) {
@@ -2650,6 +2827,8 @@ try {
     if (fullCheckViewports.has(viewport.name)) await checkForcedColors(browser, viewport);
     if (viewport.name !== '768') await checkDesign(browser, viewport);
     if (viewport.name !== '768') await checkSpec(browser, viewport);
+    if (viewport.name === '320' || viewport.name === '390')
+      await checkTypography(browser, viewport);
     check(
       consoleErrors.length === 0,
       `${viewport.name}: нет ошибок в консоли (${consoleErrors.join(' | ') || '0'})`,

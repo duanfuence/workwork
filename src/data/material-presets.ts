@@ -9,6 +9,8 @@
  * Формулы калькуляторов не меняются: ориентир только подставляет число в поле, поле остаётся главным.
  */
 
+import type { TypicalRange } from '../lib/typical-value';
+
 export type PresetCalculator = 'paint' | 'plaster' | 'putty';
 
 /** Когда проверены значения по источникам (docs/research/MATERIAL_PRESETS.md). */
@@ -151,5 +153,22 @@ export function presetRange(preset: MaterialPreset): { min: number; max: number 
   return {
     min: Math.min(...preset.sources.map((source) => source.min)),
     max: Math.max(...preset.sources.map((source) => source.max)),
+  };
+}
+
+/**
+ * Типичный разброс для предупреждения о нетипичном значении (`typicalWarning`): от наименьшей нижней до наибольшей
+ * верхней границы всех проверенных марок калькулятора; насколько можно выйти за него без предупреждения; где
+ * проверить значение. У шпаклёвки верхней границы нет: поле — расход на слой, а слой бывает толще 1 мм.
+ */
+export function presetTypicalRange(calculator: PresetCalculator): TypicalRange {
+  const ranges = presetsFor(calculator).map(presetRange);
+  return {
+    min: Math.min(...ranges.map((range) => range.min)),
+    max: Math.max(...ranges.map((range) => range.max)),
+    unit: presetUnits[calculator],
+    lowFactor: 1.5,
+    highFactor: calculator === 'putty' ? null : 1.5,
+    where: calculator === 'paint' ? 'этикетку' : 'упаковку',
   };
 }

@@ -1,6 +1,7 @@
 ---
 import type { CalculatorEntry } from '../data/catalog.types';
 import { getCalculatorHref, sheetNumber, statusLabels } from '../lib/catalog';
+import { typograph } from '../lib/format';
 import { buildSearchIndex } from '../lib/search';
 import MaterialIcon from './MaterialIcon.astro';
 
@@ -33,7 +34,7 @@ const status = statusLabels[entry.status];
         entry.title
       )}
     </h3>
-    <p class="calc-card__text">{entry.description}</p>
+    <p class="calc-card__text">{typograph(entry.description)}</p>
     {href && (
       <span class="stamp calc-card__action" aria-hidden="true">
         Рассчитать →

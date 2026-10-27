@@ -8,11 +8,11 @@ const pathname = Astro.url.pathname;
 <header class="site-header">
   <div class="container site-header__inner">
     <a class="logo" href="/" aria-label={`${site.name} — на главную`}>
-      <!-- Квадрат-рамка листа, план дома и оранжевый проём двери с дугой открывания. -->
+      <!-- Квадрат-рамка листа, контур дома и оранжевая дверь: различимо и в 16 px (favicon), и в 30 px. -->
       <svg class="logo__mark" viewBox="0 0 32 32" width="30" height="30" aria-hidden="true">
-        <rect class="logo__frame" x="1" y="1" width="30" height="30" rx="2"></rect>
-        <path class="logo__walls" d="M12 23H8V9h16v14h-6"></path>
-        <path class="logo__door" d="M12 23v-6a6 6 0 0 1 6 6"></path>
+        <rect class="logo__frame" x="1.5" y="1.5" width="29" height="29" rx="2"></rect>
+        <path class="logo__walls" d="M7 15.5 16 7.5l9 8V25H7z"></path>
+        <rect class="logo__door" x="13.5" y="17.5" width="5" height="7.5"></rect>
       </svg>
       <span class="logo__text">{site.name}</span>
     </a>
@@ -113,20 +113,18 @@ const pathname = Astro.url.pathname;
   .logo__frame {
     fill: var(--color-surface);
     stroke: var(--color-accent);
-    stroke-width: 2;
+    stroke-width: 3;
   }
 
   .logo__walls {
     fill: none;
     stroke: var(--color-text);
-    stroke-width: 2;
+    stroke-width: 3;
     stroke-linejoin: miter;
   }
 
   .logo__door {
-    fill: none;
-    stroke: var(--color-dimension);
-    stroke-width: 2;
+    fill: var(--color-dimension);
   }
 
   .nav-toggle {
@@ -138,11 +136,8 @@ const pathname = Astro.url.pathname;
     background: var(--color-surface);
     border: var(--border-ink);
     border-radius: var(--radius-md);
-    font-family: var(--font-mono);
-    font-size: var(--font-size-stamp);
-    font-weight: var(--font-weight-mono);
-    letter-spacing: var(--letter-spacing-stamp);
-    text-transform: uppercase;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-medium);
     cursor: pointer;
     transition: background-color var(--transition-fast);
   }
@@ -217,12 +212,10 @@ const pathname = Astro.url.pathname;
     min-height: var(--tap-target-min);
     padding: 0 var(--space-3);
     border-radius: var(--radius-md);
+    /* Меню — обычный текст Onest 16 px; моноширинные прописные — только для штампов и подписей. */
     color: var(--color-text-secondary);
-    font-family: var(--font-mono);
-    font-size: var(--font-size-stamp);
-    font-weight: var(--font-weight-mono);
-    letter-spacing: var(--letter-spacing-stamp);
-    text-transform: uppercase;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-regular);
     text-decoration: none;
     transition:
       background-color var(--transition-fast),
@@ -237,7 +230,7 @@ const pathname = Astro.url.pathname;
   /* Текущий раздел: цвет акцента и подчёркивание — не только цветом. */
   .site-nav__link[aria-current='page'] {
     color: var(--color-accent);
-    font-weight: var(--font-weight-mono-bold);
+    font-weight: var(--font-weight-semibold);
     text-decoration: underline;
     text-decoration-thickness: 2px;
     text-underline-offset: 0.35em;

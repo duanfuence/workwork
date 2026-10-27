@@ -1,6 +1,7 @@
 /*
  * Шрифты сайта — свои файлы из public/fonts (D-029), не Google Fonts: адрес посетителя не уходит третьей стороне.
- * Onest 400/600/800 и JetBrains Mono 500/700, подмножества «кириллица» и «латиница» (цифры и знаки — в латинице).
+ * Onest 400/600/800 и JetBrains Mono 500/700, подмножества «кириллица» и «латиница» (цифры и знаки — в латинице)
+ * и знак «₽».
  * Лицензия SIL OFL 1.1 — public/fonts/OFL-*.txt. font-display: swap — текст виден сразу.
  *
  * Запасные начертания «… Fallback» — системные шрифты с подогнанными метриками: пока файлы грузятся, строки
@@ -109,6 +110,55 @@
   unicode-range:
     U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
     U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/*
+ * Знак рубля «₽» — отдельные файлы только с этим знаком (~650 байт каждый, вырезаны fontTools из подмножества
+ * latin-ext): полный latin-ext — ещё 53 КБ, сверх бюджета. Грузятся, только когда на странице есть «₽».
+ */
+@font-face {
+  font-family: 'Onest';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/onest-rub-400-normal.woff2') format('woff2');
+  unicode-range: U+20BD;
+}
+
+@font-face {
+  font-family: 'Onest';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/onest-rub-600-normal.woff2') format('woff2');
+  unicode-range: U+20BD;
+}
+
+@font-face {
+  font-family: 'Onest';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url('/fonts/onest-rub-800-normal.woff2') format('woff2');
+  unicode-range: U+20BD;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/jetbrains-mono-rub-500-normal.woff2') format('woff2');
+  unicode-range: U+20BD;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/jetbrains-mono-rub-700-normal.woff2') format('woff2');
+  unicode-range: U+20BD;
 }
 
 /* Запасные начертания с метриками Onest и JetBrains Mono */

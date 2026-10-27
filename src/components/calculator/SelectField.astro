@@ -1,4 +1,6 @@
 ---
+import { typograph } from '../../lib/format';
+
 interface Option {
   value: string;
   label: string;
@@ -21,6 +23,8 @@ interface Props {
    * не участвует в расчёте и не бывает ошибочным: без aria-required и места для ошибки.
    */
   presetFor?: string;
+  /** Для выбора ориентира: разброс марок для предупреждения о нетипичном значении (JSON `TypicalRange`). */
+  typical?: string;
   /**
    * Поле одного режима формы: `"mode=room"` — видно, пока в выборе `mode` значение `room`
    * (src/client/calculator-form.ts). Скрытое поле не разбирается и не проверяется.
@@ -38,6 +42,7 @@ const {
   value,
   hint,
   presetFor,
+  typical,
   showWhen,
   hidden = false,
 } = Astro.props;
@@ -49,7 +54,7 @@ const describedBy = [hint ? hintId : null, presetFor ? null : errorId].filter(Bo
 
 <div class="field" data-show-when={showWhen} hidden={hidden}>
   <label class="field__label" for={id}>
-    {label}
+    {typograph(label)}
   </label>
   <div class="field__body">
     <div class="field__control">
@@ -61,6 +66,7 @@ const describedBy = [hint ? hintId : null, presetFor ? null : errorId].filter(Bo
         aria-required={presetFor ? undefined : 'true'}
         aria-controls={presetFor}
         data-preset-for={presetFor}
+        data-typical={typical}
         data-label={label}
       >
         {options.map((option) => (
@@ -70,14 +76,14 @@ const describedBy = [hint ? hintId : null, presetFor ? null : errorId].filter(Bo
             data-field-value={option.fieldValue}
             data-note={option.note}
           >
-            {option.label}
+            {typograph(option.label)}
           </option>
         ))}
       </select>
     </div>
     {hint && (
       <p class="field__hint" id={hintId}>
-        {hint}
+        {typograph(hint)}
       </p>
     )}
     {!presetFor && <p class="field__error" id={errorId} data-error-for={name} hidden></p>}

@@ -4,7 +4,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--space-5);
-  padding-top: var(--space-4);
+  padding-block: var(--space-4);
 }
 
 /* Шапка калькулятора: штамп листа, H1, лид в 2–3 строки — форма на первом экране телефона. */
@@ -237,6 +237,11 @@
   letter-spacing: -0.03em;
   color: var(--color-text);
   font-variant-numeric: tabular-nums;
+}
+
+/* Десятичная запятая в крупном моноширинном числе: клетка шрифта 0,6 em, сама запятая ~0,2 em — поджимаем. */
+.calc-result__decimal {
+  margin-inline: -0.18em;
 }
 
 .calc-result__unit {
@@ -686,4 +691,14 @@
   font: inherit;
   font-size: var(--font-size-sm);
   resize: vertical;
+}
+
+/* Предупреждение о нетипичном значении в спецификации: не ошибка — расчёт выполнен, но значение стоит проверить. */
+.calc-result__warning {
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-badge-soon-bg);
+  border-left: 2px solid var(--color-dimension);
+  color: var(--color-badge-soon-text);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
 }

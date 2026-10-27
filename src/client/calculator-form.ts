@@ -22,6 +22,7 @@
  *   `[data-result-bar]` (на экране уже 960 px, когда итог не виден) и для объявления диктору
  *   `[data-result-announce]` (по «Рассчитать» и после паузы ввода, D-024). Оба элемента даёт CalculatorResult.
  */
+import { typograph } from '../lib/format';
 import type { Calculation, FieldErrors } from '../lib/form';
 import {
   activeChoice,
@@ -58,6 +59,7 @@ import {
   type ShareControl,
   type ShareValue,
 } from '../lib/share-link';
+import { parseTypicalRange, typicalWarning } from '../lib/typical-value';
 
 type State = ResultState;
 
@@ -129,15 +131,45 @@ export function initCalculatorForm<F extends string, R>({
         .filter((option) => option.dataset['fieldValue'] !== undefined)
         .map((option) => ({ id: option.value, fieldText: option.dataset['fieldValue'] ?? '' }));
       const note = result.querySelector<HTMLElement>(`[data-preset-note="${input.name}"]`);
-      return [{ select, input, choices, note }];
+      // Предупреждение о нетипичном значении: у поля (в его описании) и в результате — после пометки ориентира.
+      const typical = parseTypicalRange(select.dataset['typical']);
+      const fieldWarning = form.querySelector<HTMLElement>(`[data-warning-for="${input.name}"]`);
+      let resultWarning: HTMLElement | null = null;
+      if (typical && note) {
+        resultWarning = document.createElement('p');
+        resultWarning.className = 'calc-result__warning';
+        resultWarning.hidden = true;
+        note.after(resultWarning);
+      }
+      return [{ select, input, choices, note, typical, fieldWarning, resultWarning }];
     },
   );
+
+  // Текст предупреждений для диктора: дописывается к объявлению итога (по «Рассчитать» и после паузы ввода).
+  // У поля с ошибкой предупреждения нет — достаточно текста ошибки.
+  let warningsText = '';
+  const showWarnings = (visible: boolean, invalid: ReadonlySet<string> = new Set()) => {
+    const texts: string[] = [];
+    for (const { input, typical, fieldWarning, resultWarning } of presets) {
+      const text =
+        visible && typical && !invalid.has(input.name)
+          ? typicalWarning(typical, input.value)
+          : null;
+      if (text) texts.push(typograph(text));
+      for (const element of [fieldWarning, resultWarning]) {
+        if (!element) continue;
+        element.textContent = text ? typograph(text) : '';
+        element.hidden = !text;
+      }
+    }
+    warningsText = texts.join(' ');
+  };
 
   const showPresetNotes = () => {
     for (const { select, input, choices, note } of presets) {
       if (!note) continue;
       const active = activeChoice(choices, select.value, input.value);
-      note.textContent = active ? (select.selectedOptions[0]?.dataset['note'] ?? '') : '';
+      note.textContent = active ? typograph(select.selectedOptions[0]?.dataset['note'] ?? '') : '';
       note.hidden = !active;
     }
   };
@@ -200,10 +232,25 @@ export function initCalculatorForm<F extends string, R>({
     roomFilled = {};
   };
 
+  // Крупное моноширинное число «К покупке»: запятая занимает целую клетку и читается как «145 , 2» —
+  // разделитель — в отдельном span, поджатом отрицательными отступами (calculator.css). Текст числа не меняется.
+  const tightenDecimals = () => {
+    for (const number of result.querySelectorAll<HTMLElement>('.calc-result__number')) {
+      const text = number.textContent;
+      const comma = text.indexOf(',');
+      if (comma < 0) continue;
+      const separator = document.createElement('span');
+      separator.className = 'calc-result__decimal';
+      separator.textContent = ',';
+      number.replaceChildren(text.slice(0, comma), separator, text.slice(comma + 1));
+    }
+  };
+
   const view: ResultView = {
     text(name, value) {
       const element = result.querySelector<HTMLElement>(`[data-out="${name}"]`);
-      if (element) element.textContent = value;
+      // Русская типографика: «10 %», «2,7 л», «— 101 л» не разрываются переносом строки.
+      if (element) element.textContent = typograph(value);
     },
     show(row, visible) {
       for (const element of result.querySelectorAll<HTMLElement>(`[data-row="${row}"]`)) {
@@ -215,17 +262,17 @@ export function initCalculatorForm<F extends string, R>({
       element?.replaceChildren(
         ...items.map((text) => {
           const item = document.createElement('li');
-          item.textContent = text;
+          item.textContent = typograph(text);
           return item;
         }),
       );
     },
     summary(text) {
-      summaryText = text;
+      summaryText = typograph(text);
     },
     report(params, purchase) {
-      reportParams = params;
-      reportPurchase = purchase;
+      reportParams = params.map(typograph);
+      reportPurchase = typograph(purchase);
     },
   };
 
@@ -242,10 +289,12 @@ export function initCalculatorForm<F extends string, R>({
     announcer.textContent = '';
     if (text !== '') announceTimer = window.setTimeout(() => (announcer.textContent = text), 50);
   };
+  const withWarnings = (text: string) =>
+    text !== '' && warningsText !== '' ? `${text}. ${warningsText}` : text;
   const announceAfterPause = () => {
     window.clearTimeout(announceTimer);
     announceTimer = window.setTimeout(() => {
-      const text = resultAnnouncement(state, summaryText);
+      const text = withWarnings(resultAnnouncement(state, summaryText));
       if (text !== announced) announce(text);
     }, announceDelayMs);
   };
@@ -384,7 +433,7 @@ export function initCalculatorForm<F extends string, R>({
         else input.removeAttribute('aria-invalid');
       }
       if (errorElement) {
-        errorElement.textContent = message ?? '';
+        errorElement.textContent = typograph(message ?? '');
         errorElement.hidden = !message;
       }
     }
@@ -396,7 +445,9 @@ export function initCalculatorForm<F extends string, R>({
           const item = document.createElement('li');
           const link = document.createElement('a');
           link.href = `#${input?.id ?? ''}`;
-          link.textContent = `${input?.dataset['label'] ?? field}: ${errors[field] ?? ''}`;
+          link.textContent = typograph(
+            `${input?.dataset['label'] ?? field}: ${errors[field] ?? ''}`,
+          );
           link.addEventListener('click', (event) => {
             event.preventDefault();
             if (input) focusField(input);
@@ -409,12 +460,14 @@ export function initCalculatorForm<F extends string, R>({
 
   const update = (moveFocus: boolean) => {
     const calculation = evaluate(readValues());
+    showWarnings(true, new Set(calculation.ok ? [] : Object.keys(calculation.errors)));
     if (calculation.ok) {
       showErrors({});
       summaryText = '';
       reportParams = [];
       reportPurchase = '';
       render(calculation.result, view);
+      tightenDecimals();
       // Страница без view.summary — в панели текст главного итога.
       if (summaryText === '')
         summaryText = (mainResult?.textContent ?? '').replace(/\s+/g, ' ').trim();
@@ -455,7 +508,7 @@ export function initCalculatorForm<F extends string, R>({
     event.preventDefault();
     live = true;
     update(true);
-    announce(resultAnnouncement(state, summaryText));
+    announce(withWarnings(resultAnnouncement(state, summaryText)));
   });
 
   form.addEventListener('input', () => {
@@ -471,6 +524,7 @@ export function initCalculatorForm<F extends string, R>({
     // Значения полей сбрасываются после события reset.
     hideRoomNotice();
     hideShareFeedback();
+    showWarnings(false);
     requestAnimationFrame(() => {
       applyVisibility();
       showErrors({});
@@ -511,7 +565,7 @@ export function initCalculatorForm<F extends string, R>({
       if (live) update(false);
     });
     const text = document.createElement('span');
-    text.textContent = `Размеры комнаты подставлены из прошлого расчёта: ${sizes} ·`;
+    text.textContent = typograph(`Размеры комнаты подставлены из прошлого расчёта: ${sizes} ·`);
     notice.append(text, ' ', clear);
     const title = form.querySelector('h2');
     if (title) title.after(notice);

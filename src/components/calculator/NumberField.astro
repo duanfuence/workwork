@@ -1,5 +1,6 @@
 ---
 import { spokenUnit } from '../../lib/units';
+import { typograph } from '../../lib/format';
 
 interface Props {
   /** Имя поля формы. */
@@ -46,12 +47,15 @@ const {
 const id = `${idPrefix}-${name}`;
 const hintId = `${id}-hint`;
 const errorId = `${id}-error`;
-const describedBy = [hint ? hintId : null, errorId].filter(Boolean).join(' ');
+const warningId = `${id}-warning`;
+// Предупреждение о нетипичном значении (у полей с ориентирами) — в описании поля: диктор читает его при фокусе,
+// а не на каждое нажатие (это не live-регион).
+const describedBy = [hint ? hintId : null, errorId, warningId].filter(Boolean).join(' ');
 ---
 
 <div class="field" data-show-when={showWhen} hidden={hidden}>
   <label class="field__label" for={id}>
-    {label}
+    {typograph(label)}
     {unit && <span class="visually-hidden">{` (${spokenUnit(unit)})`}</span>}
   </label>
   <div class="field__body">
@@ -78,10 +82,11 @@ const describedBy = [hint ? hintId : null, errorId].filter(Boolean).join(' ');
     </div>
     {hint && (
       <p class="field__hint" id={hintId}>
-        {hint}
+        {typograph(hint)}
       </p>
     )}
     <p class="field__error" id={errorId} data-error-for={name} hidden></p>
+    <p class="field__warning" id={warningId} data-warning-for={name} hidden></p>
   </div>
 </div>
 
@@ -190,6 +195,19 @@ const describedBy = [hint ? hintId : null, errorId].filter(Boolean).join(' ');
   }
 
   .field__error[hidden] {
+    display: none;
+  }
+
+  /* Мягкое предупреждение «Обычно 7–14 м²/л — проверьте этикетку»: не ошибка, расчёт выполняется. */
+  .field__warning {
+    padding-left: var(--space-2);
+    border-left: 2px solid var(--color-dimension);
+    color: var(--color-dimension-text);
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-snug);
+  }
+
+  .field__warning[hidden] {
     display: none;
   }
 </style>
