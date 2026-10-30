@@ -580,6 +580,28 @@ async function checkPresets(page, viewport) {
           `Ориентир для ${item.note}; у разных марок ${item.range} — сверьте с упаковкой.`,
       `${label}: пометка «Ориентир для ${item.note}; у разных марок ${item.range} — сверьте с упаковкой»`,
     );
+    // Справка — нейтральная (фон листа, рамка, вторичный текст) и стоит после «К покупке», до «Как получилось».
+    const noteLook = await note.evaluate((element) => {
+      const style = getComputedStyle(element);
+      const main = element.parentElement?.querySelector('.calc-result__main');
+      const subtitle = element.parentElement?.querySelector('.calc-result__subtitle');
+      const follows = (a, b) =>
+        Boolean(a && b && a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+      return {
+        background: style.backgroundColor,
+        color: style.color,
+        border: style.borderTopStyle,
+        placed: follows(main, element) && follows(element, subtitle),
+      };
+    });
+    check(
+      noteLook.background === 'rgb(255, 255, 255)' &&
+        noteLook.color === 'rgb(75, 91, 112)' &&
+        noteLook.border === 'solid' &&
+        noteLook.placed &&
+        contrastRatio(noteLook.color, noteLook.background) >= 4.5,
+      `${label}: справка нейтральная (${noteLook.background}, ${noteLook.color}), под «К покупке», перед «Как получилось»`,
+    );
 
     await input.fill(item.manual);
     check(
@@ -651,8 +673,9 @@ async function checkResultBar(page, viewport) {
     `${label}: панель и число — не live-регионы (объявляет [data-result-announce])`,
   );
   // 37,8 м² × 2 слоя ÷ 8 = 9,45 л; с запасом 10 % — 10,395 → 10,4 л; банок по 2,7 л — ⌈3,85⌉ = 4.
+  // «К покупке» — банки (D-031): в панели и для диктора — «4 банки по 2,7 л».
   check(
-    (await announced()) === 'Результат: 10,4 л краски · 4 банки',
+    (await announced()) === 'Результат: 4 банки по 2,7 л',
     `${label}: по «Рассчитать» объявлен итог («${await announced()}»)`,
   );
 
@@ -668,7 +691,7 @@ async function checkResultBar(page, viewport) {
     return;
   }
   check(
-    (await bar.isVisible()) && (await barText()) === '10,4 л краски · 4 банки',
+    (await bar.isVisible()) && (await barText()) === '4 банки по 2,7 л',
     `${label}: после расчёта и прокрутки вверх — панель «${await barText()}»`,
   );
   const size = await bar.evaluate((element) => ({
@@ -681,10 +704,7 @@ async function checkResultBar(page, viewport) {
     size.bar >= 44 && size.action >= 44 && size.bottom === viewport.height,
     `${label}: панель у нижнего края, высота ${size.bar} px, «К результату» ${size.action} px`,
   );
-  check(
-    size.text === '10,4 л краски · 4 банки К результату',
-    `${label}: подпись кнопки «${size.text}»`,
-  );
+  check(size.text === '4 банки по 2,7 л К результату', `${label}: подпись кнопки «${size.text}»`);
   await page.screenshot({ path: path.join(outDir, `result-bar-paint-${viewport.name}.png`) });
   await checkOverflow(page, `${label}, панель видна`);
 
@@ -693,16 +713,16 @@ async function checkResultBar(page, viewport) {
   await page.waitForTimeout(150);
   // 37,8 × 2 ÷ 7 = 10,8 л; с запасом — 11,88 → 11,9 л; банок ⌈4,4⌉ = 5.
   check(
-    (await bar.isVisible()) && (await barText()) === '11,9 л краски · 5 банок',
+    (await bar.isVisible()) && (await barText()) === '5 банок по 2,7 л',
     `${label}: правка укрывистости — в панели «${await barText()}»`,
   );
   check(
-    (await announced()) === 'Результат: 10,4 л краски · 4 банки',
+    (await announced()) === 'Результат: 4 банки по 2,7 л',
     `${label}: во время ввода диктор не объявляет новый итог`,
   );
   await page.waitForTimeout(1100);
   check(
-    (await announced()) === 'Результат: 11,9 л краски · 5 банок',
+    (await announced()) === 'Результат: 5 банок по 2,7 л',
     `${label}: после паузы ввода ~1 с объявлен новый итог`,
   );
 
@@ -1049,7 +1069,7 @@ async function checkShare(browser, viewport) {
   const text = await clipboard();
   const expectedText = [
     'Список покупок · Калькулятор шпаклёвки (ДомРасчёт)',
-    '□ 6 упаковок по 20 кг (120 кг)',
+    '□ 6 упаковок по 20 кг — нужно 111,1 кг',
     '',
     'Исходные данные:',
     '— Площадь 45,9 м² (с потолком)',
@@ -1411,7 +1431,7 @@ async function checkDesign(browser, viewport) {
     );
     const total = sizes.reduce((sum, size) => sum + size, 0);
     check(
-      total <= 150 * 1024 && files.length === 15,
+      total <= 150 * 1024 && files.length === 18,
       `${label}: шрифты — ${files.length} файлов, ${(total / 1024).toFixed(1)} КБ (≤ 150 КБ)`,
     );
     const licenses = (await readdir(dir)).filter((file) => file.startsWith('OFL-'));
@@ -1510,7 +1530,9 @@ async function checkSpec(browser, viewport) {
       numberFont: style(number)?.fontFamily ?? '',
       numberSize: parseFloat(style(number)?.fontSize ?? '0'),
       explain: result?.querySelector('.calc-result__explain')?.textContent?.trim() ?? '',
-      ddFont: style(row?.querySelector('dd'))?.fontFamily ?? '',
+      ddFont: style(row?.querySelector('dd [data-out], dd[data-out]'))?.fontFamily ?? '',
+      unitFont: style(row?.querySelector('dd'))?.fontFamily ?? '',
+      minusLabel: minus?.parentElement?.querySelector('dt')?.textContent?.trim() ?? '',
       leader: style(row)?.backgroundImage ?? '',
       minus: minus?.textContent?.trim() ?? '',
       minusColor: style(minus)?.color ?? '',
@@ -1535,15 +1557,19 @@ async function checkSpec(browser, viewport) {
     `${label}: первым «К покупке» — ${spec.number}, JetBrains Mono ${spec.numberSize} px, «${spec.explain}»`,
   );
   check(
-    spec.ddFont.startsWith('"JetBrains Mono"') && spec.leader.includes('radial-gradient'),
-    `${label}: «Как получилось» — значения моноширинные, точечная выноска`,
+    spec.ddFont.startsWith('"JetBrains Mono"') &&
+      spec.unitFont.startsWith('Onest') &&
+      spec.leader.includes('radial-gradient'),
+    `${label}: «Как получилось» — числа JetBrains Mono, единицы Onest (${spec.unitFont.split(',')[0]}), точечная выноска`,
   );
   check(
     plain(spec.minus) === '2,1 м²' &&
+      plain(spec.minusLabel) === 'Окна и двери' &&
       spec.minusSign.includes('−') &&
+      spec.minusSign.includes('минус') &&
       contrastRatio(spec.minusColor, 'rgb(255, 255, 255)') >= 4.5 &&
       spec.minusColor === 'rgb(181, 64, 14)',
-    `${label}: вычитание «−${spec.minus}» размерным цветом, контраст ${contrastRatio(spec.minusColor, 'rgb(255, 255, 255)').toFixed(2)}:1`,
+    `${label}: «${plain(spec.minusLabel)}» — вычитание «−${spec.minus}» (диктору «минус») размерным цветом, контраст ${contrastRatio(spec.minusColor, 'rgb(255, 255, 255)').toFixed(2)}:1`,
   );
   check(
     spec.buttons.length === 2 &&
@@ -1667,8 +1693,82 @@ async function lineBreakViolations(page) {
   });
 }
 
+/**
+ * Знаки, которых нет в файлах шрифтов сайта: для каждого видимого знака (и содержимого ::before/::after) ищется
+ * начертание его семейства с подходящим весом (как выбирает браузер: 400 → 500, 600 → 700) и с unicode-range,
+ * куда знак входит. Нет такого — знак рисуется запасным шрифтом системы. Диапазоны берутся из document.fonts.
+ */
+async function glyphFallbacks(page) {
+  return page.evaluate(() => {
+    const faces = [...document.fonts].map((face) => ({
+      family: face.family.replace(/['"]/g, ''),
+      weight: Number(face.weight),
+      ranges: face.unicodeRange.split(',').map((part) => {
+        const [from = '0', to] = part.trim().replace(/^U\+/i, '').split('-');
+        return [parseInt(from, 16), parseInt(to ?? from, 16)];
+      }),
+    }));
+    // Вес начертания по правилам CSS Fonts: до 500 — сначала тяжелее до 500, потом легче, потом тяжелее 500;
+    // больше 500 — сначала тяжелее, потом легче.
+    const pickWeight = (family, wanted) => {
+      const weights = [...new Set(faces.filter((f) => f.family === family).map((f) => f.weight))];
+      if (weights.includes(wanted)) return wanted;
+      const heavier = weights.filter((w) => w > wanted).sort((a, b) => a - b);
+      const lighter = weights.filter((w) => w < wanted).sort((a, b) => b - a);
+      if (wanted >= 400 && wanted <= 500) {
+        const upTo500 = heavier.filter((w) => w <= 500);
+        return upTo500[0] ?? lighter[0] ?? heavier[0];
+      }
+      return wanted > 500 ? (heavier[0] ?? lighter[0]) : (lighter[0] ?? heavier[0]);
+    };
+    const found = new Set();
+    const test = (text, style, where) => {
+      const family = style.fontFamily.split(',')[0].replace(/['"]/g, '').trim();
+      if (!faces.some((f) => f.family === family)) return;
+      const weight = pickWeight(family, Number(style.fontWeight));
+      for (const char of text) {
+        const code = char.codePointAt(0) ?? 0;
+        if (code <= 0x20 || code === 0xa0 || code === 0x202f) continue;
+        const ok = faces.some(
+          (f) =>
+            f.family === family &&
+            f.weight === weight &&
+            f.ranges.some(([from, to]) => code >= from && code <= to),
+        );
+        if (!ok)
+          found.add(`${char} U+${code.toString(16).toUpperCase()} ${family} ${weight} (${where})`);
+      }
+    };
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const parent = node.parentElement;
+      if (!parent || parent.closest('script, style, noscript, [hidden]')) continue;
+      if (parent.getClientRects().length === 0) continue;
+      test(
+        node.textContent ?? '',
+        getComputedStyle(parent),
+        (node.textContent ?? '').trim().slice(0, 24),
+      );
+    }
+    for (const element of document.body.querySelectorAll('*')) {
+      if (element.closest('[hidden]') || element.getClientRects().length === 0) continue;
+      for (const pseudo of ['::before', '::after']) {
+        const style = getComputedStyle(element, pseudo);
+        const content = /^"(.*)"/.exec(style.content)?.[1];
+        if (content) test(content, style, `${element.className} ${pseudo}`);
+      }
+    }
+    return [...found];
+  });
+}
+
 /** Проверка переносов на открытой странице: оба правила, первые 5 нарушений — в тексте проверки. */
 async function checkLineBreaks(page, label) {
+  const fallbacks = await glyphFallbacks(page);
+  check(
+    fallbacks.length === 0,
+    `${label} — все знаки есть в шрифтах сайта ${fallbacks.slice(0, 5).join(' | ')}`,
+  );
   const { starts, ends } = await lineBreakViolations(page);
   check(
     starts.length === 0,
@@ -1790,6 +1890,7 @@ async function checkTypography(browser, viewport) {
         field?.closest('[role="status"], [aria-live]') || inResult?.closest('[aria-live]'),
       ),
       invalid: input?.getAttribute('aria-invalid') === 'true',
+      background: inResult ? getComputedStyle(inResult).backgroundColor : '',
     };
   });
   const expectedWarning = 'Обычно 7–14 м²/л — проверьте этикетку.';
@@ -1799,8 +1900,9 @@ async function checkTypography(browser, viewport) {
       warning.result === expectedWarning &&
       warning.described &&
       !warning.live &&
-      !warning.invalid,
-    `${label}: укрывистость 1 м²/л — расчёт выполнен, у поля и в результате «${warning.field}», в описании поля, не live-регион, не ошибка`,
+      !warning.invalid &&
+      warning.background === 'rgb(253, 241, 234)',
+    `${label}: укрывистость 1 м²/л — расчёт выполнен, у поля и в результате «${warning.field}» (оранжевый фон ${warning.background}), в описании поля, не live-регион, не ошибка`,
   );
   // Ошибка поля важнее предупреждения: при укрывистости 0 — только текст ошибки.
   await page.fill('form [name="coverage"]', '0');
@@ -1829,6 +1931,34 @@ async function checkTypography(browser, viewport) {
         separators: number?.querySelectorAll('.calc-result__decimal').length ?? 0,
       };
     });
+  // «К покупке» — банки (D-031): П5 — 45,9 м² × 2 ÷ 8 → 12,7 л с запасом, по 2,7 л — 5 банок; без объёма — литры.
+  const purchase = () =>
+    page.evaluate(() => {
+      const main = document.querySelector('.calc-result__main');
+      const explain = main?.querySelector('.calc-result__explain');
+      return {
+        number: main?.querySelector('.calc-result__number')?.textContent ?? '',
+        unit: main?.querySelector('.calc-result__unit')?.textContent ?? '',
+        explain:
+          explain && !explain.hidden ? (explain.textContent ?? '').replace(/\s+/g, ' ').trim() : '',
+      };
+    });
+  const withCans = await purchase();
+  check(
+    withCans.number === '5' &&
+      plain(withCans.unit) === 'банок по 2,7 л' &&
+      plain(withCans.explain) === 'нужно 12,7 л',
+    `${label}: с объёмом банки — «${withCans.number} ${plain(withCans.unit)}», «${plain(withCans.explain)}»`,
+  );
+  await page.fill('form [name="canVolume"]', '');
+  await page.waitForTimeout(150);
+  const litersOnly = await purchase();
+  check(
+    litersOnly.number === '12,7' &&
+      plain(litersOnly.unit) === 'л краски' &&
+      litersOnly.explain === '',
+    `${label}: без объёма банки — «${litersOnly.number} ${plain(litersOnly.unit)}», строки «нужно» нет`,
+  );
   const tight = await decimals();
   // 37,8 − 3,9 + 12 = 45,9 м²; 45,9 × 2 ÷ 8 = 11,475 л; с запасом 10 % — 12,6225 → 12,7 л.
   check(
@@ -2499,6 +2629,8 @@ async function checkPaint(page, viewport) {
       (await out('litersWithReserve')) === '12,7' &&
       (await out('cans')) === '5' &&
       (await out('litersToBuy')) === '13,5' &&
+      (await out('buyNumber')) === '5' &&
+      plain(await out('buyUnit')) === 'банок по 2,7 л' &&
       (await page.locator('[data-row="ceilingArea"]').isVisible()),
     `${label}: П5 — 45,9 м², 11,5 л, с запасом 12,7 л, 5 банок по 2,7 л`,
   );
@@ -2567,6 +2699,8 @@ async function checkTile(page, viewport) {
       (await out('tilesWord')) === 'плитки' &&
       (await out('packs')) === '20' &&
       (await out('tilesToBuy')) === '160' &&
+      (await out('buyNumber')) === '20' &&
+      plain(await out('buyUnit')) === 'упаковок по 8 шт.' &&
       (await out('grid')) === '5 × 14 × 2' &&
       (await out('area')) === '13,5',
     `${label}: Т3 — 140 плиток, 154 с запасом, 20 упаковок по 8`,
@@ -2658,8 +2792,10 @@ async function checkPlaster(page, viewport) {
       (await out('mass')) === '501,1' &&
       (await out('massWithReserve')) === '551,2' &&
       (await out('bags')) === '23' &&
-      (await out('massToBuy')) === '575',
-    `${label}: Ш2 — 39,3 м², 501,1 кг, с запасом 551,2 кг, 23 мешка (575 кг)`,
+      (await out('massToBuy')) === '575' &&
+      (await out('buyNumber')) === '23' &&
+      plain(await out('buyUnit')) === 'мешка по 25 кг',
+    `${label}: Ш2 — 39,3 м², 501,1 кг, с запасом 551,2 кг; к покупке «23 мешка по 25 кг» (575 кг)`,
   );
   await fill({ openingsArea: '50' });
   check(
@@ -2773,15 +2909,20 @@ async function checkPutty(page, viewport) {
       (await out('mass')) === '86,5' &&
       (await out('massWithReserve')) === '95,2' &&
       (await out('packs')) === '5' &&
-      (await out('massToBuy')) === '100',
-    `${label}: Шп2 — 39,3 м², 86,5 кг, с запасом 95,2 кг, 5 упаковок (100 кг)`,
+      (await out('massToBuy')) === '100' &&
+      (await out('buyNumber')) === '5' &&
+      plain(await out('buyUnit')) === 'упаковок по 20 кг',
+    `${label}: Шп2 — 39,3 м², 86,5 кг, с запасом 95,2 кг; к покупке «5 упаковок по 20 кг» (100 кг)`,
   );
   await fill({ packMass: '' });
   check(
     (await state()) === 'ready' &&
-      (await page.locator('[data-row="packs"]').isHidden()) &&
-      (await out('massWithReserve')) === '95,2',
-    `${label}: без массы упаковки — только килограммы`,
+      (await page
+        .locator('[data-row="packs"]')
+        .evaluateAll((rows) => rows.length === 2 && rows.every((row) => row.hidden))) &&
+      (await out('buyNumber')) === '95,2' &&
+      (await out('buyUnit')) === 'кг шпаклёвки',
+    `${label}: без массы упаковки — «К покупке» в килограммах, строк «нужно» и «Упаковки» нет`,
   );
   await fill({ layers: '1,5' });
   check(

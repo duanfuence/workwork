@@ -76,7 +76,7 @@ export interface ResultView {
   list(name: string, items: readonly string[]): void;
   /** Короткий итог одной строкой — для панели итога и диктора: «11,9 л краски · 3 банки». */
   summary(text: string): void;
-  /** Для «Скопировать итог»: ключевые параметры строками и что купить («5 банок по 2,7 л (13,5 л)»). */
+  /** Для «Скопировать итог»: ключевые параметры строками и что купить («5 банок по 2,7 л — нужно 12,7 л»). */
   report(params: readonly string[], purchase: string): void;
 }
 
@@ -375,16 +375,19 @@ export function initCalculatorForm<F extends string, R>({
       summary: summaryText,
     });
     if (barView.visible) {
-      // Части итога «11,9 л краски · 5 банок» не разрываются: на 320 px перенос только между ними.
+      // Части итога «8 упаковок · 12 000 ₽» не разрываются: на 320 px перенос только между ними. Итог из одной
+      // части («23 мешка по 25 кг») переносится обычно — внутри «23 мешка» и «по 25 кг» неразрывные пробелы.
       const parts = barView.text.split(' · ');
-      barText.replaceChildren(
-        ...parts.flatMap((part, index) => {
-          const span = document.createElement('span');
-          span.className = 'result-bar__part';
-          span.textContent = index < parts.length - 1 ? `${part} ·` : part;
-          return index === 0 ? [span] : [' ', span];
-        }),
-      );
+      if (parts.length === 1) barText.textContent = barView.text;
+      else
+        barText.replaceChildren(
+          ...parts.flatMap((part, index) => {
+            const span = document.createElement('span');
+            span.className = 'result-bar__part';
+            span.textContent = index < parts.length - 1 ? `${part} ·` : part;
+            return index === 0 ? [span] : [' ', span];
+          }),
+        );
       bar.dataset['tone'] = barView.tone;
     }
     bar.hidden = !barView.visible;

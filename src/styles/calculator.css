@@ -364,8 +364,7 @@
 .calc-result__explain {
   flex-basis: 100%;
   color: var(--color-text-secondary);
-  font-family: var(--font-mono);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-md);
 }
 
 .calc-result__explain:empty {
@@ -435,20 +434,31 @@
   padding-left: var(--space-2);
   background: var(--color-surface);
   color: var(--color-text);
+  text-align: right;
+}
+
+/*
+ * Числа в строках результата — JetBrains Mono, единицы («м²», «л», «кг», «шт.») и слова — Onest: в моноширинном
+ * шрифте «м²» занимает две клетки и расползается («м ²»). Неразрывный пробел между числом и единицей — в разметке.
+ */
+.calc-result__list dd[data-out],
+.calc-result__list dd [data-out],
+.calc-result__explain [data-out],
+.calc-result__minus dd::before {
   font-family: var(--font-mono);
   font-weight: var(--font-weight-mono);
-  text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-/* Вычитания (проёмы) — размерным цветом и со знаком минус. */
+/* Вычитания (проёмы) — размерным цветом и со знаком минус; подпись — без «минус» («Окна и двери»). */
 .calc-result__minus dd {
   color: var(--color-dimension-text);
 }
 
+/* Знак виден, диктор читает «минус»: подпись строки сама по себе не говорит, что площадь вычитается. */
 .calc-result__minus dd::before {
   content: '−';
-  content: '−' / '';
+  content: '−' / 'минус ';
 }
 
 .calc-result__section {
@@ -572,14 +582,17 @@
   gap: var(--space-2);
 }
 
-/* Пометка в результате: расчёт идёт по ориентиру расхода, а не по значению с упаковки. */
+/*
+ * Справка в результате: расчёт идёт по ориентиру расхода, а не по значению с упаковки. Нейтральная — фон листа,
+ * тонкая рамка, вторичный текст: оранжевый в результате — только вычитания и предупреждение о нетипичном значении.
+ */
 .calc-result__preset {
   padding: var(--space-2) var(--space-3);
-  background: var(--color-badge-soon-bg);
+  background: var(--color-surface);
+  border: var(--border);
   border-radius: var(--radius-md);
-  color: var(--color-badge-soon-text);
+  color: var(--color-text-secondary);
   font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
 }
 
 .calc-result__preset[hidden] {

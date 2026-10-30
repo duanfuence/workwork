@@ -171,16 +171,15 @@ const id = 'pl';
         title={entry.shortTitle}
         placeholder="Заполните размеры стен и расход смеси и нажмите «Рассчитать». После первого расчёта результат обновляется сразу при изменении параметров."
       >
+        <!-- С массой мешка главная цифра — мешки, килограммы — строкой «нужно»; без неё — килограммы. -->
         <p class="calc-result__main">
-          <span class="calc-result__number" data-out="massWithReserve"></span>
-          <span class="calc-result__unit">кг смеси</span>
+          <span class="calc-result__number" data-out="buyNumber"></span>
+          <span class="calc-result__unit" data-out="buyUnit"></span>
+          <span class="calc-result__explain" data-row="bags" hidden>
+            нужно <span data-out="massWithReserve"></span>&nbsp;кг
+          </span>
         </p>
         <p class="calc-result__preset" data-preset-note="consumption" hidden></p>
-        <p class="calc-result__cost" data-row="bags" hidden>
-          Мешков по&nbsp;<span data-out="bagMass"></span>&nbsp;кг: <strong data-out="bags"></strong>
-          {'\u00a0— это '}
-          <span data-out="massToBuy"></span>&nbsp;кг.
-        </p>
 
         <h3 class="calc-result__subtitle">Как получилось</h3>
         <dl class="calc-result__list">
@@ -191,7 +190,7 @@ const id = 'pl';
             </dd>
           </div>
           <div class="calc-result__minus">
-            <dt>Минус окна и&nbsp;двери</dt>
+            <dt>Окна и&nbsp;двери</dt>
             <dd>
               <span data-out="openingsArea"></span>&nbsp;м²
             </dd>
@@ -214,6 +213,13 @@ const id = 'pl';
             </dt>
             <dd>
               <span data-out="massWithReserve2"></span>&nbsp;кг
+            </dd>
+          </div>
+          <div data-row="bags" hidden>
+            <dt>Мешки</dt>
+            <dd>
+              <span data-out="bags"></span>&nbsp;× <span data-out="bagMass"></span>&nbsp;кг =&nbsp;
+              <span data-out="massToBuy"></span>&nbsp;кг
             </dd>
           </div>
         </dl>
@@ -352,6 +358,7 @@ const id = 'pl';
   import { evaluatePlasterForm, plasterFields } from '../../lib/calculators/plaster-form';
   import { formatNumber } from '../../lib/format';
   import { pluralizeRu } from '../../lib/plural';
+  import { packagePurchase } from '../../lib/purchase';
 
   const form = document.querySelector<HTMLFormElement>('[data-plaster-form]');
   const result = document.querySelector<HTMLElement>('[data-calculator-result]');
@@ -364,9 +371,19 @@ const id = 'pl';
       fields: plasterFields,
       evaluate: evaluatePlasterForm,
       render(value, view) {
-        const bagCount =
-          value.bags === null ? '' : ` · ${value.bags} ${pluralizeRu(value.bags, bagWords)}`;
-        view.summary(`${formatNumber(value.massWithReserve, 1)} кг смеси${bagCount}`);
+        // «К покупке» — мешки, если известна их масса (D-031); иначе килограммы.
+        const purchase =
+          value.bags !== null && value.bagMass !== null
+            ? packagePurchase(
+                value.bags,
+                bagWords,
+                `${formatNumber(value.bagMass, 1)} кг`,
+                `${formatNumber(value.massWithReserve, 1)} кг`,
+              )
+            : null;
+        view.text('buyNumber', purchase?.number ?? formatNumber(value.massWithReserve, 1));
+        view.text('buyUnit', purchase?.unit ?? 'кг смеси');
+        view.summary(purchase?.summary ?? `${formatNumber(value.massWithReserve, 1)} кг смеси`);
         view.text('massWithReserve', formatNumber(value.massWithReserve, 1));
         view.text('massWithReserve2', formatNumber(value.massWithReserve, 1));
         view.text('mass', formatNumber(value.mass, 1));
@@ -400,9 +417,7 @@ const id = 'pl';
             `Площадь ${formatNumber(value.plasterArea, 2)} м²${value.mode === 'room' ? ' (стены помещения)' : ''}`,
             `Слой ${formatNumber(value.thickness, 1)} мм, расход ${formatNumber(value.consumption, 2)} кг/м² на 1 мм, запас ${formatNumber(value.reserve, 1)} %`,
           ],
-          value.bags !== null && value.bagMass !== null && value.massToBuy !== null
-            ? `${value.bags} ${pluralizeRu(value.bags, bagWords)} по ${formatNumber(value.bagMass, 1)} кг (${formatNumber(value.massToBuy, 1)} кг)`
-            : `${formatNumber(value.massWithReserve, 1)} кг смеси`,
+          purchase?.purchase ?? `${formatNumber(value.massWithReserve, 1)} кг смеси`,
         );
       },
     });

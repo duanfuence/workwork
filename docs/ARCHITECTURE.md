@@ -46,6 +46,7 @@ src/
     share-link.ts         ссылка на расчёт (?v=1&…) и текст «Скопировать итог» (без DOM)
     room-memory.ts        размеры комнаты между калькуляторами: что сохранять и подставлять, формат (без DOM)
     result-bar.ts         панель итога на телефоне и объявление итога: когда показывать, что писать (без DOM)
+    purchase.ts           «К покупке» в упаковках: «23 мешка по 25 кг», «нужно …», строки панели и списка (без DOM)
     schematic.ts          живая схема над формой: геометрия, подписи и разметка SVG по тексту полей (без DOM,
                           docs/SCHEMATIC.md)
     typical-value.ts      мягкое предупреждение о нетипичном значении поля с ориентирами (без DOM)
@@ -182,7 +183,8 @@ interface CalculatorEntry {
 3. `src/lib/calculators/<id>-form.ts`: список полей, `evaluate…Form` через `parseNumberFields` / `withParseErrors`.
 4. Страница: `NumberField` в `<fieldset class="calc-group">`, `CalculatorResult` со строками результата,
    `<script>` с `initCalculatorForm({ form, result, fields, evaluate, render })`; в `render` — `view.summary(…)`
-   с главным итогом одной строкой («11,9 л краски · 5 банок») и `view.report([...параметры], 'к покупке')`.
+   с главным итогом одной строкой («5 банок по 2,7 л» — `packagePurchase` из `src/lib/purchase.ts`, если известен
+   объём упаковки) и `view.report([...параметры], 'к покупке')`.
 5. Статус `available` в каталоге — после `npm run check` и `npm run ui:check` (добавить проверки страницы в `scripts/ui-check.mjs`).
 
 ## Телеметрия

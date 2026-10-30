@@ -146,16 +146,15 @@ const id = 'pt';
         title={entry.shortTitle}
         placeholder="Заполните размеры помещения и укрывистость краски и нажмите «Рассчитать». После первого расчёта результат обновляется сразу при изменении параметров."
       >
+        <!-- С объёмом банки главная цифра — банки, литры — строкой «нужно»; без него — литры. -->
         <p class="calc-result__main">
-          <span class="calc-result__number" data-out="litersWithReserve"></span>
-          <span class="calc-result__unit">л краски</span>
+          <span class="calc-result__number" data-out="buyNumber"></span>
+          <span class="calc-result__unit" data-out="buyUnit"></span>
+          <span class="calc-result__explain" data-row="cans" hidden>
+            нужно <span data-out="litersWithReserve"></span>&nbsp;л
+          </span>
         </p>
         <p class="calc-result__preset" data-preset-note="coverage" hidden></p>
-        <p class="calc-result__cost" data-row="cans" hidden>
-          Банок по&nbsp;<span data-out="canVolume"></span>&nbsp;л: <strong data-out="cans"></strong>
-          {'\u00a0— это '}
-          <span data-out="litersToBuy"></span>&nbsp;л
-        </p>
 
         <h3 class="calc-result__subtitle">Как получилось</h3>
         <dl class="calc-result__list">
@@ -166,7 +165,7 @@ const id = 'pt';
             </dd>
           </div>
           <div class="calc-result__minus">
-            <dt>Минус окна и&nbsp;двери</dt>
+            <dt>Окна и&nbsp;двери</dt>
             <dd>
               <span data-out="openingsArea"></span>&nbsp;м²
             </dd>
@@ -195,6 +194,13 @@ const id = 'pt';
             </dt>
             <dd>
               <span data-out="litersWithReserve2"></span>&nbsp;л
+            </dd>
+          </div>
+          <div data-row="cans" hidden>
+            <dt>Банки</dt>
+            <dd>
+              <span data-out="cans"></span>&nbsp;× <span data-out="canVolume"></span>&nbsp;л =&nbsp;
+              <span data-out="litersToBuy"></span>&nbsp;л
             </dd>
           </div>
         </dl>
@@ -329,6 +335,7 @@ const id = 'pt';
   import { evaluatePaintForm, paintFields } from '../../lib/calculators/paint-form';
   import { formatNumber } from '../../lib/format';
   import { pluralizeRu } from '../../lib/plural';
+  import { packagePurchase } from '../../lib/purchase';
 
   const form = document.querySelector<HTMLFormElement>('[data-paint-form]');
   const result = document.querySelector<HTMLElement>('[data-calculator-result]');
@@ -343,9 +350,19 @@ const id = 'pt';
       fields: paintFields,
       evaluate: evaluatePaintForm,
       render(value, view) {
-        const cans =
-          value.cans === null ? '' : ` · ${value.cans} ${pluralizeRu(value.cans, canWords)}`;
-        view.summary(`${liters(value.litersWithReserve)} л краски${cans}`);
+        // «К покупке» — банки, если известен их объём (D-031); иначе литры.
+        const purchase =
+          value.cans !== null && value.canVolume !== null
+            ? packagePurchase(
+                value.cans,
+                canWords,
+                `${formatNumber(value.canVolume, 3)} л`,
+                `${liters(value.litersWithReserve)} л`,
+              )
+            : null;
+        view.text('buyNumber', purchase?.number ?? liters(value.litersWithReserve));
+        view.text('buyUnit', purchase?.unit ?? 'л краски');
+        view.summary(purchase?.summary ?? `${liters(value.litersWithReserve)} л краски`);
         view.text('litersWithReserve', liters(value.litersWithReserve));
         view.text('litersWithReserve2', liters(value.litersWithReserve));
         view.text('liters', liters(value.liters));
@@ -373,9 +390,7 @@ const id = 'pt';
             `Площадь окрашивания ${area(value.paintArea)} м²${value.ceilingIncluded ? ' (с потолком)' : ''}`,
             `${value.coats} ${pluralizeRu(value.coats, ['слой', 'слоя', 'слоёв'])}, укрывистость ${formatNumber(value.coverage, 1)} м²/л, запас ${formatNumber(value.reserve, 1)} %`,
           ],
-          value.cans !== null && value.canVolume !== null && value.litersToBuy !== null
-            ? `${value.cans} ${pluralizeRu(value.cans, canWords)} по ${formatNumber(value.canVolume, 3)} л (${formatNumber(value.litersToBuy, 3)} л)`
-            : `${liters(value.litersWithReserve)} л краски`,
+          purchase?.purchase ?? `${liters(value.litersWithReserve)} л краски`,
         );
       },
     });

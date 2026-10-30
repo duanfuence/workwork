@@ -219,7 +219,10 @@ const id = 'lm';
         <p class="calc-result__main">
           <span class="calc-result__number" data-out="packs"></span>
           <span class="calc-result__unit" data-out="packsWord"></span>
-          <span class="calc-result__explain" data-out="purchaseNote"></span>
+          <span class="calc-result__explain">
+            <span data-out="purchaseBoards"></span>&nbsp;<span data-out="purchaseBoardsWord"></span>
+            , <span data-out="purchaseArea"></span>&nbsp;м²
+          </span>
         </p>
         <p class="calc-result__cost" data-row="totalCost" hidden>
           Стоимость: <strong data-out="totalCost"></strong>
@@ -525,10 +528,10 @@ const id = 'lm';
         view.text('packsWord', pluralizeRu(value.packs, packWordForms));
         view.show('totalCost', value.totalCost !== null);
         if (value.totalCost !== null) view.text('totalCost', formatRubles(value.totalCost));
-        view.text(
-          'purchaseNote',
-          `${boardsText(value.boardsToBuy)}, ${formatNumber(value.areaToBuy, 2)} м²`,
-        );
+        // Под числом упаковок — сколько это досок и метров; числа — моноширинным, единицы — текстом.
+        view.text('purchaseBoards', String(value.boardsToBuy));
+        view.text('purchaseBoardsWord', pluralizeRu(value.boardsToBuy, boardWordForms));
+        view.text('purchaseArea', formatNumber(value.areaToBuy, 2));
         view.text('boards', String(value.boards));
         view.text('reserve', formatNumber(value.reserve, 1));
         view.text('boardsWithReserve', String(value.boardsWithReserve));

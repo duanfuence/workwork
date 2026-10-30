@@ -83,7 +83,7 @@ export interface ShareReport {
   title: string;
   /** Ключевые параметры — строками, как на экране. */
   params: readonly string[];
-  /** Что купить: «5 банок по 2,7 л (13,5 л)». */
+  /** Что купить: «5 банок по 2,7 л — нужно 12,7 л» (packagePurchase). */
   purchase: string;
   url: string;
 }
