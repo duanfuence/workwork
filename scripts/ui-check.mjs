@@ -1054,7 +1054,7 @@ async function checkShare(browser, viewport) {
   const url = await clipboard();
   const expectedQuery =
     'v=1&mode=room&roomLength=4&roomWidth=3&wallHeight=2.7&openingsArea=3.9&ceiling=yes&layers=2' +
-    '&consumption=1.1&packMass=20&reserve=10';
+    '&consumption=1.1&packMass=20&reserve=10&packPrice=';
   check(
     url === `${baseUrl}${puttyPath}?${expectedQuery}`,
     `${label}: в буфере ссылка со значениями видимых полей (${url})`,
@@ -1798,6 +1798,7 @@ async function checkTypography(browser, viewport) {
     openingsArea: '3,9',
     coverage: '1',
     canVolume: '2,7',
+    canPrice: '2380',
   }))
     await page.fill(`form [name="${name}"]`, value);
   await page.selectOption('form [name="ceiling"]', 'yes');
@@ -1832,6 +1833,7 @@ async function checkTypography(browser, viewport) {
       tileLength: '300',
       tileWidth: '300',
       tilesPerPack: '11',
+      tilePrice: '1250',
     },
     [puttyPath]: {
       roomLength: '4',
@@ -1840,6 +1842,7 @@ async function checkTypography(browser, viewport) {
       openingsArea: '3,9',
       consumption: '1,1',
       packMass: '20',
+      packPrice: '845,5',
     },
     [plasterPath]: {
       roomLength: '4',
@@ -1848,6 +1851,7 @@ async function checkTypography(browser, viewport) {
       openingsArea: '3,9',
       consumption: '0,9',
       bagMass: '30',
+      bagPrice: '549,9',
     },
   };
   for (const [target, values] of Object.entries(filled)) {
@@ -1868,6 +1872,7 @@ async function checkTypography(browser, viewport) {
     openingsArea: '3,9',
     coverage: '1',
     canVolume: '2,7',
+    canPrice: '2380',
   }))
     await page.fill(`form [name="${name}"]`, value);
   await page.selectOption('form [name="ceiling"]', 'yes');
@@ -2184,6 +2189,222 @@ async function checkSchematic(browser, viewport) {
   check(errors.length === 0, `${label}: нет ошибок в консоли (${errors.join(' | ') || '0'})`);
 }
 
+/**
+ * Стоимость (D-033): цена необязательна; без размера упаковки — подсказка у цены, не ошибка; с упаковкой — стоимость
+ * по целым упаковкам сразу под главной цифрой; «Скопировать», ссылка, панель итога; плитка за м² и за упаковку;
+ * цена не сохраняется в браузере; знак «₽» — из файлов шрифтов сайта. Числа — контрольные примеры П9, Т7, Т8, Т10,
+ * Т11 (docs/calculators/PAINT.md, TILE.md).
+ */
+async function checkCost(browser, viewport) {
+  const label = `стоимость ${viewport.name}`;
+  const errors = [];
+  const { context, page } = await freshPage(browser, viewport, errors);
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: baseUrl });
+  const fill = async (values) => {
+    for (const [name, value] of Object.entries(values))
+      await page.fill(`form [name="${name}"]`, value);
+    await page.waitForTimeout(150);
+  };
+  const cost = () =>
+    page.evaluate(() => {
+      const row = document.querySelector('[data-row="cost"]');
+      const note = document.querySelector('[data-needs-for]');
+      const input = note ? document.querySelector(`form [name="${note.dataset.needsFor}"]`) : null;
+      return {
+        visible: Boolean(row && !row.hidden && row.getClientRects().length > 0),
+        total: row?.querySelector('[data-out="totalCost"]')?.textContent ?? '',
+        detail: row?.querySelector('[data-out="costDetail"]')?.textContent ?? '',
+        afterMain: row?.previousElementSibling?.classList.contains('calc-result__main') ?? false,
+        note: note && !note.hidden ? (note.textContent ?? '').replace(/\s+/g, ' ').trim() : '',
+        described: (input?.getAttribute('aria-describedby') ?? '')
+          .split(' ')
+          .includes(note?.id ?? '-'),
+        invalid: input?.getAttribute('aria-invalid') === 'true',
+        state: document.querySelector('[data-calculator-result]')?.getAttribute('data-state'),
+      };
+    });
+
+  // Краска П5 без объёма банки: подсказка у цены, расчёт литров идёт, стоимости нет.
+  await page.goto(baseUrl + paintPath, { waitUntil: 'networkidle' });
+  await fill({ roomLength: '4', roomWidth: '3', wallHeight: '2,7', openingsArea: '3,9' });
+  await page.selectOption('form [name="ceiling"]', 'yes');
+  await fill({ coverage: '8', canPrice: '2380' });
+  const noted = await cost();
+  check(
+    plain(noted.note) === 'Укажите объём банки — тогда посчитаем стоимость.' && noted.described,
+    `${label}: цена без объёма банки — подсказка «${plain(noted.note)}» в описании поля`,
+  );
+  await page.locator('form button[type="submit"]').click();
+  await page.waitForTimeout(200);
+  const withoutPack = await cost();
+  check(
+    withoutPack.state === 'ready' &&
+      !withoutPack.visible &&
+      !withoutPack.invalid &&
+      withoutPack.note !== '',
+    `${label}: без объёма банки — расчёт литров есть, стоимости нет, это не ошибка`,
+  );
+
+  // П9: 5 банок по 2,7 л × 2 380 ₽ = 11 900 ₽ — строкой сразу под главной цифрой.
+  await fill({ canVolume: '2,7' });
+  const priced = await cost();
+  check(
+    priced.visible &&
+      priced.note === '' &&
+      plain(priced.total) === '11 900 ₽' &&
+      plain(priced.detail) === '5 банок × 2 380 ₽' &&
+      priced.afterMain,
+    `${label}: П9 — «Стоимость ≈ ${plain(priced.total)}», «${plain(priced.detail)}», под главной цифрой`,
+  );
+  await checkOverflow(page, `${label}, краска со стоимостью`);
+  if (viewport.name === '390') {
+    await page.locator('[data-calculator-result]').scrollIntoViewIfNeeded();
+    await page
+      .locator('[data-calculator-result]')
+      .screenshot({ path: path.join(outDir, 'cost-paint-390.png') });
+  }
+
+  // «₽» — из файлов шрифтов сайта: начертания с U+20BD загружены (число — JetBrains Mono, разбивка — Onest).
+  await page.evaluate(() => document.fonts.ready);
+  const rubleFaces = await page.evaluate(() =>
+    [...document.fonts]
+      .filter((face) => face.unicodeRange.includes('U+20BD') && face.status === 'loaded')
+      .map((face) => `${face.family.replace(/['"]/g, '')} ${face.weight}`),
+  );
+  check(
+    rubleFaces.includes('JetBrains Mono 700') && rubleFaces.includes('Onest 400'),
+    `${label}: «₽» нарисован шрифтами сайта (${rubleFaces.join(', ')})`,
+  );
+
+  // «Скопировать» — стоимость строкой под позицией списка покупок.
+  await page.locator('[data-share-copy]').click();
+  await page.waitForTimeout(150);
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  check(
+    plain(copied).includes(
+      '□ 5 банок по 2,7 л — нужно 12,7 л\nСтоимость ≈ 11 900 ₽ (5 банок × 2 380 ₽)',
+    ),
+    `${label}: «Скопировать» — со строкой стоимости`,
+  );
+
+  // Цена не сохраняется между калькуляторами (материалы разные).
+  const stored = await page.evaluate((key) => window.localStorage.getItem(key) ?? '', roomKey);
+  check(
+    stored !== '' && !stored.includes('2380') && !stored.toLowerCase().includes('price'),
+    `${label}: в браузере сохранены только размеры комнаты (${stored})`,
+  );
+
+  // Панель итога: стоимость — если итог с ней помещается в две строки.
+  if (viewport.name !== '1440') {
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(400);
+    const bar = await page.evaluate(() => {
+      const text = document.querySelector('[data-result-bar-text]');
+      const style = text ? getComputedStyle(text) : null;
+      return {
+        visible: Boolean(document.querySelector('[data-result-bar]:not([hidden])')),
+        text: text?.textContent ?? '',
+        lines:
+          text && style
+            ? Math.round(text.getBoundingClientRect().height / parseFloat(style.lineHeight))
+            : 0,
+      };
+    });
+    check(
+      bar.visible &&
+        plain(bar.text).startsWith('5 банок по 2,7 л') &&
+        bar.lines <= 2 &&
+        (plain(bar.text) === '5 банок по 2,7 л · 11 900 ₽' ||
+          plain(bar.text) === '5 банок по 2,7 л'),
+      `${label}: панель «${plain(bar.text)}» — ${bar.lines} строки, стоимость — если помещается`,
+    );
+    await checkOverflow(page, `${label}, панель со стоимостью`);
+  }
+
+  // Ссылка с ценой открывает ту же стоимость.
+  await page.locator('[data-share-link]').click();
+  await page.waitForTimeout(150);
+  const url = await page.evaluate(() => navigator.clipboard.readText());
+  await context.close();
+  const opened = await freshPage(browser, viewport, errors);
+  await opened.page.goto(url, { waitUntil: 'networkidle' });
+  const reopened = await opened.page.evaluate(() => ({
+    total: document.querySelector('[data-out="totalCost"]')?.textContent ?? '',
+    price: document.querySelector('form [name="canPrice"]')?.value ?? '',
+  }));
+  check(
+    url.includes('canPrice=2380') &&
+      plain(reopened.total) === '11 900 ₽' &&
+      reopened.price === '2380',
+    `${label}: ссылка с ценой (canPrice=2380) открывает ту же стоимость «${plain(reopened.total)}»`,
+  );
+  await opened.context.close();
+
+  // Плитка Т3: 20 упаковок по 8, плитка 600 × 200.
+  const tile = await freshPage(browser, viewport, errors);
+  const tilePage = tile.page;
+  const tileFill = async (values) => {
+    for (const [name, value] of Object.entries(values))
+      await tilePage.fill(`form [name="${name}"]`, value);
+    await tilePage.waitForTimeout(150);
+  };
+  const tileCost = async () =>
+    tilePage.evaluate(() => {
+      const row = document.querySelector('[data-row="cost"]');
+      const note = document.querySelector('[data-needs-for="tilePrice"]');
+      return {
+        visible: Boolean(row && !row.hidden),
+        total: row?.querySelector('[data-out="totalCost"]')?.textContent ?? '',
+        detail: row?.querySelector('[data-out="costDetail"]')?.textContent ?? '',
+        note: note && !note.hidden ? (note.textContent ?? '').trim() : '',
+      };
+    });
+  await tilePage.goto(baseUrl + tilePath, { waitUntil: 'networkidle' });
+  await tilePage.selectOption('form [name="surface"]', 'wall');
+  await tileFill({ surfaceLength: '2,5', surfaceWidth: '2,7', surfaceCount: '2' });
+  await tileFill({ tileLength: '600', tileWidth: '200', tilesPerPack: '8', tilePrice: '1250' });
+  await tilePage.locator('form button[type="submit"]').click();
+  await tilePage.waitForTimeout(200);
+  const t7 = await tileCost();
+  check(
+    t7.visible && plain(t7.total) === '24 000 ₽' && plain(t7.detail) === '19,2 м² × 1 250 ₽/м²',
+    `${label}: плитка Т7 за м² — «${plain(t7.total)}», «${plain(t7.detail)}»`,
+  );
+  await tileFill({ tilesPerPack: '' });
+  const t8 = await tileCost();
+  check(
+    plain(t8.total) === '23 100 ₽' &&
+      plain(t8.detail) === '18,48 м² × 1 250 ₽/м²' &&
+      t8.note === '',
+    `${label}: плитка Т8 за м² без упаковок — «${plain(t8.total)}» (${plain(t8.detail)}), без подсказки`,
+  );
+  await tilePage.selectOption('form [name="tilePriceUnit"]', 'pack');
+  await tileFill({ tilePrice: '1890' });
+  const t11 = await tileCost();
+  check(
+    !t11.visible &&
+      plain(t11.note) === 'Укажите, сколько плиток в упаковке, — тогда посчитаем стоимость.',
+    `${label}: плитка Т11 за упаковку без числа в упаковке — подсказка, стоимости нет`,
+  );
+  await tileFill({ tilesPerPack: '8' });
+  const t10 = await tileCost();
+  check(
+    t10.visible && plain(t10.total) === '37 800 ₽' && plain(t10.detail) === '20 упаковок × 1 890 ₽',
+    `${label}: плитка Т10 за упаковку — «${plain(t10.total)}», «${plain(t10.detail)}»`,
+  );
+  await checkOverflow(tilePage, `${label}, плитка со стоимостью`);
+  if (viewport.name === '390') {
+    await tilePage.selectOption('form [name="tilePriceUnit"]', 'm2');
+    await tileFill({ tilePrice: '1250' });
+    await tilePage.locator('[data-calculator-result]').scrollIntoViewIfNeeded();
+    await tilePage
+      .locator('[data-calculator-result]')
+      .screenshot({ path: path.join(outDir, 'cost-tile-390.png') });
+  }
+  await tile.context.close();
+  check(errors.length === 0, `${label}: нет ошибок в консоли (${errors.join(' | ') || '0'})`);
+}
+
 async function checkLinks(page, label) {
   const hrefs = await page.$$eval('a[href]', (links) => links.map((a) => a.getAttribute('href')));
   const broken = [];
@@ -2420,7 +2641,7 @@ async function checkCalculator(page, viewport) {
     `${label}: строки про проёмы скрыты, когда проёмов нет`,
   );
   check(
-    !(await page.locator('[data-row="totalCost"]').isVisible()),
+    !(await page.locator('[data-row="cost"]').isVisible()),
     `${label}: стоимость скрыта без цены`,
   );
 
@@ -3298,6 +3519,7 @@ try {
     if (viewport.name !== '768') await checkDesign(browser, viewport);
     if (viewport.name !== '768') await checkSpec(browser, viewport);
     if (viewport.name !== '768') await checkSchematic(browser, viewport);
+    if (viewport.name !== '768') await checkCost(browser, viewport);
     if (viewport.name === '320' || viewport.name === '390')
       await checkTypography(browser, viewport);
     check(

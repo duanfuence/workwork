@@ -5,6 +5,7 @@
  * Внутри — целые единицы: длины в десятых долях мм (шов задаётся с шагом 0,1 мм), запас в десятых процента.
  * Это оценка по сетке, а не раскладка: каждая подрезанная плитка считается целой, обрезки не переносятся.
  */
+import { areaCost, checkPrice, kopecksToRubles, packCost, toKopecks } from '../cost';
 import { ceilDiv, metersToMm } from '../number';
 import { type Range, checkOptional, checkRequired } from '../validation';
 
@@ -19,11 +20,15 @@ export interface TileInput {
   joint: number | null;
   reserve: number | null;
   tilesPerPack: number | null;
+  /** Цена, ₽ (D-033): за м² (по умолчанию, как на ценниках) или за упаковку. */
+  tilePrice: number | null;
+  tilePriceUnit: string | null;
 }
 
 export type TileField = keyof TileInput;
 export type TileErrors = Partial<Record<TileField, string>>;
 export type TileSurface = 'floor' | 'wall';
+export type TilePriceUnit = 'm2' | 'pack';
 
 export interface TileResult {
   surface: TileSurface;
@@ -43,6 +48,14 @@ export interface TileResult {
   /** Справочно: площадь ÷ площадь плитки без швов и подрезки. */
   areaTiles: number;
   joint: number;
+  /** Цена и её единица; стоимость — по купленному (D-033), `null` — цены нет или её не посчитать. */
+  tilePrice: number | null;
+  tilePriceUnit: TilePriceUnit;
+  /** Купленная площадь, м² (для цены за м²): упаковки · p · a · b, без упаковок — плитки с запасом · a · b. */
+  boughtArea: number;
+  totalCost: number | null;
+  /** Цена за упаковку указана, а числа плиток в упаковке нет — стоимость не посчитать (подсказка). */
+  costNeedsPack: boolean;
 }
 
 export type TileCalculation = { ok: true; result: TileResult } | { ok: false; errors: TileErrors };
@@ -59,6 +72,7 @@ export const tileLimits = {
 } as const satisfies Record<string, Range>;
 
 const surfaces: readonly TileSurface[] = ['floor', 'wall'];
+const priceUnits: readonly TilePriceUnit[] = ['m2', 'pack'];
 function hasOneDecimal(value: number): boolean {
   return Math.abs(value * 10 - Math.round(value * 10)) <= 1e-6;
 }
@@ -94,6 +108,10 @@ export function calculateTile(input: TileInput): TileCalculation {
   }
   setError('tilesPerPack', checkOptional(input.tilesPerPack, tileLimits.tilesPerPack, 'шт'));
   integer('tilesPerPack', input.tilesPerPack);
+  setError('tilePrice', checkPrice(input.tilePrice));
+  const priceUnit = priceUnits.find((item) => item === input.tilePriceUnit) ?? null;
+  if (input.tilePrice !== null && !priceUnit)
+    setError('tilePriceUnit', 'Выберите, за что указана цена.');
 
   if (Object.keys(errors).length > 0 || !surface) return { ok: false, errors };
 
@@ -118,6 +136,21 @@ export function calculateTile(input: TileInput): TileCalculation {
   const areaMm2 = (count * X * Y) / 100;
   const tileAreaMm2 = (a * b) / 100;
 
+  // Стоимость — по купленному (D-033). Площадь плитки — номинальная a × b, без шва: так её считает магазин.
+  const tilesBought = packs === null || perPack === null ? tilesWithReserve : packs * perPack;
+  const boughtAreaMm2 = tilesBought * tileAreaMm2;
+  const unit = priceUnit ?? 'm2';
+  const priceKopecks = input.tilePrice === null ? null : toKopecks(input.tilePrice);
+  const cost =
+    priceKopecks === null
+      ? null
+      : unit === 'm2'
+        ? areaCost(boughtAreaMm2, priceKopecks)
+        : packs === null
+          ? null
+          : packCost(packs, priceKopecks);
+  if (cost && !cost.ok) return { ok: false, errors: { tilePrice: cost.error } };
+
   return {
     ok: true,
     result: {
@@ -134,6 +167,11 @@ export function calculateTile(input: TileInput): TileCalculation {
       tilesToBuy: packs === null || perPack === null ? null : packs * perPack,
       areaTiles: ceilDiv(areaMm2, tileAreaMm2),
       joint: j / 10,
+      tilePrice: input.tilePrice,
+      tilePriceUnit: unit,
+      boughtArea: boughtAreaMm2 / 1_000_000,
+      totalCost: cost ? kopecksToRubles(cost.kopecks) : null,
+      costNeedsPack: input.tilePrice !== null && unit === 'pack' && packs === null,
     },
   };
 }

@@ -12,6 +12,7 @@ export const paintFields = [
   'coverage',
   'reserve',
   'canVolume',
+  'canPrice',
 ] as const satisfies readonly PaintField[];
 
 const numberFields = [
@@ -23,6 +24,7 @@ const numberFields = [
   'coverage',
   'reserve',
   'canVolume',
+  'canPrice',
 ] as const satisfies readonly PaintField[];
 
 export type PaintFormValues = Record<PaintField, string>;

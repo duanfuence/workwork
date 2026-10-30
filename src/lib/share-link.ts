@@ -85,14 +85,20 @@ export interface ShareReport {
   params: readonly string[];
   /** Что купить: «5 банок по 2,7 л — нужно 12,7 л» (packagePurchase). */
   purchase: string;
+  /** Стоимость, если указана цена: «Стоимость ≈ 11 900 ₽ (5 банок × 2 380 ₽)» (D-033). */
+  cost?: string;
   url: string;
 }
 
-/** Текст для «Скопировать» — список покупок: позиция «□ …» (галочка в магазине), исходные данные, ссылка. */
-export function shareText({ title, params, purchase, url }: ShareReport): string {
+/**
+ * Текст для «Скопировать» — список покупок: позиция «□ …» (галочка в магазине), стоимость (если указана цена),
+ * исходные данные, ссылка.
+ */
+export function shareText({ title, params, purchase, cost, url }: ShareReport): string {
   return [
     `Список покупок · ${title} (ДомРасчёт)`,
     `□ ${purchase}`,
+    ...(cost ? [cost] : []),
     '',
     'Исходные данные:',
     ...params.map((param) => `— ${param}`),

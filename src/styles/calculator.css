@@ -371,18 +371,35 @@
   display: none;
 }
 
-/* Вторая позиция к покупке (банки, мешки, упаковки, стоимость) — строкой под числом. */
+/*
+ * Стоимость (D-033, CostLine) — строкой сразу под главной цифрой: «Стоимость ≈ 11 900 ₽», ниже разбивка
+ * «5 банок × 2 380 ₽». Нейтральная плашка с линией чернилами: оранжевый — только вычитание и предупреждение.
+ */
 .calc-result__cost {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--space-3);
+  row-gap: var(--space-1);
   padding: var(--space-2) var(--space-3);
-  border-left: 2px solid var(--color-dimension);
+  border-left: 2px solid var(--color-text);
   background: var(--color-surface-muted);
-  font-family: var(--font-mono);
-  font-size: var(--font-size-sm);
-  font-variant-numeric: tabular-nums;
+  font-size: var(--font-size-md);
+}
+
+.calc-result__cost[hidden] {
+  display: none;
 }
 
 .calc-result__cost strong {
+  font-family: var(--font-mono);
   font-weight: var(--font-weight-mono-bold);
+  font-variant-numeric: tabular-nums;
+}
+
+.calc-result__cost-detail {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
 }
 
 .calc-result__subtitle {
@@ -671,10 +688,6 @@
   font-weight: var(--font-weight-mono-bold);
   line-height: var(--line-height-snug);
   font-variant-numeric: tabular-nums;
-}
-
-.result-bar__part {
-  white-space: nowrap;
 }
 
 .result-bar[data-tone='invalid'] {

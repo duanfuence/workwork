@@ -21,9 +21,12 @@
  * - главный итог `.calc-result__main` и короткий итог `view.summary(…)` из `render` — для панели итога
  *   `[data-result-bar]` (на экране уже 960 px, когда итог не виден) и для объявления диктору
  *   `[data-result-announce]` (по «Рассчитать» и после паузы ввода, D-024). Оба элемента даёт CalculatorResult;
+ * - необязательно: подсказка `[data-needs-for]` у поля цены (NumberField с `needs`) — видна, пока цена введена,
+ *   а размера упаковки нет (D-033);
  * - необязательно: живая схема `svg[data-schematic="<вид>"]` (компонент Schematic) — перерисовывается по тексту полей
  *   при любом вводе, геометрия и подпись — `schematicModel` из src/lib/schematic.ts (docs/SCHEMATIC.md).
  */
+import { needsPackSize } from '../lib/cost';
 import { typograph } from '../lib/format';
 import type { Calculation, FieldErrors } from '../lib/form';
 import {
@@ -74,10 +77,16 @@ export interface ResultView {
   show(row: string, visible: boolean): void;
   /** Заменить пункты списка `[data-out-list="name"]`. */
   list(name: string, items: readonly string[]): void;
-  /** Короткий итог одной строкой — для панели итога и диктора: «11,9 л краски · 3 банки». */
-  summary(text: string): void;
-  /** Для «Скопировать итог»: ключевые параметры строками и что купить («5 банок по 2,7 л — нужно 12,7 л»). */
-  report(params: readonly string[], purchase: string): void;
+  /**
+   * Короткий итог одной строкой — для панели итога и диктора: «5 банок по 2,7 л»; `cost` — стоимость
+   * («11 900 ₽», D-033): диктору — всегда, в панели — если помещается в две строки.
+   */
+  summary(text: string, cost?: string): void;
+  /**
+   * Для «Скопировать итог»: ключевые параметры строками, что купить («5 банок по 2,7 л — нужно 12,7 л»)
+   * и стоимость («Стоимость ≈ 11 900 ₽ (5 банок × 2 380 ₽)»), если указана цена.
+   */
+  report(params: readonly string[], purchase: string, cost?: string): void;
 }
 
 type Control = HTMLInputElement | HTMLSelectElement;
@@ -138,14 +147,37 @@ export function initCalculatorForm<F extends string, R>({
       schematic.setAttribute('aria-label', model.label);
   };
 
+  // Подсказка у цены «Укажите объём банки — тогда посчитаем стоимость» (D-033): цена есть, а размера упаковки
+  // нет. Не ошибка: видна сразу при вводе, входит в описание поля, не объявляется.
+  const needsNotes = [...form.querySelectorAll<HTMLElement>('[data-needs-for]')].flatMap((note) => {
+    const input = form.elements.namedItem(note.dataset['needsFor'] ?? '');
+    const needed = form.elements.namedItem(note.dataset['needs'] ?? '');
+    if (!(input instanceof HTMLInputElement) || !(needed instanceof HTMLInputElement)) return [];
+    const [whenName = '', whenValue] = (note.dataset['needsWhen'] ?? '').split('=');
+    return [{ note, input, needed, whenName, whenValue }];
+  });
+  const showNeedsNotes = () => {
+    for (const { note, input, needed, whenName, whenValue } of needsNotes) {
+      const choice = form.elements.namedItem(whenName);
+      const when =
+        whenValue === undefined ||
+        (choice instanceof HTMLSelectElement && choice.value === whenValue);
+      note.hidden = !(when && needsPackSize(input.value, needed.value));
+    }
+  };
+
   // До первой отправки ошибки не показываются; после — пересчёт при каждом вводе.
   let live = false;
   let state: State = 'empty';
   // Был успешный расчёт после последнего сброса: до него панели итога нет.
   let calculated = false;
   let summaryText = '';
+  let summaryCost = '';
+  // Итог со стоимостью: «5 банок по 2,7 л · 11 900 ₽» — точка с предыдущей частью не разрывается.
+  const fullSummary = () => (summaryCost ? `${summaryText}\u00a0· ${summaryCost}` : summaryText);
   let reportParams: readonly string[] = [];
   let reportPurchase = '';
+  let reportCost = '';
 
   // Выбор ориентира: подставляет значение в поле; правка поля переключает выбор на «Своё значение».
   const presets = [...form.querySelectorAll<HTMLSelectElement>('select[data-preset-for]')].flatMap(
@@ -292,12 +324,14 @@ export function initCalculatorForm<F extends string, R>({
         }),
       );
     },
-    summary(text) {
+    summary(text, cost) {
       summaryText = typograph(text);
+      summaryCost = cost ? typograph(cost) : '';
     },
-    report(params, purchase) {
+    report(params, purchase, cost) {
       reportParams = params.map(typograph);
       reportPurchase = typograph(purchase);
+      reportCost = cost ? typograph(cost) : '';
     },
   };
 
@@ -319,7 +353,7 @@ export function initCalculatorForm<F extends string, R>({
   const announceAfterPause = () => {
     window.clearTimeout(announceTimer);
     announceTimer = window.setTimeout(() => {
-      const text = withWarnings(resultAnnouncement(state, summaryText));
+      const text = withWarnings(resultAnnouncement(state, fullSummary()));
       if (text !== announced) announce(text);
     }, announceDelayMs);
   };
@@ -372,25 +406,20 @@ export function initCalculatorForm<F extends string, R>({
       narrow: !wide.matches,
       resultInView: rect ? resultInView(rect.top, rect.bottom, window.innerHeight) : true,
       keyboardOpen: keyboardOpen(),
-      summary: summaryText,
+      summary: fullSummary(),
     });
-    if (barView.visible) {
-      // Части итога «8 упаковок · 12 000 ₽» не разрываются: на 320 px перенос только между ними. Итог из одной
-      // части («23 мешка по 25 кг») переносится обычно — внутри «23 мешка» и «по 25 кг» неразрывные пробелы.
-      const parts = barView.text.split(' · ');
-      if (parts.length === 1) barText.textContent = barView.text;
-      else
-        barText.replaceChildren(
-          ...parts.flatMap((part, index) => {
-            const span = document.createElement('span');
-            span.className = 'result-bar__part';
-            span.textContent = index < parts.length - 1 ? `${part} ·` : part;
-            return index === 0 ? [span] : [' ', span];
-          }),
-        );
-      bar.dataset['tone'] = barView.tone;
-    }
     bar.hidden = !barView.visible;
+    if (barView.visible) {
+      // Переносы — только между словами: внутри «23 мешка», «по 25 кг», «12 000 ₽» и перед «·» неразрывные
+      // пробелы. Стоимость — если итог с ней помещается в две строки; иначе панель без неё (диктору — с ней).
+      barText.textContent = barView.text;
+      bar.dataset['tone'] = barView.tone;
+      if (summaryCost && state === 'ready') {
+        const lineHeight = parseFloat(getComputedStyle(barText).lineHeight);
+        if (barText.getBoundingClientRect().height > lineHeight * 2 + 1)
+          barText.textContent = summaryText;
+      }
+    }
     // Отступ страницы снизу и scroll-padding-bottom, пока панель на экране (calculator.css); высота —
     // фактическая: на 320 px итог может занять две строки.
     const root = document.documentElement;
@@ -492,8 +521,10 @@ export function initCalculatorForm<F extends string, R>({
     if (calculation.ok) {
       showErrors({});
       summaryText = '';
+      summaryCost = '';
       reportParams = [];
       reportPurchase = '';
+      reportCost = '';
       render(calculation.result, view);
       tightenDecimals();
       // Страница без view.summary — в панели текст главного итога.
@@ -536,11 +567,12 @@ export function initCalculatorForm<F extends string, R>({
     event.preventDefault();
     live = true;
     update(true);
-    announce(withWarnings(resultAnnouncement(state, summaryText)));
+    announce(withWarnings(resultAnnouncement(state, fullSummary())));
   });
 
   form.addEventListener('input', () => {
     drawSchematic();
+    showNeedsNotes();
     if (!live) return;
     update(false);
     announceAfterPause();
@@ -560,6 +592,7 @@ export function initCalculatorForm<F extends string, R>({
       showPresetNotes();
       setState('empty');
       drawSchematic();
+      showNeedsNotes();
     });
   });
 
@@ -702,6 +735,7 @@ export function initCalculatorForm<F extends string, R>({
         title: pageTitle(),
         params: reportParams,
         purchase: reportPurchase || summaryText,
+        cost: reportCost,
         url: shareUrl(),
       });
       void copyOrShow(text, button);
@@ -735,4 +769,5 @@ export function initCalculatorForm<F extends string, R>({
   if (start.source === 'link') applyLink(start.values);
   else if (start.source === 'memory') restoreRoom(start.values);
   drawSchematic();
+  showNeedsNotes();
 }

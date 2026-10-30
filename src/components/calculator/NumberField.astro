@@ -28,6 +28,12 @@ interface Props {
   showWhen?: string;
   /** Скрыто при загрузке: режим по умолчанию — другой. */
   hidden?: boolean;
+  /**
+   * Подсказка, когда значения этого поля мало: «Укажите объём банки — тогда посчитаем стоимость» (D-033). Видна,
+   * пока в поле число, а поле `field` пусто (и, если задано, `when="tilePriceUnit=pack"` выполняется). Не ошибка
+   * и не live-регион — входит в описание поля. Показывает общий механизм форм.
+   */
+  needs?: { field: string; when?: string; text: string } | undefined;
 }
 
 const {
@@ -42,15 +48,19 @@ const {
   optional = false,
   showWhen,
   hidden = false,
+  needs,
 } = Astro.props;
 
 const id = `${idPrefix}-${name}`;
 const hintId = `${id}-hint`;
 const errorId = `${id}-error`;
 const warningId = `${id}-warning`;
+const needsId = `${id}-needs`;
 // Предупреждение о нетипичном значении (у полей с ориентирами) — в описании поля: диктор читает его при фокусе,
 // а не на каждое нажатие (это не live-регион).
-const describedBy = [hint ? hintId : null, errorId, warningId].filter(Boolean).join(' ');
+const describedBy = [hint ? hintId : null, errorId, warningId, needs ? needsId : null]
+  .filter(Boolean)
+  .join(' ');
 ---
 
 <div class="field" data-show-when={showWhen} hidden={hidden}>
@@ -87,6 +97,18 @@ const describedBy = [hint ? hintId : null, errorId, warningId].filter(Boolean).j
     )}
     <p class="field__error" id={errorId} data-error-for={name} hidden></p>
     <p class="field__warning" id={warningId} data-warning-for={name} hidden></p>
+    {needs && (
+      <p
+        class="field__needs"
+        id={needsId}
+        data-needs-for={name}
+        data-needs={needs.field}
+        data-needs-when={needs.when}
+        hidden
+      >
+        {typograph(needs.text)}
+      </p>
+    )}
   </div>
 </div>
 
@@ -208,6 +230,19 @@ const describedBy = [hint ? hintId : null, errorId, warningId].filter(Boolean).j
   }
 
   .field__warning[hidden] {
+    display: none;
+  }
+
+  /* Подсказка «Укажите … — тогда посчитаем стоимость»: справка, не ошибка и не предупреждение — нейтральная. */
+  .field__needs {
+    padding-left: var(--space-2);
+    border-left: 2px solid var(--color-border-control);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-snug);
+  }
+
+  .field__needs[hidden] {
     display: none;
   }
 </style>

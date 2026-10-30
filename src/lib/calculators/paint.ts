@@ -5,6 +5,7 @@
  * Внутри — целые единицы: длины в мм, площади в мм², укрывистость в десятых м²/л, запас в десятых
  * процента, банка в мл. Округления — целочисленные, без ошибок двоичных дробей (2,0 · 1,05 = 2,1, а не 2,1000…1).
  */
+import { checkPrice, kopecksToRubles, packCost, toKopecks } from '../cost';
 import { ceilDiv, metersToMm } from '../number';
 import { type Range, checkOptional, checkRequired, fmt, hasPrecision } from '../validation';
 
@@ -19,6 +20,8 @@ export interface PaintInput {
   coverage: number | null;
   reserve: number | null;
   canVolume: number | null;
+  /** Цена одной банки, ₽ (D-033); без объёма банки стоимость не считается. */
+  canPrice: number | null;
 }
 
 export type PaintField = keyof PaintInput;
@@ -46,6 +49,11 @@ export interface PaintResult {
   cans: number | null;
   /** Литров в купленных банках. */
   litersToBuy: number | null;
+  /** Цена банки и стоимость купленных банок, ₽ (D-033); `null` — цена или объём банки не указаны. */
+  canPrice: number | null;
+  totalCost: number | null;
+  /** Цена указана, а объёма банки нет — стоимость не посчитать (подсказка у поля, не ошибка). */
+  costNeedsPack: boolean;
 }
 
 export type PaintCalculation =
@@ -88,6 +96,7 @@ export function calculatePaint(input: PaintInput): PaintCalculation {
   if (!errors.canVolume && input.canVolume !== null && !hasPrecision(input.canVolume, 3)) {
     setError('canVolume', 'Не точнее 1 мл (три знака после запятой).');
   }
+  setError('canPrice', checkPrice(input.canPrice));
   const ceiling = input.ceiling === 'yes' ? true : input.ceiling === 'no' ? false : null;
   if (ceiling === null) setError('ceiling', 'Выберите, красить ли потолок.');
 
@@ -134,6 +143,10 @@ export function calculatePaint(input: PaintInput): PaintCalculation {
 
   const canMl = input.canVolume === null ? null : Math.round(input.canVolume * 1000);
   const cans = canMl === null ? null : ceilDiv(withReserve, reserveDivisor * canMl);
+  // Стоимость — по целым банкам (D-033).
+  const cost =
+    input.canPrice === null || cans === null ? null : packCost(cans, toKopecks(input.canPrice));
+  if (cost && !cost.ok) return { ok: false, errors: { canPrice: cost.error } };
 
   return {
     ok: true,
@@ -152,6 +165,9 @@ export function calculatePaint(input: PaintInput): PaintCalculation {
       canVolume: canMl === null ? null : canMl / 1000,
       cans,
       litersToBuy: cans === null || canMl === null ? null : (cans * canMl) / 1000,
+      canPrice: input.canPrice,
+      totalCost: cost ? kopecksToRubles(cost.kopecks) : null,
+      costNeedsPack: input.canPrice !== null && cans === null,
     },
   };
 }

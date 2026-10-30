@@ -11,6 +11,8 @@ const filled: TileFormValues = {
   joint: '2',
   reserve: '10',
   tilesPerPack: '8',
+  tilePrice: '',
+  tilePriceUnit: 'm2',
 };
 
 describe('evaluateTileForm', () => {
@@ -37,5 +39,14 @@ describe('evaluateTileForm', () => {
       ok: false,
       errors: { surface: 'Выберите тип поверхности.' },
     });
+  });
+});
+
+describe('цена плитки в форме', () => {
+  it('Т7 через форму: «1 250» за м² — 24 000 ₽; «1 890» за упаковку — 37 800 ₽', () => {
+    const perM2 = evaluateTileForm({ ...filled, tilePrice: '1 250' });
+    const perPack = evaluateTileForm({ ...filled, tilePrice: '1 890', tilePriceUnit: 'pack' });
+    expect(perM2.ok && perM2.result.totalCost).toBe(24_000);
+    expect(perPack.ok && perPack.result.totalCost).toBe(37_800);
   });
 });

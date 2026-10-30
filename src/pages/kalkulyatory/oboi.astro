@@ -3,6 +3,8 @@ import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import RelatedCalculators from '../../components/RelatedCalculators.astro';
 import CalculatorIntro from '../../components/calculator/CalculatorIntro.astro';
 import CalculatorResult from '../../components/calculator/CalculatorResult.astro';
+import CostGroup from '../../components/calculator/CostGroup.astro';
+import CostLine from '../../components/calculator/CostLine.astro';
 import RoomNext from '../../components/calculator/RoomNext.astro';
 import NumberField from '../../components/calculator/NumberField.astro';
 import Schematic from '../../components/calculator/Schematic.astro';
@@ -137,21 +139,7 @@ const id = 'wp';
           </div>
         </fieldset>
 
-        <fieldset class="calc-group">
-          <legend class="calc-group__title">
-            Цена <span class="calc-group__optional">необязательно</span>
-          </legend>
-          <div class="calc-group__fields">
-            <NumberField
-              name="rollPrice"
-              idPrefix={id}
-              label="Цена одного рулона"
-              unit="₽"
-              optional
-              hint="Укажите, чтобы посчитать стоимость."
-            />
-          </div>
-        </fieldset>
+        <CostGroup name="rollPrice" idPrefix={id} label="Цена рулона" basis="по целым рулонам" />
 
         <div class="calc-actions">
           <button class="button button--primary" type="submit">
@@ -173,9 +161,7 @@ const id = 'wp';
           <span class="calc-result__unit" data-out="rollsWord"></span>
           <span class="calc-result__explain">одной партии</span>
         </p>
-        <p class="calc-result__cost" data-row="totalCost" hidden>
-          Стоимость: <strong data-out="totalCost"></strong>
-        </p>
+        <CostLine />
 
         <h3 class="calc-result__subtitle">Как получилось</h3>
         <dl class="calc-result__list">
@@ -428,6 +414,7 @@ const id = 'wp';
   import { initCalculatorForm } from '../../client/calculator-form';
   import { evaluateWallpaperForm, wallpaperFields } from '../../lib/calculators/wallpaper-form';
   import { formatNumber, formatRubles } from '../../lib/format';
+  import { costText, packCostDetail } from '../../lib/cost';
   import { pluralizeRu, rollWordForms, stripWordForms } from '../../lib/plural';
 
   const form = document.querySelector<HTMLFormElement>('[data-wallpaper-form]');
@@ -440,8 +427,18 @@ const id = 'wp';
       fields: wallpaperFields,
       evaluate: evaluateWallpaperForm,
       render(value, view) {
-        const cost = value.totalCost === null ? '' : ` · ${formatRubles(value.totalCost)}`;
-        view.summary(`${value.rolls} ${pluralizeRu(value.rolls, rollWordForms)}${cost}`);
+        // Стоимость — по целым рулонам (D-033).
+        const cost =
+          value.totalCost !== null && value.rollPrice !== null
+            ? {
+                total: formatRubles(value.totalCost),
+                detail: packCostDetail(value.rolls, rollWordForms, value.rollPrice),
+              }
+            : null;
+        view.show('cost', cost !== null);
+        view.text('totalCost', cost?.total ?? '');
+        view.text('costDetail', cost?.detail ?? '');
+        view.summary(`${value.rolls} ${pluralizeRu(value.rolls, rollWordForms)}`, cost?.total);
         view.text('rolls', String(value.rolls));
         view.text('rollsWord', pluralizeRu(value.rolls, rollWordForms));
         view.text('perimeter', formatNumber(value.perimeter, 3));
@@ -459,8 +456,6 @@ const id = 'wp';
         view.show('openings', value.openingsArea > 0);
         view.show('rollStart', value.rollStartAllowance > 0);
         view.show('shortPieces', value.shortPieces > 0);
-        view.show('totalCost', value.totalCost !== null);
-        if (value.totalCost !== null) view.text('totalCost', formatRubles(value.totalCost));
 
         const parts = [
           `Полоса ${formatNumber(value.stripLength, 3)} м = высота стен + подрезка ${formatNumber(value.trimAllowance)} см`,
@@ -488,7 +483,8 @@ const id = 'wp';
             `Периметр ${formatNumber(value.perimeter, 3)} м, площадь стен ${formatNumber(value.wallArea)} м²`,
             `Полоса ${formatNumber(value.stripLength, 3)} м, из рулона ${value.stripsPerRoll} ${pluralizeRu(value.stripsPerRoll, stripWordForms)}`,
           ],
-          `${value.rolls} ${pluralizeRu(value.rolls, rollWordForms)}${value.totalCost === null ? '' : ` на ${formatRubles(value.totalCost)}`}`,
+          `${value.rolls} ${pluralizeRu(value.rolls, rollWordForms)} одной партии`,
+          cost ? `${costText(value.totalCost ?? 0)} (${cost.detail})` : undefined,
         );
       },
     });

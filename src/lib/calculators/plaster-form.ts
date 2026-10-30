@@ -14,6 +14,7 @@ export const plasterFields = [
   'consumption',
   'bagMass',
   'reserve',
+  'bagPrice',
 ] as const satisfies readonly PlasterField[];
 
 /** Числовые поля каждого режима: поля другого режима скрыты и не разбираются. */
@@ -23,6 +24,7 @@ const commonNumberFields = [
   'thickness',
   'consumption',
   'bagMass',
+  'bagPrice',
   'reserve',
 ] as const;
 const roomNumberFields = ['roomLength', 'roomWidth', ...commonNumberFields] as const;
@@ -54,6 +56,7 @@ export function evaluatePlasterForm(values: PlasterFormValues): PlasterCalculati
     consumption: number.consumption ?? null,
     reserve: number.reserve ?? null,
     bagMass: number.bagMass ?? null,
+    bagPrice: number.bagPrice ?? null,
   });
   return withParseErrors(calculation, parsed.errors);
 }

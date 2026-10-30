@@ -15,6 +15,7 @@ export const puttyFields = [
   'consumption',
   'packMass',
   'reserve',
+  'packPrice',
 ] as const satisfies readonly PuttyField[];
 
 /** Числовые поля каждого режима: поля другого режима скрыты и не разбираются. */
@@ -24,6 +25,7 @@ const commonNumberFields = [
   'layers',
   'consumption',
   'packMass',
+  'packPrice',
   'reserve',
 ] as const;
 const roomNumberFields = ['roomLength', 'roomWidth', ...commonNumberFields] as const;
@@ -56,6 +58,7 @@ export function evaluatePuttyForm(values: PuttyFormValues): PuttyCalculation {
     consumption: number.consumption ?? null,
     reserve: number.reserve ?? null,
     packMass: number.packMass ?? null,
+    packPrice: number.packPrice ?? null,
   });
   return withParseErrors(calculation, parsed.errors);
 }

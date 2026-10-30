@@ -1,5 +1,5 @@
 /**
- * Контрольные примеры docs/calculators/PAINT.md (П1–П8). Числа взяты из документа, где они посчитаны вручную.
+ * Контрольные примеры docs/calculators/PAINT.md (П1–П8, стоимость П9–П14). Числа взяты из документа, где они посчитаны вручную.
  */
 import { describe, expect, it } from 'vitest';
 import { calculatePaint, type PaintErrors, type PaintInput, type PaintResult } from './paint';
@@ -14,6 +14,7 @@ const base: PaintInput = {
   coverage: 10,
   reserve: 0,
   canVolume: null,
+  canPrice: null,
 };
 
 function calc(overrides: Partial<PaintInput>): PaintResult {
@@ -176,5 +177,42 @@ describe('проверка ввода', () => {
     expect(large.cans).toBe(4_200_000);
     expect(errorsOf({ roomLength: 100.1 }).roomLength).toBe('Не больше 100 м.');
     expect(errorsOf({ wallHeight: 0.4 }).wallHeight).toBe('Не меньше 0,5 м.');
+  });
+});
+
+describe('стоимость П9–П14 (D-033)', () => {
+  // П5: проёмы 3,9, потолок, c = 8, запас 10 %, банка 2,7 л → 5 банок.
+  const p5 = { openingsArea: 3.9, ceiling: 'yes', coverage: 8, reserve: 10, canVolume: 2.7 };
+
+  it('П9: 5 банок × 2 380 ₽ = 11 900 ₽ — по целым банкам, а не по литрам', () => {
+    const result = calc({ ...p5, canPrice: 2380 });
+    expect([result.cans, result.canPrice, result.totalCost]).toEqual([5, 2380, 11_900]);
+    expect(result.costNeedsPack).toBe(false);
+  });
+
+  it('П10: без объёма банки стоимость не считается — подсказка, не ошибка', () => {
+    const result = calc({ ...p5, canVolume: null, canPrice: 2380 });
+    expect([result.cans, result.totalCost, result.costNeedsPack]).toEqual([null, null, true]);
+    expect(result.litersWithReserve).toBe(12.7);
+  });
+
+  it('П11–П13: цена 0, предел 1 000 000 ₽, копейки 2 379,99', () => {
+    expect(calc({ ...p5, canPrice: 0 }).totalCost).toBe(0);
+    expect(calc({ ...p5, canPrice: 1_000_000 }).totalCost).toBe(5_000_000);
+    expect(calc({ ...p5, canPrice: 2379.99 }).totalCost).toBe(11_899.95);
+  });
+
+  it('П14: 1 банка по 9 л × 4 760 ₽', () => {
+    const result = calc({ reserve: 10, canVolume: 9, canPrice: 4760 });
+    expect([result.cans, result.totalCost]).toEqual([1, 4760]);
+  });
+
+  it('без цены — без стоимости и без подсказки; ошибки цены — у поля', () => {
+    expect([calc(p5).totalCost, calc(p5).costNeedsPack]).toEqual([null, false]);
+    expect(errorsOf({ ...p5, canPrice: -1 }).canPrice).toBe(
+      'Значение не может быть отрицательным.',
+    );
+    expect(errorsOf({ ...p5, canPrice: 1_000_000.01 }).canPrice).toBe('Не больше 1000000 ₽.');
+    expect(errorsOf({ ...p5, canPrice: 2379.999 }).canPrice).toBe('Не точнее 1 копейки.');
   });
 });

@@ -3,6 +3,8 @@ import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import RelatedCalculators from '../../components/RelatedCalculators.astro';
 import CalculatorIntro from '../../components/calculator/CalculatorIntro.astro';
 import CalculatorResult from '../../components/calculator/CalculatorResult.astro';
+import CostGroup from '../../components/calculator/CostGroup.astro';
+import CostLine from '../../components/calculator/CostLine.astro';
 import RoomNext from '../../components/calculator/RoomNext.astro';
 import NumberField from '../../components/calculator/NumberField.astro';
 import Schematic from '../../components/calculator/Schematic.astro';
@@ -178,7 +180,7 @@ const id = 'lm';
 
         <fieldset class="calc-group">
           <legend class="calc-group__title">
-            Запас и&nbsp;цена <span class="calc-group__optional">необязательно</span>
+            Запас <span class="calc-group__optional">необязательно</span>
           </legend>
           <div class="calc-group__fields">
             <NumberField
@@ -190,16 +192,15 @@ const id = 'lm';
               optional
               hint="На брак, ошибки резки и неровные стены. Подрезка уже учтена в плане."
             />
-            <NumberField
-              name="packPrice"
-              idPrefix={id}
-              label="Цена упаковки"
-              unit="₽"
-              optional
-              hint="Укажите, чтобы посчитать стоимость."
-            />
           </div>
         </fieldset>
+
+        <CostGroup
+          name="packPrice"
+          idPrefix={id}
+          label="Цена упаковки"
+          basis="по целым упаковкам"
+        />
 
         <div class="calc-actions">
           <button class="button button--primary" type="submit">
@@ -224,9 +225,7 @@ const id = 'lm';
             , <span data-out="purchaseArea"></span>&nbsp;м²
           </span>
         </p>
-        <p class="calc-result__cost" data-row="totalCost" hidden>
-          Стоимость: <strong data-out="totalCost"></strong>
-        </p>
+        <CostLine />
 
         <h3 class="calc-result__subtitle">Как получилось</h3>
         <dl class="calc-result__list">
@@ -501,6 +500,7 @@ const id = 'lm';
   import { initCalculatorForm } from '../../client/calculator-form';
   import { evaluateLaminateForm, laminateFields } from '../../lib/calculators/laminate-form';
   import { formatNumber, formatRubles } from '../../lib/format';
+  import { costText, packCostDetail } from '../../lib/cost';
   import { boardWordForms, packWordForms, pluralizeRu } from '../../lib/plural';
 
   const form = document.querySelector<HTMLFormElement>('[data-laminate-form]');
@@ -522,12 +522,20 @@ const id = 'lm';
         const l = value.boardLength;
         const w = value.boardWidth;
 
-        const cost = value.totalCost === null ? '' : ` · ${formatRubles(value.totalCost)}`;
-        view.summary(`${packsText(value.packs)}${cost}`);
+        // Стоимость — по целым упаковкам (D-033).
+        const cost =
+          value.totalCost !== null && value.packPrice !== null
+            ? {
+                total: formatRubles(value.totalCost),
+                detail: packCostDetail(value.packs, packWordForms, value.packPrice),
+              }
+            : null;
+        view.show('cost', cost !== null);
+        view.text('totalCost', cost?.total ?? '');
+        view.text('costDetail', cost?.detail ?? '');
+        view.summary(packsText(value.packs), cost?.total);
         view.text('packs', String(value.packs));
         view.text('packsWord', pluralizeRu(value.packs, packWordForms));
-        view.show('totalCost', value.totalCost !== null);
-        if (value.totalCost !== null) view.text('totalCost', formatRubles(value.totalCost));
         // Под числом упаковок — сколько это досок и метров; числа — моноширинным, единицы — текстом.
         view.text('purchaseBoards', String(value.boardsToBuy));
         view.text('purchaseBoardsWord', pluralizeRu(value.boardsToBuy, boardWordForms));
@@ -628,7 +636,8 @@ const id = 'lm';
             `Комната ${formatNumber(value.roomArea, 2)} м² (${value.roomLengthMm} × ${value.roomWidthMm} мм)`,
             `Доска ${value.boardLength} × ${value.boardWidth} мм, по плану ${boardsText(value.boards)}, запас ${formatNumber(value.reserve, 1)} %`,
           ],
-          `${packsText(value.packs)} (${boardsText(value.boardsToBuy)}, ${formatNumber(value.areaToBuy, 2)} м²)${value.totalCost === null ? '' : ` на ${formatRubles(value.totalCost)}`}`,
+          `${packsText(value.packs)} (${boardsText(value.boardsToBuy)}, ${formatNumber(value.areaToBuy, 2)} м²)`,
+          cost ? `${costText(value.totalCost ?? 0)} (${cost.detail})` : undefined,
         );
       },
     });

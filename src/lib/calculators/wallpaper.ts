@@ -5,6 +5,7 @@
  * Все размеры внутри переводятся в целые миллиметры, чтобы округление вверх
  * не ошибалось из-за двоичных дробей (10.6 / 0.53 = 20.000000000000004).
  */
+import { checkPrice, kopecksToRubles, packCost, priceLimits, toKopecks } from '../cost';
 import { ceilDiv, ceilToMultiple, centimetersToMm, metersToMm } from '../number';
 import { type Range, checkOptional, checkRequired, fmt } from '../validation';
 
@@ -66,6 +67,8 @@ export interface WallpaperResult {
   /** Использованный запас на подрезку, см. */
   trimAllowance: number;
   /** Стоимость, ₽, или `null`, если цена не указана. */
+  /** Цена рулона, ₽, и стоимость целых рулонов (D-033); `null` — цена не указана. */
+  rollPrice: number | null;
   totalCost: number | null;
 }
 
@@ -83,7 +86,7 @@ export const wallpaperLimits = {
   openingCount: { min: 0, max: 50 },
   patternRepeat: { min: 0, max: 200 },
   trimAllowance: { min: 0, max: 100 },
-  rollPrice: { min: 0, max: 1_000_000 },
+  rollPrice: priceLimits,
 } as const satisfies Record<string, Range>;
 
 function checkCount(value: number | null): string | null {
@@ -143,7 +146,7 @@ export function calculateWallpaper(input: WallpaperInput): WallpaperCalculation 
     'trimAllowance',
     checkOptional(input.trimAllowance, wallpaperLimits.trimAllowance, 'см'),
   );
-  setError('rollPrice', checkOptional(input.rollPrice, wallpaperLimits.rollPrice, '₽'));
+  setError('rollPrice', checkPrice(input.rollPrice));
   setError('windowCount', checkCount(input.windowCount));
   setError('doorCount', checkCount(input.doorCount));
 
@@ -306,7 +309,9 @@ export function calculateWallpaper(input: WallpaperInput): WallpaperCalculation 
 
   const wallAreaMm2 = perimeter * H;
   const openingsAreaMm2 = openings.reduce((sum, o) => sum + o.count * o.width * o.height, 0);
-  const priceKopecks = input.rollPrice === null ? null : Math.round(input.rollPrice * 100);
+  // Стоимость — по целым рулонам (D-033, общая функция src/lib/cost.ts).
+  const cost = input.rollPrice === null ? null : packCost(rolls, toKopecks(input.rollPrice));
+  if (cost && !cost.ok) return { ok: false, errors: { rollPrice: cost.error } };
 
   return {
     ok: true,
@@ -328,7 +333,8 @@ export function calculateWallpaper(input: WallpaperInput): WallpaperCalculation 
       rolls,
       patternRepeat: repeat / 10,
       trimAllowance: trim / 10,
-      totalCost: priceKopecks === null ? null : (priceKopecks * rolls) / 100,
+      rollPrice: input.rollPrice,
+      totalCost: cost ? kopecksToRubles(cost.kopecks) : null,
     },
   };
 }

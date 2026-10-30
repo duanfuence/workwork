@@ -1,5 +1,5 @@
 /**
- * Контрольные примеры docs/calculators/TILE.md (Т1–Т6). Числа взяты из документа, где они посчитаны вручную.
+ * Контрольные примеры docs/calculators/TILE.md (Т1–Т6, стоимость Т7–Т15). Числа взяты из документа, где они посчитаны вручную.
  */
 import { describe, expect, it } from 'vitest';
 import { calculateTile, type TileErrors, type TileInput, type TileResult } from './tile';
@@ -14,6 +14,8 @@ const base: TileInput = {
   joint: 2,
   reserve: 0,
   tilesPerPack: null,
+  tilePrice: null,
+  tilePriceUnit: 'm2',
 };
 
 function calc(overrides: Partial<TileInput>): TileResult {
@@ -144,5 +146,82 @@ describe('проверка ввода', () => {
     expect(errorsOf({ reserve: 5.55 }).reserve).toBe('Не больше одного знака после запятой.');
     expect(errorsOf({ tilesPerPack: 0 }).tilesPerPack).toBe('Не меньше 1 шт.');
     expect(errorsOf({ tilesPerPack: 1.5 }).tilesPerPack).toBe('Введите целое число.');
+  });
+});
+
+describe('стоимость Т7–Т15 (D-033)', () => {
+  const t3: Partial<TileInput> = {
+    surface: 'wall',
+    surfaceLength: 2.5,
+    surfaceWidth: 2.7,
+    surfaceCount: 2,
+    tileLength: 600,
+    tileWidth: 200,
+    reserve: 10,
+    tilesPerPack: 8,
+  };
+
+  it('Т7: за м² — купленная площадь 20 упаковок × 8 × 0,12 = 19,2 м² × 1 250 ₽ = 24 000 ₽', () => {
+    const result = calc({ ...t3, tilePrice: 1250 });
+    expect([result.packs, result.boughtArea, result.totalCost]).toEqual([20, 19.2, 24_000]);
+    expect([result.tilePriceUnit, result.costNeedsPack]).toEqual(['m2', false]);
+  });
+
+  it('Т8, Т9: за м² без числа в упаковке — 154 плитки × 0,12 = 18,48 м²; копейки округляются', () => {
+    const t8 = calc({ ...t3, tilesPerPack: null, tilePrice: 1250 });
+    expect([t8.packs, t8.boughtArea, t8.totalCost, t8.costNeedsPack]).toEqual([
+      null,
+      18.48,
+      23_100,
+      false,
+    ]);
+    // 18 480 000 мм² · 124 999 коп. / 10⁶ = 2 309 981,52 → 2 309 982 коп.
+    expect(calc({ ...t3, tilesPerPack: null, tilePrice: 1249.99 }).totalCost).toBe(23_099.82);
+  });
+
+  it('Т10, Т11: за упаковку — 20 × 1 890 ₽ = 37 800 ₽; без числа в упаковке — подсказка', () => {
+    const t10 = calc({ ...t3, tilePrice: 1890, tilePriceUnit: 'pack' });
+    expect([t10.totalCost, t10.costNeedsPack]).toEqual([37_800, false]);
+    const t11 = calc({ ...t3, tilesPerPack: null, tilePrice: 1890, tilePriceUnit: 'pack' });
+    expect([t11.totalCost, t11.costNeedsPack]).toEqual([null, true]);
+  });
+
+  it('Т12: Т1 (4 упаковки по 11, 300 × 300) по 990 ₽ за м² — 3,96 м², 3 920,40 ₽', () => {
+    const result = calc({ reserve: 10, tilesPerPack: 11, tilePrice: 990 });
+    expect([result.boughtArea, result.totalCost]).toEqual([3.96, 3920.4]);
+  });
+
+  it('Т13: цена 0 — 0 ₽ за м² и за упаковку', () => {
+    expect(calc({ ...t3, tilePrice: 0 }).totalCost).toBe(0);
+    expect(calc({ ...t3, tilePrice: 0, tilePriceUnit: 'pack' }).totalCost).toBe(0);
+  });
+
+  it('Т14, Т15: предел — за упаковку больше 2⁵³ копеек — ошибка у цены; за м² — точно', () => {
+    const limit: Partial<TileInput> = {
+      surfaceLength: 100,
+      surfaceWidth: 100,
+      surfaceCount: 50,
+      tileLength: 20,
+      tileWidth: 20,
+      joint: 0,
+      reserve: 50,
+      tilesPerPack: 1,
+      tilePrice: 1_000_000,
+    };
+    expect(errorsOf({ ...limit, tilePriceUnit: 'pack' }).tilePrice).toBe(
+      'Слишком большая сумма для расчёта — проверьте цену.',
+    );
+    const perM2 = calc(limit);
+    expect([perM2.tilesWithReserve, perM2.boughtArea, perM2.totalCost]).toEqual([
+      1_875_000_000, 750_000, 750_000_000_000,
+    ]);
+  });
+
+  it('без цены — без стоимости; цена без единицы — ошибка выбора', () => {
+    expect([calc(t3).totalCost, calc(t3).costNeedsPack]).toEqual([null, false]);
+    expect(errorsOf({ ...t3, tilePrice: 100, tilePriceUnit: null }).tilePriceUnit).toBe(
+      'Выберите, за что указана цена.',
+    );
+    expect(errorsOf({ ...t3, tilePrice: 99.999 }).tilePrice).toBe('Не точнее 1 копейки.');
   });
 });

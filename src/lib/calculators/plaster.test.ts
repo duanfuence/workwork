@@ -1,5 +1,5 @@
 /**
- * Контрольные примеры docs/calculators/PLASTER.md (Ш1–Ш7). Числа взяты из документа, где они посчитаны вручную.
+ * Контрольные примеры docs/calculators/PLASTER.md (Ш1–Ш12, стоимость Ш13–Ш15). Числа взяты из документа, где они посчитаны вручную.
  */
 import { describe, expect, it } from 'vitest';
 import {
@@ -18,6 +18,7 @@ const base: PlasterInput = {
   consumption: 0.9,
   reserve: 0,
   bagMass: 30,
+  bagPrice: null,
 };
 
 function calc(overrides: Partial<PlasterInput>): PlasterResult {
@@ -249,5 +250,51 @@ describe('режим «помещение» (модель 2): контрольн
     expect(errorsOf({ ...room, roomWidth: null }).roomWidth).toBe('Заполните поле.');
     expect(calc({ ...room, wallLength: -5, wallCount: 0.5 }).mode).toBe('room');
     expect(errorsOf({ mode: 'ceiling' })).toEqual({ mode: 'Выберите, что считать.' });
+  });
+});
+
+describe('стоимость Ш13–Ш15 (D-033)', () => {
+  const sh2: Partial<PlasterInput> = {
+    wallLength: 4,
+    wallCount: 4,
+    openingsArea: 3.9,
+    thickness: 15,
+    consumption: 0.85,
+    reserve: 10,
+    bagMass: 25,
+  };
+
+  it('Ш13: 23 мешка × 549,90 ₽ = 12 647,70 ₽', () => {
+    const result = calc({ ...sh2, bagPrice: 549.9 });
+    expect([result.bags, result.bagPrice, result.totalCost, result.costNeedsPack]).toEqual([
+      23,
+      549.9,
+      12_647.7,
+      false,
+    ]);
+  });
+
+  it('Ш14: без массы мешка — стоимости нет, подсказка', () => {
+    const result = calc({ ...sh2, bagMass: null, bagPrice: 549.9 });
+    expect([result.bags, result.totalCost, result.costNeedsPack]).toEqual([null, null, true]);
+  });
+
+  it('Ш15: предел — 37 500 000 мешков × 1 000 000 ₽ = 37 500 000 000 000 ₽ точно', () => {
+    const result = calc({
+      wallLength: 100,
+      wallHeight: 10,
+      wallCount: 50,
+      thickness: 100,
+      consumption: 5,
+      reserve: 50,
+      bagMass: 1,
+      bagPrice: 1_000_000,
+    });
+    expect(result.totalCost).toBe(37_500_000_000_000);
+  });
+
+  it('цена 0 — 0 ₽; ошибки цены — у поля', () => {
+    expect(calc({ ...sh2, bagPrice: 0 }).totalCost).toBe(0);
+    expect(errorsOf({ bagPrice: 1_000_000.01 }).bagPrice).toBe('Не больше 1000000 ₽.');
   });
 });

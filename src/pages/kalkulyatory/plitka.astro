@@ -3,6 +3,8 @@ import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import RelatedCalculators from '../../components/RelatedCalculators.astro';
 import CalculatorIntro from '../../components/calculator/CalculatorIntro.astro';
 import CalculatorResult from '../../components/calculator/CalculatorResult.astro';
+import CostGroup from '../../components/calculator/CostGroup.astro';
+import CostLine from '../../components/calculator/CostLine.astro';
 import RoomNext from '../../components/calculator/RoomNext.astro';
 import NumberField from '../../components/calculator/NumberField.astro';
 import Schematic from '../../components/calculator/Schematic.astro';
@@ -133,6 +135,30 @@ const id = 'tl';
           </div>
         </fieldset>
 
+        <CostGroup
+          name="tilePrice"
+          idPrefix={id}
+          label="Цена плитки"
+          basis="по купленному: площади целых упаковок или числу упаковок"
+          needs={{
+            field: 'tilesPerPack',
+            when: 'tilePriceUnit=pack',
+            text: 'Укажите, сколько плиток в упаковке, — тогда посчитаем стоимость.',
+          }}
+        >
+          <SelectField
+            name="tilePriceUnit"
+            idPrefix={id}
+            label="Цена указана"
+            value="m2"
+            options={[
+              { value: 'm2', label: 'за м²' },
+              { value: 'pack', label: 'за упаковку' },
+            ]}
+            hint="На ценниках плитки обычно цена за м²."
+          />
+        </CostGroup>
+
         <div class="calc-actions">
           <button class="button button--primary" type="submit">
             Рассчитать
@@ -156,6 +182,7 @@ const id = 'tl';
             нужно <span data-out="tilesWithReserve"></span>&nbsp;<span data-out="tilesWord"></span>
           </span>
         </p>
+        <CostLine />
 
         <h3 class="calc-result__subtitle">Как получилось</h3>
         <dl class="calc-result__list">
@@ -317,7 +344,8 @@ const id = 'tl';
 <script>
   import { initCalculatorForm } from '../../client/calculator-form';
   import { evaluateTileForm, tileFields } from '../../lib/calculators/tile-form';
-  import { formatNumber } from '../../lib/format';
+  import { areaCostDetail, costText, packCostDetail } from '../../lib/cost';
+  import { formatNumber, formatRubles } from '../../lib/format';
   import { pluralizeRu } from '../../lib/plural';
   import { packagePurchase } from '../../lib/purchase';
 
@@ -346,7 +374,24 @@ const id = 'tl';
             : null;
         view.text('buyNumber', purchase?.number ?? String(value.tilesWithReserve));
         view.text('buyUnit', purchase?.unit ?? pluralizeRu(value.tilesWithReserve, tileWords));
-        view.summary(purchase?.summary ?? tilesText(value.tilesWithReserve));
+        // Стоимость — по купленному (D-033): за м² — площадь целых упаковок (или плиток с запасом), за упаковку —
+        // число упаковок; без числа плиток в упаковке цену за упаковку не применить.
+        const detail =
+          value.tilePrice === null
+            ? null
+            : value.tilePriceUnit === 'm2'
+              ? areaCostDetail(value.boughtArea, value.tilePrice)
+              : value.packs !== null
+                ? packCostDetail(value.packs, packWords, value.tilePrice)
+                : null;
+        const cost =
+          value.totalCost !== null && detail !== null
+            ? { total: formatRubles(value.totalCost), detail }
+            : null;
+        view.show('cost', cost !== null);
+        view.text('totalCost', cost?.total ?? '');
+        view.text('costDetail', cost?.detail ?? '');
+        view.summary(purchase?.summary ?? tilesText(value.tilesWithReserve), cost?.total);
         view.text('tilesWithReserve', String(value.tilesWithReserve));
         view.text('tilesWord', pluralizeRu(value.tilesWithReserve, tileWords));
         view.text('tilesWithReserve2', String(value.tilesWithReserve));
@@ -378,6 +423,7 @@ const id = 'tl';
             `Раскладка ${value.alongLength} × ${value.alongWidth}${surfaces}, запас ${formatNumber(value.reserve, 1)} %`,
           ],
           purchase?.purchase ?? tilesText(value.tilesWithReserve),
+          cost ? `${costText(value.totalCost ?? 0)} (${cost.detail})` : undefined,
         );
       },
     });

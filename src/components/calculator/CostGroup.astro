@@ -1,0 +1,36 @@
+---
+/**
+ * Группа «Стоимость · необязательно» в конце формы всех калькуляторов (D-033). Цена — как на ценнике; стоимость —
+ * по целым упаковкам (у плитки за м² — по купленной площади). Без цены результат как без неё. Цена не сохраняется
+ * между калькуляторами. Рядом с полем цены — слот для выбора единицы (у плитки: «за м² / за упаковку»).
+ */
+import { typograph } from '../../lib/format';
+import NumberField from './NumberField.astro';
+
+interface Props {
+  /** Имя поля цены: `canPrice`, `rollPrice`… */
+  name: string;
+  idPrefix: string;
+  /** «Цена банки», «Цена рулона». */
+  label: string;
+  /** Без чего стоимость не посчитать: «Укажите объём банки — тогда посчитаем стоимость». */
+  needs?: { field: string; when?: string; text: string };
+  /** Что именно считается: «по целым банкам». */
+  basis: string;
+}
+
+const { name, idPrefix, label, needs, basis } = Astro.props;
+---
+
+<fieldset class="calc-group calc-cost">
+  <legend class="calc-group__title">
+    Стоимость <span class="calc-group__optional">необязательно</span>
+  </legend>
+  <p class="calc-group__hint">
+    {typograph(`Цена — как на ценнике в магазине. Стоимость считаем ${basis}.`)}
+  </p>
+  <div class="calc-group__fields">
+    <NumberField name={name} idPrefix={idPrefix} label={label} unit="₽" optional needs={needs} />
+    <slot />
+  </div>
+</fieldset>

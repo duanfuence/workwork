@@ -11,6 +11,7 @@ const filled: PaintFormValues = {
   coverage: '8',
   reserve: '10',
   canVolume: '2,7',
+  canPrice: '',
 };
 
 describe('evaluatePaintForm', () => {
@@ -42,5 +43,18 @@ describe('evaluatePaintForm', () => {
       ok: false,
       errors: { ceiling: 'Выберите, красить ли потолок.' },
     });
+  });
+});
+
+describe('цена банки в форме', () => {
+  it('«2 379,99» — пробел в разрядах и запятая: 5 банок × 2 379,99 = 11 899,95 ₽', () => {
+    const calculation = evaluatePaintForm({ ...filled, canPrice: '2 379,99' });
+    if (!calculation.ok) throw new Error(JSON.stringify(calculation.errors));
+    expect(calculation.result.totalCost).toBe(11_899.95);
+  });
+
+  it('текст вместо цены — «Введите число.» у поля цены', () => {
+    const calculation = evaluatePaintForm({ ...filled, canPrice: 'дорого' });
+    expect(calculation.ok ? null : calculation.errors.canPrice).toBe('Введите число.');
   });
 });

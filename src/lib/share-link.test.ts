@@ -115,3 +115,43 @@ describe('текст итога', () => {
     );
   });
 });
+
+describe('стоимость в ссылке и списке покупок (D-033)', () => {
+  const priced: ShareControl[] = [
+    { name: 'canVolume', kind: 'number' },
+    { name: 'canPrice', kind: 'number' },
+    { name: 'tilePriceUnit', kind: 'choice', options: ['m2', 'pack'] },
+  ];
+
+  it('цена с пробелом в разрядах и копейками — в ссылке числом с точкой, обратно — как в поле', () => {
+    const query = buildShareQuery([
+      { name: 'canVolume', kind: 'number', value: '2,7' },
+      { name: 'canPrice', kind: 'number', value: '2 379,99' },
+      { name: 'tilePriceUnit', kind: 'choice', value: 'pack' },
+    ]);
+    expect(query).toBe('v=1&canVolume=2.7&canPrice=2379.99&tilePriceUnit=pack');
+    expect(parseShareQuery(`?${query}`, priced)).toEqual({
+      canVolume: '2,7',
+      canPrice: '2379,99',
+      tilePriceUnit: 'pack',
+    });
+  });
+
+  it('пустая цена — пустым значением; неизвестная единица цены пропускается', () => {
+    expect(parseShareQuery('?v=1&canPrice=&tilePriceUnit=kg', priced)).toEqual({ canPrice: '' });
+  });
+
+  it('стоимость — строкой под позицией списка покупок', () => {
+    expect(
+      shareText({
+        title: 'Калькулятор краски',
+        params: ['Площадь окрашивания 45,9 м²'],
+        purchase: '5 банок по 2,7 л — нужно 12,7 л',
+        cost: 'Стоимость ≈ 11 900 ₽ (5 банок × 2 380 ₽)',
+        url: 'https://example.com/kalkulyatory/kraska/?v=1',
+      })
+        .split('\n')
+        .slice(1, 3),
+    ).toEqual(['□ 5 банок по 2,7 л — нужно 12,7 л', 'Стоимость ≈ 11 900 ₽ (5 банок × 2 380 ₽)']);
+  });
+});

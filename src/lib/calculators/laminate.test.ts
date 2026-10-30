@@ -527,6 +527,8 @@ describe('проверка ввода', () => {
     expect(errorsOf({ packPrice: Infinity }).packPrice).toBe('Введите число.');
     expect(errorsOf({ reserve: -1 }).reserve).toBe('Значение не может быть отрицательным.');
     expect(errorsOf({ packPrice: -1 }).packPrice).toBe('Значение не может быть отрицательным.');
+    // К12 (LAMINATE.md): цена точнее копейки — ошибка (D-033).
+    expect(errorsOf({ packPrice: 1849.905 }).packPrice).toBe('Не точнее 1 копейки.');
   });
 
   it('диапазоны §11', () => {

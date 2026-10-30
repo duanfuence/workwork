@@ -10,6 +10,7 @@ const filled: PlasterFormValues = {
   consumption: '0,85',
   reserve: '10',
   bagMass: '25',
+  bagPrice: '',
 };
 
 describe('evaluatePlasterForm', () => {

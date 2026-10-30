@@ -9,6 +9,7 @@
  * Размеры комнаты, доски, зазор, `m` и `o` — целые миллиметры; ряды и пары считаются в целых десятых
  * долях миллиметра (`T`), потому что пропил задаётся с шагом 0,1 мм. Сетка начал рядов и сдвигов — 1 мм.
  */
+import { checkPrice, kopecksToRubles, packCost, priceLimits, toKopecks } from '../cost';
 import { ceilDiv, metersToMm } from '../number';
 import { type Range, checkOptional, checkRequired, fmt } from '../validation';
 
@@ -141,6 +142,8 @@ export interface LaminateResult {
   reserve: number;
   minPiece: number;
   minOffset: number;
+  /** Цена упаковки, ₽, и стоимость целых упаковок (D-033); `null` — цена не указана. */
+  packPrice: number | null;
   totalCost: number | null;
 }
 
@@ -165,7 +168,7 @@ export const laminateLimits = {
   minPiece: { min: 50, max: 1500 },
   minOffset: { min: 50, max: 1500 },
   reserve: { min: 0, max: 50 },
-  packPrice: { min: 0, max: 1_000_000 },
+  packPrice: priceLimits,
   gap: { min: 0, max: 30 },
   kerf: { min: 0, max: 5 },
 } as const satisfies Record<string, Range>;
@@ -441,7 +444,7 @@ export function calculateLaminate(input: LaminateInput): LaminateCalculation {
       setError('reserve', 'Не больше одного знака после запятой.');
     }
   }
-  setError('packPrice', checkOptional(input.packPrice, laminateLimits.packPrice, '₽'));
+  setError('packPrice', checkPrice(input.packPrice));
   setError('gap', checkOptional(input.gap, laminateLimits.gap, 'мм'));
   if (!errors.gap && input.gap !== null && !Number.isInteger(input.gap)) {
     setError('gap', 'Введите целое число миллиметров.');
@@ -536,7 +539,9 @@ export function calculateLaminate(input: LaminateInput): LaminateCalculation {
   const fieldAreaMm2 = rowLength * fieldWidth;
   const areaBoards = ceilDiv(roomAreaMm2, boardArea);
   const areaBoardsWithReserve = withReserve(areaBoards);
-  const priceKopecks = input.packPrice === null ? null : Math.round(input.packPrice * 100);
+  // Стоимость — по целым упаковкам (D-033, общая функция src/lib/cost.ts).
+  const cost = input.packPrice === null ? null : packCost(packs, toKopecks(input.packPrice));
+  if (cost && !cost.ok) return { ok: false, errors: { packPrice: cost.error } };
 
   return {
     ok: true,
@@ -573,7 +578,8 @@ export function calculateLaminate(input: LaminateInput): LaminateCalculation {
       reserve: reserveTenths / 10,
       minPiece: m,
       minOffset: o,
-      totalCost: priceKopecks === null ? null : (priceKopecks * packs) / 100,
+      packPrice: input.packPrice,
+      totalCost: cost ? kopecksToRubles(cost.kopecks) : null,
     },
   };
 }

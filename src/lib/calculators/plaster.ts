@@ -6,6 +6,7 @@
  * запас в десятых процента, мешок в граммах. Произведение площади, толщины и расхода может превысить 2⁵³,
  * поэтому масса считается в BigInt — без ошибок двоичных дробей (50 · 1,1 = 55, а не 55,000…1).
  */
+import { checkPrice, kopecksToRubles, packCost, toKopecks } from '../cost';
 import { metersToMm } from '../number';
 import { type Range, checkOptional, checkRequired, fmt, hasPrecision } from '../validation';
 
@@ -28,6 +29,8 @@ export interface PlasterInput {
   consumption: number | null;
   reserve: number | null;
   bagMass: number | null;
+  /** Цена одного мешка, ₽ (D-033); без массы стоимость не считается. */
+  bagPrice: number | null;
 }
 
 export type PlasterField = keyof PlasterInput;
@@ -53,6 +56,11 @@ export interface PlasterResult {
   bags: number | null;
   /** Килограммов в купленных мешках. */
   massToBuy: number | null;
+  /** Цена и стоимость купленных мешков, ₽ (D-033); `null` — цена или масса не указаны. */
+  bagPrice: number | null;
+  totalCost: number | null;
+  /** Цена указана, а массы нет — стоимость не посчитать (подсказка у поля, не ошибка). */
+  costNeedsPack: boolean;
 }
 
 export type PlasterCalculation =
@@ -122,6 +130,7 @@ export function calculatePlaster(input: PlasterInput): PlasterCalculation {
   checkPrecision('reserve', input.reserve, 1);
   setError('bagMass', checkOptional(input.bagMass, plasterLimits.bagMass, 'кг'));
   checkPrecision('bagMass', input.bagMass, 1);
+  setError('bagPrice', checkPrice(input.bagPrice));
 
   if (Object.keys(errors).length > 0 || mode === null) return { ok: false, errors };
 
@@ -163,6 +172,11 @@ export function calculatePlaster(input: PlasterInput): PlasterCalculation {
   const bags =
     bagGrams === null ? null : Number(ceilDivBig(withReserve, BigInt(bagGrams) * 1_000_000_000n));
 
+  // Стоимость — по целым упаковкам (D-033).
+  const cost =
+    input.bagPrice === null || bags === null ? null : packCost(bags, toKopecks(input.bagPrice));
+  if (cost && !cost.ok) return { ok: false, errors: { bagPrice: cost.error } };
+
   return {
     ok: true,
     result: {
@@ -178,6 +192,9 @@ export function calculatePlaster(input: PlasterInput): PlasterCalculation {
       massWithReserve: massWithReserveKg,
       bagMass: bagGrams === null ? null : bagGrams / 1000,
       bags,
+      bagPrice: input.bagPrice,
+      totalCost: cost ? kopecksToRubles(cost.kopecks) : null,
+      costNeedsPack: input.bagPrice !== null && bags === null,
       massToBuy: bags === null || bagGrams === null ? null : (bags * bagGrams) / 1000,
     },
   };

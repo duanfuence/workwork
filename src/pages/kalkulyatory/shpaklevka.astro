@@ -3,6 +3,8 @@ import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import RelatedCalculators from '../../components/RelatedCalculators.astro';
 import CalculatorIntro from '../../components/calculator/CalculatorIntro.astro';
 import CalculatorResult from '../../components/calculator/CalculatorResult.astro';
+import CostGroup from '../../components/calculator/CostGroup.astro';
+import CostLine from '../../components/calculator/CostLine.astro';
 import RoomNext from '../../components/calculator/RoomNext.astro';
 import NumberField from '../../components/calculator/NumberField.astro';
 import Schematic from '../../components/calculator/Schematic.astro';
@@ -169,6 +171,14 @@ const id = 'pt';
           </div>
         </fieldset>
 
+        <CostGroup
+          name="packPrice"
+          idPrefix={id}
+          label="Цена упаковки"
+          basis="по целым упаковкам"
+          needs={{ field: 'packMass', text: 'Укажите массу упаковки — тогда посчитаем стоимость.' }}
+        />
+
         <div class="calc-actions">
           <button class="button button--primary" type="submit">
             Рассчитать
@@ -192,6 +202,7 @@ const id = 'pt';
             нужно <span data-out="massWithReserve"></span>&nbsp;кг
           </span>
         </p>
+        <CostLine />
         <p class="calc-result__preset" data-preset-note="consumption" hidden></p>
 
         <h3 class="calc-result__subtitle">Как получилось</h3>
@@ -371,7 +382,8 @@ const id = 'pt';
 <script>
   import { initCalculatorForm } from '../../client/calculator-form';
   import { evaluatePuttyForm, puttyFields } from '../../lib/calculators/putty-form';
-  import { formatNumber } from '../../lib/format';
+  import { costText, packCostDetail } from '../../lib/cost';
+  import { formatNumber, formatRubles } from '../../lib/format';
   import { pluralizeRu } from '../../lib/plural';
   import { packagePurchase } from '../../lib/purchase';
 
@@ -399,7 +411,21 @@ const id = 'pt';
             : null;
         view.text('buyNumber', purchase?.number ?? formatNumber(value.massWithReserve, 1));
         view.text('buyUnit', purchase?.unit ?? 'кг шпаклёвки');
-        view.summary(purchase?.summary ?? `${formatNumber(value.massWithReserve, 1)} кг шпаклёвки`);
+        // Стоимость — по целым упаковкам (D-033); без массы упаковки её нет.
+        const cost =
+          value.totalCost !== null && value.packs !== null && value.packPrice !== null
+            ? {
+                total: formatRubles(value.totalCost),
+                detail: packCostDetail(value.packs, packWords, value.packPrice),
+              }
+            : null;
+        view.show('cost', cost !== null);
+        view.text('totalCost', cost?.total ?? '');
+        view.text('costDetail', cost?.detail ?? '');
+        view.summary(
+          purchase?.summary ?? `${formatNumber(value.massWithReserve, 1)} кг шпаклёвки`,
+          cost?.total,
+        );
         view.text('massWithReserve', formatNumber(value.massWithReserve, 1));
         view.text('massWithReserve2', formatNumber(value.massWithReserve, 1));
         view.text('mass', formatNumber(value.mass, 1));
@@ -439,6 +465,7 @@ const id = 'pt';
             `${value.layers} ${pluralizeRu(value.layers, layerWords)} по ${formatNumber(value.consumption, 2)} кг/м², запас ${formatNumber(value.reserve, 1)} %`,
           ],
           purchase?.purchase ?? `${formatNumber(value.massWithReserve, 1)} кг шпаклёвки`,
+          cost ? `${costText(value.totalCost ?? 0)} (${cost.detail})` : undefined,
         );
       },
     });

@@ -6,6 +6,7 @@
  * упаковка в граммах. На пределах полей произведение превышает 2⁵³, поэтому масса считается в BigInt —
  * без ошибок двоичных дробей (10 · 1,1 = 11, а не 11,000…1).
  */
+import { checkPrice, kopecksToRubles, packCost, toKopecks } from '../cost';
 import { metersToMm } from '../number';
 import { type Range, checkOptional, checkRequired, fmt, hasPrecision } from '../validation';
 
@@ -30,6 +31,8 @@ export interface PuttyInput {
   consumption: number | null;
   reserve: number | null;
   packMass: number | null;
+  /** Цена одной упаковки, ₽ (D-033); без массы стоимость не считается. */
+  packPrice: number | null;
 }
 
 export type PuttyField = keyof PuttyInput;
@@ -56,6 +59,11 @@ export interface PuttyResult {
   packs: number | null;
   /** Килограммов в купленных упаковках. */
   massToBuy: number | null;
+  /** Цена и стоимость купленных упаковок, ₽ (D-033); `null` — цена или масса не указаны. */
+  packPrice: number | null;
+  totalCost: number | null;
+  /** Цена указана, а массы нет — стоимость не посчитать (подсказка у поля, не ошибка). */
+  costNeedsPack: boolean;
 }
 
 export type PuttyCalculation =
@@ -133,6 +141,7 @@ export function calculatePutty(input: PuttyInput): PuttyCalculation {
   checkPrecision('reserve', input.reserve, 1);
   setError('packMass', checkOptional(input.packMass, puttyLimits.packMass, 'кг'));
   checkPrecision('packMass', input.packMass, 1);
+  setError('packPrice', checkPrice(input.packPrice));
 
   if (Object.keys(errors).length > 0 || mode === null) return { ok: false, errors };
 
@@ -176,6 +185,11 @@ export function calculatePutty(input: PuttyInput): PuttyCalculation {
   const packs =
     packGrams === null ? null : Number(ceilDivBig(withReserve, BigInt(packGrams) * 100_000_000n));
 
+  // Стоимость — по целым упаковкам (D-033).
+  const cost =
+    input.packPrice === null || packs === null ? null : packCost(packs, toKopecks(input.packPrice));
+  if (cost && !cost.ok) return { ok: false, errors: { packPrice: cost.error } };
+
   return {
     ok: true,
     result: {
@@ -193,6 +207,9 @@ export function calculatePutty(input: PuttyInput): PuttyCalculation {
       massWithReserve: massWithReserveKg,
       packMass: packGrams === null ? null : packGrams / 1000,
       packs,
+      packPrice: input.packPrice,
+      totalCost: cost ? kopecksToRubles(cost.kopecks) : null,
+      costNeedsPack: input.packPrice !== null && packs === null,
       massToBuy: packs === null || packGrams === null ? null : (packs * packGrams) / 1000,
     },
   };

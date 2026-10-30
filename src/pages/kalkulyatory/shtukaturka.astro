@@ -3,6 +3,8 @@ import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import RelatedCalculators from '../../components/RelatedCalculators.astro';
 import CalculatorIntro from '../../components/calculator/CalculatorIntro.astro';
 import CalculatorResult from '../../components/calculator/CalculatorResult.astro';
+import CostGroup from '../../components/calculator/CostGroup.astro';
+import CostLine from '../../components/calculator/CostLine.astro';
 import RoomNext from '../../components/calculator/RoomNext.astro';
 import NumberField from '../../components/calculator/NumberField.astro';
 import Schematic from '../../components/calculator/Schematic.astro';
@@ -156,6 +158,14 @@ const id = 'pl';
           </div>
         </fieldset>
 
+        <CostGroup
+          name="bagPrice"
+          idPrefix={id}
+          label="Цена мешка"
+          basis="по целым мешкам"
+          needs={{ field: 'bagMass', text: 'Укажите массу мешка — тогда посчитаем стоимость.' }}
+        />
+
         <div class="calc-actions">
           <button class="button button--primary" type="submit">
             Рассчитать
@@ -179,6 +189,7 @@ const id = 'pl';
             нужно <span data-out="massWithReserve"></span>&nbsp;кг
           </span>
         </p>
+        <CostLine />
         <p class="calc-result__preset" data-preset-note="consumption" hidden></p>
 
         <h3 class="calc-result__subtitle">Как получилось</h3>
@@ -356,7 +367,8 @@ const id = 'pl';
 <script>
   import { initCalculatorForm } from '../../client/calculator-form';
   import { evaluatePlasterForm, plasterFields } from '../../lib/calculators/plaster-form';
-  import { formatNumber } from '../../lib/format';
+  import { costText, packCostDetail } from '../../lib/cost';
+  import { formatNumber, formatRubles } from '../../lib/format';
   import { pluralizeRu } from '../../lib/plural';
   import { packagePurchase } from '../../lib/purchase';
 
@@ -383,7 +395,21 @@ const id = 'pl';
             : null;
         view.text('buyNumber', purchase?.number ?? formatNumber(value.massWithReserve, 1));
         view.text('buyUnit', purchase?.unit ?? 'кг смеси');
-        view.summary(purchase?.summary ?? `${formatNumber(value.massWithReserve, 1)} кг смеси`);
+        // Стоимость — по целым упаковкам (D-033); без массы упаковки её нет.
+        const cost =
+          value.totalCost !== null && value.bags !== null && value.bagPrice !== null
+            ? {
+                total: formatRubles(value.totalCost),
+                detail: packCostDetail(value.bags, bagWords, value.bagPrice),
+              }
+            : null;
+        view.show('cost', cost !== null);
+        view.text('totalCost', cost?.total ?? '');
+        view.text('costDetail', cost?.detail ?? '');
+        view.summary(
+          purchase?.summary ?? `${formatNumber(value.massWithReserve, 1)} кг смеси`,
+          cost?.total,
+        );
         view.text('massWithReserve', formatNumber(value.massWithReserve, 1));
         view.text('massWithReserve2', formatNumber(value.massWithReserve, 1));
         view.text('mass', formatNumber(value.mass, 1));
@@ -418,6 +444,7 @@ const id = 'pl';
             `Слой ${formatNumber(value.thickness, 1)} мм, расход ${formatNumber(value.consumption, 2)} кг/м² на 1 мм, запас ${formatNumber(value.reserve, 1)} %`,
           ],
           purchase?.purchase ?? `${formatNumber(value.massWithReserve, 1)} кг смеси`,
+          cost ? `${costText(value.totalCost ?? 0)} (${cost.detail})` : undefined,
         );
       },
     });

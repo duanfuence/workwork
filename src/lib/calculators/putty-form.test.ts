@@ -10,6 +10,7 @@ const filled: PuttyFormValues = {
   consumption: '1,1',
   packMass: '20',
   reserve: '10',
+  packPrice: '',
 };
 
 describe('evaluatePuttyForm', () => {

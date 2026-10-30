@@ -1,5 +1,5 @@
 /**
- * Контрольные примеры docs/calculators/PUTTY.md (Шп1–Шп8). Числа взяты из документа, где они посчитаны вручную.
+ * Контрольные примеры docs/calculators/PUTTY.md (Шп1–Шп14, стоимость Шп15–Шп17). Числа взяты из документа, где они посчитаны вручную.
  */
 import { describe, expect, it } from 'vitest';
 import { calculatePutty, type PuttyErrors, type PuttyInput, type PuttyResult } from './putty';
@@ -13,6 +13,7 @@ const base: PuttyInput = {
   consumption: 1.2,
   reserve: 0,
   packMass: 25,
+  packPrice: null,
 };
 
 function calc(overrides: Partial<PuttyInput>): PuttyResult {
@@ -284,5 +285,55 @@ describe('режим «помещение» (модель 2): контрольн
   it('в режиме «стены» выбор потолка не учитывается', () => {
     const result = calc({ mode: 'walls', ceiling: 'yes' });
     expect([result.mode, result.ceilingIncluded, result.puttyArea]).toEqual(['walls', false, 13.5]);
+  });
+});
+
+describe('стоимость Шп15–Шп17 (D-033)', () => {
+  const shp10: Partial<PuttyInput> = {
+    mode: 'room',
+    roomLength: 4,
+    roomWidth: 3,
+    wallLength: null,
+    wallCount: null,
+    openingsArea: 3.9,
+    ceiling: 'yes',
+    layers: 2,
+    consumption: 1.1,
+    reserve: 10,
+    packMass: 20,
+  };
+
+  it('Шп15: 6 упаковок × 845,50 ₽ = 5 073 ₽', () => {
+    const result = calc({ ...shp10, packPrice: 845.5 });
+    expect([result.packs, result.packPrice, result.totalCost, result.costNeedsPack]).toEqual([
+      6,
+      845.5,
+      5073,
+      false,
+    ]);
+  });
+
+  it('Шп16: без массы упаковки — стоимости нет, подсказка', () => {
+    const result = calc({ ...shp2, packMass: null, packPrice: 845.5 });
+    expect([result.packs, result.totalCost, result.costNeedsPack]).toEqual([null, null, true]);
+  });
+
+  it('Шп17: предел — 7 500 000 упаковок × 1 000 000 ₽ = 7 500 000 000 000 ₽ точно', () => {
+    const result = calc({
+      wallLength: 100,
+      wallHeight: 10,
+      wallCount: 50,
+      layers: 10,
+      consumption: 5,
+      reserve: 50,
+      packMass: 0.5,
+      packPrice: 1_000_000,
+    });
+    expect(result.totalCost).toBe(7_500_000_000_000);
+  });
+
+  it('ошибки цены — у поля', () => {
+    expect(errorsOf({ packPrice: 845.505 }).packPrice).toBe('Не точнее 1 копейки.');
+    expect(errorsOf({ packPrice: -1 }).packPrice).toBe('Значение не может быть отрицательным.');
   });
 });

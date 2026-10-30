@@ -12,6 +12,8 @@ export const tileFields = [
   'joint',
   'reserve',
   'tilesPerPack',
+  'tilePrice',
+  'tilePriceUnit',
 ] as const satisfies readonly TileField[];
 
 const numberFields = [
@@ -23,13 +25,18 @@ const numberFields = [
   'joint',
   'reserve',
   'tilesPerPack',
+  'tilePrice',
 ] as const satisfies readonly TileField[];
 
 export type TileFormValues = Record<TileField, string>;
 
-/** Разбирает текст полей формы и выполняет расчёт. Тип поверхности передаётся как есть. */
+/** Разбирает текст полей формы и выполняет расчёт. Тип поверхности и единица цены передаются как есть. */
 export function evaluateTileForm(values: TileFormValues): TileCalculation {
   const parsed = parseNumberFields(numberFields, values);
-  const calculation = calculateTile({ ...parsed.values, surface: values.surface || null });
+  const calculation = calculateTile({
+    ...parsed.values,
+    surface: values.surface || null,
+    tilePriceUnit: values.tilePriceUnit || null,
+  });
   return withParseErrors(calculation, parsed.errors);
 }

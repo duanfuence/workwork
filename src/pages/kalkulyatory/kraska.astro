@@ -3,6 +3,8 @@ import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import RelatedCalculators from '../../components/RelatedCalculators.astro';
 import CalculatorIntro from '../../components/calculator/CalculatorIntro.astro';
 import CalculatorResult from '../../components/calculator/CalculatorResult.astro';
+import CostGroup from '../../components/calculator/CostGroup.astro';
+import CostLine from '../../components/calculator/CostLine.astro';
 import RoomNext from '../../components/calculator/RoomNext.astro';
 import NumberField from '../../components/calculator/NumberField.astro';
 import Schematic from '../../components/calculator/Schematic.astro';
@@ -131,6 +133,14 @@ const id = 'pt';
           </div>
         </fieldset>
 
+        <CostGroup
+          name="canPrice"
+          idPrefix={id}
+          label="Цена банки"
+          basis="по целым банкам"
+          needs={{ field: 'canVolume', text: 'Укажите объём банки — тогда посчитаем стоимость.' }}
+        />
+
         <div class="calc-actions">
           <button class="button button--primary" type="submit">
             Рассчитать
@@ -154,6 +164,7 @@ const id = 'pt';
             нужно <span data-out="litersWithReserve"></span>&nbsp;л
           </span>
         </p>
+        <CostLine />
         <p class="calc-result__preset" data-preset-note="coverage" hidden></p>
 
         <h3 class="calc-result__subtitle">Как получилось</h3>
@@ -333,7 +344,8 @@ const id = 'pt';
 <script>
   import { initCalculatorForm } from '../../client/calculator-form';
   import { evaluatePaintForm, paintFields } from '../../lib/calculators/paint-form';
-  import { formatNumber } from '../../lib/format';
+  import { costText, packCostDetail } from '../../lib/cost';
+  import { formatNumber, formatRubles } from '../../lib/format';
   import { pluralizeRu } from '../../lib/plural';
   import { packagePurchase } from '../../lib/purchase';
 
@@ -362,7 +374,21 @@ const id = 'pt';
             : null;
         view.text('buyNumber', purchase?.number ?? liters(value.litersWithReserve));
         view.text('buyUnit', purchase?.unit ?? 'л краски');
-        view.summary(purchase?.summary ?? `${liters(value.litersWithReserve)} л краски`);
+        // Стоимость — по целым банкам (D-033); без объёма банки её нет.
+        const cost =
+          value.totalCost !== null && value.cans !== null && value.canPrice !== null
+            ? {
+                total: formatRubles(value.totalCost),
+                detail: packCostDetail(value.cans, canWords, value.canPrice),
+              }
+            : null;
+        view.show('cost', cost !== null);
+        view.text('totalCost', cost?.total ?? '');
+        view.text('costDetail', cost?.detail ?? '');
+        view.summary(
+          purchase?.summary ?? `${liters(value.litersWithReserve)} л краски`,
+          cost?.total,
+        );
         view.text('litersWithReserve', liters(value.litersWithReserve));
         view.text('litersWithReserve2', liters(value.litersWithReserve));
         view.text('liters', liters(value.liters));
@@ -391,6 +417,7 @@ const id = 'pt';
             `${value.coats} ${pluralizeRu(value.coats, ['слой', 'слоя', 'слоёв'])}, укрывистость ${formatNumber(value.coverage, 1)} м²/л, запас ${formatNumber(value.reserve, 1)} %`,
           ],
           purchase?.purchase ?? `${liters(value.litersWithReserve)} л краски`,
+          cost ? `${costText(value.totalCost ?? 0)} (${cost.detail})` : undefined,
         );
       },
     });

@@ -61,6 +61,7 @@ describe('пример 1: обычная комната без рисунка', 
       rolls: 10,
       patternRepeat: 0,
       trimAllowance: 10,
+      rollPrice: null,
       totalCost: null,
     });
   });
@@ -140,6 +141,7 @@ describe('пример 4: окна и двери', () => {
       rolls: 12,
       patternRepeat: 0,
       trimAllowance: 10,
+      rollPrice: null,
       totalCost: null,
     });
   });
@@ -335,6 +337,11 @@ describe('проверка ввода (пример 8)', () => {
       'Значение не может быть отрицательным.',
     );
     expect(errorsOf({ rollPrice: -100 }).rollPrice).toBe('Значение не может быть отрицательным.');
+    // ОС4, ОС5 (WALLPAPER.md, «Стоимость»): предел 1 000 000 ₽ — можно; точнее копейки — ошибка (D-033).
+    expect(calc({ roomLength: 3.18, roomWidth: 3.19, rollPrice: 1_000_000 }).totalCost).toBe(
+      9_000_000,
+    );
+    expect(errorsOf({ rollPrice: 1299.955 }).rollPrice).toBe('Не точнее 1 копейки.');
   });
 
   it('количество проёмов — целое неотрицательное', () => {
