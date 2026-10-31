@@ -1,0 +1,61 @@
+# Настройки Apache для виртуального хостинга (REG.RU, D-034). Файл копируется в корень сборки (dist/.htaccess)
+# и выкладывается вместе с сайтом. Проверен на Apache 2.4 (docs/DEPLOY.md, «Как проверялся .htaccess»).
+
+AddDefaultCharset utf-8
+AddCharset utf-8 .html .css .js .mjs .json .xml .txt .svg .webmanifest
+AddType text/javascript .js .mjs
+AddType image/svg+xml .svg
+AddType font/woff2 .woff2
+
+# Несуществующий адрес — собранная страница 404 (noindex), ответ с кодом 404.
+ErrorDocument 404 /404.html
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # Один 301-переход к каноническому адресу: https, без www и со слэшем на конце (trailingSlash: 'always').
+  # HTTPS определяется по %{HTTPS} или по заголовку X-Forwarded-Proto: на хостинге перед Apache может стоять
+  # nginx, и тогда Apache видит запрос как HTTP. Домен берётся из запроса без «www.» — файл не привязан к домену.
+
+  # 0. Папка без index.html (/_astro/, /fonts/) — 404, а не список файлов. Через mod_rewrite, а не
+  #    «Options -Indexes»: если хостинг запрещает менять Options, та строка дала бы ошибку 500 на всём сайте.
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteCond %{REQUEST_FILENAME}/index.html !-f
+  RewriteRule ^ - [R=404,L]
+
+  # 1. Папка без слэша на конце (/kalkulyatory/oboi): сразу на https://домен/kalkulyatory/oboi/ — без второго
+  #    перехода от mod_dir и без перехода «http → https» отдельно.
+  RewriteCond %{REQUEST_URI} !/$
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteCond %{HTTP_HOST} ^(?:www\.)?(.+)$ [NC]
+  RewriteRule ^ https://%1%{REQUEST_URI}/ [R=301,L,NE]
+
+  # 2. http → https и www → без www одним переходом; путь и параметры сохраняются.
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Forwarded-Proto} !=https
+  RewriteCond %{HTTP_HOST} ^(?:www\.)?(.+)$ [NC]
+  RewriteRule ^ https://%1%{REQUEST_URI} [R=301,L,NE]
+
+  RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
+  RewriteRule ^ https://%1%{REQUEST_URI} [R=301,L,NE]
+</IfModule>
+
+<IfModule mod_headers.c>
+  # Файлы сборки с хешем в имени (/_astro/) и шрифты (/fonts/) не меняются: кэш на год. Шрифт с новым
+  # содержимым — только под новым именем файла (D-034).
+  <If "%{REQUEST_URI} =~ m#^/(_astro|fonts)/#">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </If>
+  # Страницы, sitemap.xml и robots.txt — каждый раз сверяются с сервером: новая версия сайта видна сразу.
+  <FilesMatch "\.(html|xml|txt)$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  # Content-Security-Policy отложена: на страницах есть встроенные скрипты и стили Astro (D-034).
+</IfModule>
+
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css text/javascript application/javascript image/svg+xml application/xml text/xml text/plain
+</IfModule>

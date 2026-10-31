@@ -91,6 +91,10 @@ src/
 public/favicon.svg        логотип: лист с синей рамкой, план дома, оранжевый проём двери
 public/fonts/             woff2 Onest 400/600/800, JetBrains Mono 500/700 (кириллица + латиница), OFL-*.txt
 public/og.png             Open Graph-изображение 1200 × 630 (npm run og:image из scripts/og/og-image.html)
+public/.htaccess          настройки Apache на хостинге: один 301 на https без www и со слэшем, 404, кэш, сжатие (D-034)
+scripts/deploy.sh         выкладка dist/ по SSH: проверка сборки и пути, rsync --delete или SFTP (lftp) (D-034)
+.github/workflows/ci.yml      проверки на каждый push и pull request (без адреса и с example.com)
+.github/workflows/deploy.yml  выкладка на REG.RU: push в main и вручную, проверки с SITE_URL, затем deploy.sh
 scripts/ui-check.mjs      Playwright-проверка главной и калькуляторов (локально и в CI)
 ```
 
