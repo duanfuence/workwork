@@ -1,0 +1,431 @@
+---
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import RelatedCalculators from '../../components/RelatedCalculators.astro';
+import CalculatorIntro from '../../components/calculator/CalculatorIntro.astro';
+import CalculatorResult from '../../components/calculator/CalculatorResult.astro';
+import CostGroup from '../../components/calculator/CostGroup.astro';
+import CostLine from '../../components/calculator/CostLine.astro';
+import RoomNext from '../../components/calculator/RoomNext.astro';
+import NumberField from '../../components/calculator/NumberField.astro';
+import Schematic from '../../components/calculator/Schematic.astro';
+import SelectField from '../../components/calculator/SelectField.astro';
+import { calculators } from '../../data/calculators';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { calculatorCrumbs } from '../../lib/breadcrumbs';
+import '../../styles/calculator.css';
+
+const entry = calculators.find((item) => item.id === 'tile');
+if (!entry) throw new Error('В каталоге нет калькулятора плитки (id: tile)');
+
+const id = 'tl';
+---
+
+<BaseLayout title={entry.seo.title} description={entry.seo.description}>
+  <div class="container calc-page">
+    <Breadcrumbs items={calculatorCrumbs(entry)} />
+
+    <CalculatorIntro
+      entry={entry}
+      lead="Сколько плитки купить на пол или стену — по сетке рядов с учётом швов и запаса."
+    />
+
+    <noscript>
+      <p class="calc-noscript">
+        Для&nbsp;расчёта нужен включённый JavaScript. Способ расчёта описан ниже&nbsp;— по&nbsp;нему
+        можно посчитать вручную.
+      </p>
+    </noscript>
+
+    <div class="calc-layout">
+      <form class="calc-form" data-tile-form novalidate aria-labelledby="calc-form-title">
+        <h2 class="visually-hidden" id="calc-form-title">
+          Параметры расчёта
+        </h2>
+
+        <Schematic kind="tile" initial={{ surface: 'floor', joint: '2', surfaceCount: '1' }} />
+
+        <fieldset class="calc-group">
+          <legend class="calc-group__title">Поверхность</legend>
+          <div class="calc-group__fields">
+            <SelectField
+              name="surface"
+              idPrefix={id}
+              label="Что облицовываем"
+              value="floor"
+              options={[
+                { value: 'floor', label: 'пол' },
+                { value: 'wall', label: 'стену' },
+              ]}
+              hint="Расчёт для пола и стены одинаковый — меняются только подписи."
+            />
+            <NumberField name="surfaceLength" idPrefix={id} label="Длина" unit="м" />
+            <NumberField
+              name="surfaceWidth"
+              idPrefix={id}
+              label="Ширина (для стены — высота)"
+              unit="м"
+            />
+            <NumberField
+              name="surfaceCount"
+              idPrefix={id}
+              label="Одинаковых поверхностей"
+              unit="шт."
+              inputmode="numeric"
+              value="1"
+              hint="Например, 2 одинаковые стены. Разные поверхности посчитайте по отдельности."
+            />
+          </div>
+        </fieldset>
+
+        <fieldset class="calc-group">
+          <legend class="calc-group__title">Плитка</legend>
+          <div class="calc-group__fields">
+            <NumberField
+              name="tileLength"
+              idPrefix={id}
+              label="Длина плитки"
+              unit="мм"
+              inputmode="numeric"
+              placeholder="например, 600"
+              hint="Вдоль длины поверхности."
+            />
+            <NumberField
+              name="tileWidth"
+              idPrefix={id}
+              label="Ширина плитки"
+              unit="мм"
+              inputmode="numeric"
+              placeholder="например, 300"
+            />
+            <NumberField
+              name="joint"
+              idPrefix={id}
+              label="Ширина шва"
+              unit="мм"
+              value="2"
+              optional
+              hint="0–20 мм, можно с десятыми, например 1,5. Пусто — без шва."
+            />
+            <NumberField
+              name="tilesPerPack"
+              idPrefix={id}
+              label="Плиток в упаковке"
+              unit="шт."
+              inputmode="numeric"
+              optional
+              hint="С этикетки — чтобы посчитать упаковки. Пусто — только плитки."
+            />
+          </div>
+        </fieldset>
+
+        <fieldset class="calc-group">
+          <legend class="calc-group__title">
+            Запас <span class="calc-group__optional">необязательно</span>
+          </legend>
+          <div class="calc-group__fields">
+            <NumberField
+              name="reserve"
+              idPrefix={id}
+              label="Запас"
+              unit="%"
+              value="10"
+              optional
+              hint="На бой при резке, брак и подбор рисунка. Пусто — 0 %."
+            />
+          </div>
+        </fieldset>
+
+        <CostGroup
+          name="tilePrice"
+          idPrefix={id}
+          label="Цена плитки"
+          basis="по купленному: площади целых упаковок или числу упаковок"
+          needs={{
+            field: 'tilesPerPack',
+            when: 'tilePriceUnit=pack',
+            text: 'Укажите, сколько плиток в упаковке, — тогда посчитаем стоимость.',
+          }}
+        >
+          <SelectField
+            name="tilePriceUnit"
+            idPrefix={id}
+            label="Цена указана"
+            value="m2"
+            options={[
+              { value: 'm2', label: 'за м²' },
+              { value: 'pack', label: 'за упаковку' },
+            ]}
+            hint="На ценниках плитки обычно цена за м²."
+          />
+        </CostGroup>
+
+        <div class="calc-actions">
+          <button class="button button--primary" type="submit">
+            Рассчитать
+          </button>
+          <button class="button button--secondary" type="reset">
+            Сбросить
+          </button>
+        </div>
+      </form>
+
+      <CalculatorResult
+        headingId="calc-result-title"
+        title={entry.shortTitle}
+        placeholder="Заполните размеры поверхности и плитки и нажмите «Рассчитать». После первого расчёта результат обновляется сразу при изменении параметров."
+      >
+        <!-- С числом плиток в упаковке главная цифра — упаковки, плитки — строкой «нужно»; без него — плитки. -->
+        <p class="calc-result__main">
+          <span class="calc-result__number" data-out="buyNumber"></span>
+          <span class="calc-result__unit" data-out="buyUnit"></span>
+          <span class="calc-result__explain" data-row="packs" hidden>
+            нужно <span data-out="tilesWithReserve"></span>&nbsp;<span data-out="tilesWord"></span>
+          </span>
+        </p>
+        <CostLine />
+
+        <h3 class="calc-result__subtitle">Как получилось</h3>
+        <dl class="calc-result__list">
+          <div>
+            <dt>
+              Площадь облицовки (<span data-out="surfaceLabel"></span>)
+            </dt>
+            <dd>
+              <span data-out="area"></span>&nbsp;м²
+            </dd>
+          </div>
+          <div>
+            <dt>Плиток в&nbsp;ряду × рядов</dt>
+            <dd data-out="grid"></dd>
+          </div>
+          <div>
+            <dt>Плиток по&nbsp;сетке</dt>
+            <dd data-out="tiles"></dd>
+          </div>
+          <div>
+            <dt>
+              С&nbsp;запасом <span data-out="reserve"></span>&nbsp;%
+            </dt>
+            <dd data-out="tilesWithReserve2"></dd>
+          </div>
+          <div data-row="packs" hidden>
+            <dt>Упаковки</dt>
+            <dd>
+              <span data-out="packs"></span>&nbsp;× <span data-out="tilesPerPack"></span>&nbsp;шт.
+              =&nbsp;<span data-out="tilesToBuy"></span>&nbsp;шт.
+            </dd>
+          </div>
+        </dl>
+
+        <div class="calc-result__section">
+          <h3 class="calc-result__subtitle">Формула</h3>
+          <p class="calc-result__note" data-out="formula"></p>
+          <p class="calc-result__note" data-out="areaNote"></p>
+        </div>
+        <p class="calc-result__note">
+          Оценка для&nbsp;прямой укладки от&nbsp;угла. Раскладка от&nbsp;центра или симметричная
+          подрезка у&nbsp;стен может добавить ряд; повторное использование обрезков&nbsp;— уменьшить
+          число плиток. Оптимальный раскрой калькулятор не&nbsp;ищет.
+        </p>
+      </CalculatorResult>
+    </div>
+
+    <RoomNext current={entry} />
+
+    <article class="calc-article">
+      <p class="calc-article__intro">
+        Посчитайте, сколько плитки купить на&nbsp;пол или стену. Калькулятор раскладывает плитку
+        рядами «шов в&nbsp;шов» и&nbsp;считает каждую подрезанную у&nbsp;края плитку целой. Это
+        оценка по&nbsp;сетке, а&nbsp;не&nbsp;план раскладки: где пройдут швы и&nbsp;какие плитки
+        придётся резать, решается при укладке.
+      </p>
+
+      <section aria-labelledby="method-title">
+        <h2 id="method-title">Как считается</h2>
+        <ol>
+          <li>
+            Сколько плиток помещается в&nbsp;ряд: плитки и&nbsp;швы между ними должны перекрыть
+            длину поверхности. Последняя плитка в&nbsp;ряду обычно подрезается, но&nbsp;считается
+            целой.
+          </li>
+          <li>Так же считается число рядов по&nbsp;ширине (у&nbsp;стены&nbsp;— по&nbsp;высоте).</li>
+          <li>
+            Плитки в&nbsp;ряду × ряды × число одинаковых поверхностей&nbsp;— плиток по&nbsp;сетке.
+          </li>
+          <li>
+            К&nbsp;ним добавляется запас и&nbsp;округляется вверх до&nbsp;целой плитки;
+            упаковки&nbsp;— вверх до&nbsp;целой упаковки.
+          </li>
+        </ol>
+      </section>
+
+      <section aria-labelledby="formula-title">
+        <h2 id="formula-title">Формулы</h2>
+        <dl class="formula-list">
+          <div>
+            <dt>Плиток в&nbsp;ряду</dt>
+            <dd>
+              <code>⌈(длина поверхности + шов) ÷ (длина плитки + шов)⌉</code>&nbsp;— n плиток
+              и&nbsp;n − 1&nbsp;швов должны перекрыть длину
+            </dd>
+          </div>
+          <div>
+            <dt>Рядов</dt>
+            <dd>
+              <code>⌈(ширина поверхности + шов) ÷ (ширина плитки + шов)⌉</code>
+            </dd>
+          </div>
+          <div>
+            <dt>С&nbsp;запасом и&nbsp;упаковки</dt>
+            <dd>
+              <code>⌈плитки × (1 + запас ÷ 100)⌉</code>, упаковок
+              <code>⌈плитки с&nbsp;запасом ÷ плиток в&nbsp;упаковке⌉</code>
+            </dd>
+          </div>
+        </dl>
+        <p>
+          <strong>Пример.</strong> Пол 2,0 × 1,5&nbsp;м, плитка 300 × 300&nbsp;мм, шов 2&nbsp;мм:
+          в&nbsp;ряду ⌈2002 ÷ 302⌉ = 7&nbsp;плиток, рядов ⌈1502 ÷ 302⌉ = 5&nbsp;— всего 35.
+          С&nbsp;запасом 10&nbsp;%&nbsp;— ⌈38,5⌉ = 39, упаковок по&nbsp;11&nbsp;— 4. Деление
+          площадей дало бы 3 ÷ 0,09 = 33,3 → 34: оно не&nbsp;учитывает подрезку у&nbsp;краёв.
+        </p>
+      </section>
+
+      <section aria-labelledby="limits-title">
+        <h2 id="limits-title">Что калькулятор не&nbsp;учитывает</h2>
+        <ul>
+          <li>Где начинается укладка и&nbsp;где пройдут швы&nbsp;— точную схему подрезки.</li>
+          <li>Повторное использование обрезков на&nbsp;противоположном краю.</li>
+          <li>
+            Диагональную укладку, разбежку «кирпичиком», рисунки из&nbsp;плиток разного размера
+            и&nbsp;совмещение рисунка.
+          </li>
+          <li>Проёмы, трубы, ниши, короба и&nbsp;бой при резке&nbsp;— их покрывает запас.</li>
+          <li>
+            Несколько разных поверхностей в&nbsp;одном расчёте&nbsp;— посчитайте их
+            по&nbsp;отдельности.
+          </li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="faq-title">
+        <h2 id="faq-title">Частые вопросы</h2>
+        <div class="faq">
+          <h3>Почему плиток больше, чем по&nbsp;площади?</h3>
+          <p>
+            У&nbsp;края поверхности плитку почти всегда приходится резать, а&nbsp;отрезанная часть
+            редко подходит в&nbsp;другое место. Калькулятор считает каждую подрезанную плитку целой.
+            При точном попадании размеров в&nbsp;сетку плиток может выйти и&nbsp;меньше, чем
+            по&nbsp;площади,&nbsp;— швы тоже занимают место.
+          </p>
+
+          <h3>Какой запас брать?</h3>
+          <p>
+            Обычно 10&nbsp;%. Больше&nbsp;— при диагональной укладке, крупном формате, сложном
+            рисунке и&nbsp;многих трубах и&nbsp;углах. Плитку лучше купить одной партии: оттенок
+            у&nbsp;разных партий отличается.
+          </p>
+
+          <h3>Как считать стены ванной?</h3>
+          <p>
+            Каждую стену отдельно или одинаковые стены вместе через поле «Одинаковых поверхностей».
+            Площадь двери и&nbsp;ванны можно не&nbsp;вычитать&nbsp;— останется запас;
+            для&nbsp;точного расчёта считайте участки стены над и&nbsp;рядом с&nbsp;ними отдельными
+            поверхностями.
+          </p>
+        </div>
+      </section>
+    </article>
+
+    <RelatedCalculators current={entry} />
+  </div>
+</BaseLayout>
+
+<script>
+  import { initCalculatorForm } from '../../client/calculator-form';
+  import { evaluateTileForm, tileFields } from '../../lib/calculators/tile-form';
+  import { areaCostDetail, costText, packCostDetail } from '../../lib/cost';
+  import { formatNumber, formatRubles } from '../../lib/format';
+  import { pluralizeRu } from '../../lib/plural';
+  import { packagePurchase } from '../../lib/purchase';
+
+  const form = document.querySelector<HTMLFormElement>('[data-tile-form]');
+  const result = document.querySelector<HTMLElement>('[data-calculator-result]');
+  const tileWords = ['плитка', 'плитки', 'плиток'] as const;
+  const tilesText = (count: number) => `${count} ${pluralizeRu(count, tileWords)}`;
+  const packWords = ['упаковка', 'упаковки', 'упаковок'] as const;
+
+  if (form && result) {
+    initCalculatorForm({
+      form,
+      result,
+      fields: tileFields,
+      evaluate: evaluateTileForm,
+      render(value, view) {
+        // «К покупке» — упаковки, если известно число плиток в упаковке (D-031); иначе плитки.
+        const purchase =
+          value.packs !== null && value.tilesPerPack !== null
+            ? packagePurchase(
+                value.packs,
+                packWords,
+                `${value.tilesPerPack} шт.`,
+                tilesText(value.tilesWithReserve),
+              )
+            : null;
+        view.text('buyNumber', purchase?.number ?? String(value.tilesWithReserve));
+        view.text('buyUnit', purchase?.unit ?? pluralizeRu(value.tilesWithReserve, tileWords));
+        // Стоимость — по купленному (D-033): за м² — площадь целых упаковок (или плиток с запасом), за упаковку —
+        // число упаковок; без числа плиток в упаковке цену за упаковку не применить.
+        const detail =
+          value.tilePrice === null
+            ? null
+            : value.tilePriceUnit === 'm2'
+              ? areaCostDetail(value.boughtArea, value.tilePrice)
+              : value.packs !== null
+                ? packCostDetail(value.packs, packWords, value.tilePrice)
+                : null;
+        const cost =
+          value.totalCost !== null && detail !== null
+            ? { total: formatRubles(value.totalCost), detail }
+            : null;
+        view.show('cost', cost !== null);
+        view.text('totalCost', cost?.total ?? '');
+        view.text('costDetail', cost?.detail ?? '');
+        view.summary(purchase?.summary ?? tilesText(value.tilesWithReserve), cost?.total);
+        view.text('tilesWithReserve', String(value.tilesWithReserve));
+        view.text('tilesWord', pluralizeRu(value.tilesWithReserve, tileWords));
+        view.text('tilesWithReserve2', String(value.tilesWithReserve));
+        view.text('tiles', String(value.tiles));
+        view.text('reserve', formatNumber(value.reserve, 1));
+        view.text('area', formatNumber(value.area, 2));
+        const surfaces = value.surfaceCount > 1 ? ` × ${value.surfaceCount}` : '';
+        view.text('surfaceLabel', `${value.surface === 'wall' ? 'стена' : 'пол'}${surfaces}`);
+        view.text('grid', `${value.alongLength} × ${value.alongWidth}${surfaces}`);
+
+        view.show('packs', value.packs !== null);
+        if (value.packs !== null && value.tilesPerPack !== null && value.tilesToBuy !== null) {
+          view.text('packs', String(value.packs));
+          view.text('tilesPerPack', String(value.tilesPerPack));
+          view.text('tilesToBuy', String(value.tilesToBuy));
+        }
+
+        view.text(
+          'formula',
+          `${value.alongLength} в ряду × ${value.alongWidth} рядов${surfaces} = ${tilesText(value.tiles)}; с запасом ${formatNumber(value.reserve, 1)} % — ${tilesText(value.tilesWithReserve)} (вверх до целой плитки).`,
+        );
+        view.text(
+          'areaNote',
+          `Справочно: площадь ÷ площадь плитки — ${tilesText(value.areaTiles)}. Это деление не учитывает подрезку у краёв и швы, поэтому не заменяет расчёт по сетке.`,
+        );
+        view.report(
+          [
+            `${value.surface === 'wall' ? 'Стена' : 'Пол'}${surfaces}: ${formatNumber(value.area, 2)} м²`,
+            `Раскладка ${value.alongLength} × ${value.alongWidth}${surfaces}, запас ${formatNumber(value.reserve, 1)} %`,
+          ],
+          purchase?.purchase ?? tilesText(value.tilesWithReserve),
+          cost ? `${costText(value.totalCost ?? 0)} (${cost.detail})` : undefined,
+        );
+      },
+    });
+  }
+</script>

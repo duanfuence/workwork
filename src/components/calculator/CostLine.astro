@@ -1,0 +1,14 @@
+---
+/**
+ * Строка стоимости в «К покупке», сразу под главной цифрой (D-033): «Стоимость ≈ 11 900 ₽» и разбивка
+ * «5 банок × 2 380 ₽». Видна, только когда цена указана и стоимость посчитана: страница в `render` вызывает
+ * `view.show('cost', …)`, `view.text('totalCost', …)` и `view.text('costDetail', …)`.
+ */
+---
+
+<p class="calc-result__cost" data-row="cost" hidden>
+  <span class="calc-result__cost-total">
+    Стоимость ≈ <strong data-out="totalCost"></strong>
+  </span>
+  <span class="calc-result__cost-detail" data-out="costDetail"></span>
+</p>

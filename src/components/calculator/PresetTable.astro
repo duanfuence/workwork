@@ -1,0 +1,133 @@
+---
+/**
+ * Таблица ориентиров расхода для статьи калькулятора — из тех же данных, что выбор «Тип материала»;
+ * видна без JavaScript.
+ */
+import {
+  presetRange,
+  presetsCheckedAt,
+  presetsFor,
+  presetUnits,
+  type PresetCalculator,
+} from '../../data/material-presets';
+import { typograph } from '../../lib/format';
+import { presetFieldText } from '../../lib/presets';
+
+interface Props {
+  calculator: PresetCalculator;
+  /** Заголовок колонки значения: «Укрывистость», «Расход». */
+  valueTitle: string;
+}
+
+const { calculator, valueTitle } = Astro.props;
+const presets = presetsFor(calculator);
+const checkedAt = presetsCheckedAt.split('-').reverse().join('.');
+const rule =
+  calculator === 'paint'
+    ? 'Ориентир — медиана нижних границ укрывистости у проверенных марок, округлённая вниз.'
+    : 'Ориентир — медиана верхних границ расхода у проверенных марок, округлённая вверх.';
+const caption = `${valueTitle}, ${presetUnits[calculator]}`;
+const intro =
+  `Типовые значения по техническим описаниям производителей (проверено ${checkedAt}). ${rule} ` +
+  'Разницу между марками покрывает поле «Запас». Точное значение — на упаковке выбранного материала.';
+---
+
+<section aria-labelledby="presets-title">
+  <h2 id="presets-title">Ориентиры, если упаковки ещё нет</h2>
+  <p>{typograph(intro)}</p>
+  <div class="preset-table">
+    <table>
+      <caption class="preset-table__caption">{caption}</caption>
+      <colgroup>
+        <col class="preset-table__type" />
+        <col />
+        <col />
+      </colgroup>
+      <thead>
+        <tr>
+          <th scope="col">Тип</th>
+          <th scope="col">Ориентир</th>
+          <th scope="col">Разброс</th>
+        </tr>
+      </thead>
+      <tbody>
+        {presets.map((preset) => {
+          const range = presetRange(preset);
+          return (
+            <tr>
+              <th scope="row">{preset.label}</th>
+              <td>{presetFieldText(preset.value)}</td>
+              <td>{`${presetFieldText(range.min)}–${presetFieldText(range.max)}`}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  </div>
+  <ul class="preset-notes">
+    {presets.map((preset) => (
+      <li>
+        <strong>{`${preset.label}.`}</strong>
+        {typograph(
+          ` ${preset.note} По данным: ${preset.sources.map((source) => source.name).join(', ')}.`,
+        )}
+      </li>
+    ))}
+  </ul>
+</section>
+
+<style>
+  .preset-table {
+    max-width: 100%;
+    margin-block: var(--space-4);
+  }
+
+  /* Фиксированная раскладка: таблица не шире статьи даже на 320 px, длинные слова переносятся. */
+  .preset-table table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    font-size: var(--font-size-sm);
+  }
+
+  .preset-table__type {
+    width: 40%;
+  }
+
+  .preset-table__caption {
+    padding-bottom: var(--space-2);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    text-align: left;
+  }
+
+  .preset-table th,
+  .preset-table td {
+    padding: var(--space-2) var(--space-3);
+    border-bottom: var(--border);
+    text-align: left;
+    vertical-align: top;
+    overflow-wrap: anywhere;
+    hyphens: auto;
+  }
+
+  .preset-table thead th {
+    color: var(--color-text-muted);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .preset-table tbody th {
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .preset-table td {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .preset-notes {
+    display: grid;
+    gap: var(--space-2);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+  }
+</style>

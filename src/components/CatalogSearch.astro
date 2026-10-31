@@ -1,0 +1,157 @@
+---
+interface Props {
+  /**
+   * id блока с карточками (`[data-search-index]`), который фильтрует поиск. Внутри могут быть группы
+   * `[data-search-group]` — группа без подходящих карточек скрывается целиком.
+   */
+  listId: string;
+  /** id раздела, к которому прокручивать страницу при отправке формы. */
+  sectionId: string;
+}
+
+const { listId, sectionId } = Astro.props;
+---
+
+<!-- Поиск работает только с JavaScript, поэтому без него форма остаётся скрытой. -->
+<form
+  class="catalog-search"
+  role="search"
+  data-catalog-search
+  data-list-id={listId}
+  data-section-id={sectionId}
+  hidden
+>
+  <label class="catalog-search__label" for="catalog-search-input">
+    Поиск по&nbsp;калькуляторам
+  </label>
+  <div class="catalog-search__field">
+    <svg class="catalog-search__icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+      <circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2"></circle>
+      <path d="m16 16 4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+    </svg>
+    <input
+      class="catalog-search__input"
+      id="catalog-search-input"
+      type="search"
+      name="q"
+      placeholder="Например: обои, плитка"
+      autocomplete="off"
+      enterkeyhint="search"
+      aria-describedby="catalog-search-status"
+    />
+  </div>
+</form>
+
+<script>
+  import { matchesQuery } from '../lib/search';
+  import { calculatorWordForms, pluralizeRu } from '../lib/plural';
+
+  for (const form of document.querySelectorAll<HTMLFormElement>('[data-catalog-search]')) {
+    const input = form.querySelector<HTMLInputElement>('input[type="search"]');
+    const list = document.getElementById(form.dataset['listId'] ?? '');
+    const section = document.getElementById(form.dataset['sectionId'] ?? '');
+    const status = document.getElementById('catalog-search-status');
+    const empty = document.querySelector<HTMLElement>('[data-catalog-empty]');
+    if (!input || !list) continue;
+
+    const items = [...list.querySelectorAll<HTMLElement>('[data-search-index]')];
+    const groups = [...list.querySelectorAll<HTMLElement>('[data-search-group]')];
+
+    const update = () => {
+      const query = input.value;
+      let visible = 0;
+      for (const item of items) {
+        const match = matchesQuery(item.dataset['searchIndex'] ?? '', query);
+        item.hidden = !match;
+        if (match) visible += 1;
+      }
+      for (const group of groups) {
+        group.hidden = !group.querySelector('[data-search-index]:not([hidden])');
+      }
+      if (empty) empty.hidden = visible > 0;
+      if (status) {
+        status.textContent = query.trim()
+          ? visible > 0
+            ? `Найдено: ${visible} ${pluralizeRu(visible, calculatorWordForms)}`
+            : 'Ничего не найдено'
+          : '';
+      }
+    };
+
+    form.hidden = false;
+    input.addEventListener('input', update);
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      update();
+      section?.scrollIntoView({ block: 'start' });
+    });
+    update();
+  }
+</script>
+
+<style>
+  .catalog-search {
+    display: grid;
+    gap: var(--space-2);
+    width: 100%;
+    max-width: 36rem;
+  }
+
+  .catalog-search[hidden] {
+    display: none;
+  }
+
+  .catalog-search__label {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-stamp);
+    font-weight: var(--font-weight-mono);
+    letter-spacing: var(--letter-spacing-stamp);
+    text-transform: uppercase;
+    color: var(--color-text-secondary);
+  }
+
+  .catalog-search__field {
+    position: relative;
+  }
+
+  .catalog-search__icon {
+    position: absolute;
+    left: var(--space-4);
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--color-text-muted);
+    pointer-events: none;
+  }
+
+  .catalog-search__input {
+    width: 100%;
+    min-height: 3.25rem;
+    padding: var(--space-3) var(--space-4) var(--space-3) calc(var(--space-4) * 2 + 1.25rem);
+    background: var(--color-surface);
+    border: var(--border-control);
+    border-bottom: 2px solid var(--color-control-underline);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-md);
+    transition:
+      border-color var(--transition-fast),
+      box-shadow var(--transition-fast);
+  }
+
+  .catalog-search__input::placeholder {
+    color: var(--color-text-muted);
+  }
+
+  .catalog-search__input:hover {
+    border-color: var(--color-text-muted);
+  }
+
+  /* Прозрачный outline виден в режиме высокой контрастности, где тени отключены (global.css). */
+  .catalog-search__input:focus-visible {
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    border-color: var(--color-accent);
+    box-shadow:
+      inset 0 0 0 1px var(--color-accent),
+      var(--control-focus-ring);
+  }
+</style>

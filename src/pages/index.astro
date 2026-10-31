@@ -1,0 +1,199 @@
+---
+import CalculatorCard from '../components/CalculatorCard.astro';
+import CatalogSearch from '../components/CatalogSearch.astro';
+import CategoryCard from '../components/CategoryCard.astro';
+import { catalogPath } from '../config/navigation';
+import { site } from '../config/site';
+import { calculators } from '../data/calculators';
+import { categories } from '../data/categories';
+import { getCatalogSections, getPopularCalculators, isAvailable } from '../lib/catalog';
+import { typograph } from '../lib/format';
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+// Только опубликованные: на сайте не обещаем будущие калькуляторы.
+const popular = getPopularCalculators(calculators).filter((entry) => isAvailable(entry));
+// Раздел «Категории» — только когда категорий с калькуляторами больше одной (D-022).
+const sections = getCatalogSections(calculators, categories);
+---
+
+<BaseLayout>
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="container hero__inner">
+      <p class="stamp hero__status">Бесплатно · без регистрации</p>
+      <h1 class="hero__title" id="hero-title">
+        {site.name} — калькуляторы для ремонта и строительства
+      </h1>
+      <p class="hero__lead">
+        Сколько материалов купить на&nbsp;комнату&nbsp;— и&nbsp;из&nbsp;чего складывается каждая
+        цифра.
+      </p>
+      <CatalogSearch listId="catalog-list" sectionId="catalog" />
+    </div>
+  </section>
+
+  <section class="section" id="catalog" aria-labelledby="catalog-title">
+    <div class="container">
+      <div class="section-header">
+        <h2 class="section-title" id="catalog-title">
+          Популярные инструменты
+        </h2>
+        <p class="section-lead">Калькуляторы, которые чаще всего нужны при ремонте.</p>
+      </div>
+      <p class="catalog-status" id="catalog-search-status" role="status" aria-live="polite"></p>
+      <ul class="card-grid" id="catalog-list">
+        {popular.map((entry) => (
+          <CalculatorCard entry={entry} />
+        ))}
+      </ul>
+      <p class="catalog-empty" data-catalog-empty hidden>
+        По&nbsp;этому запросу калькуляторов нет. Попробуйте другое слово, например «стены» или
+        «пол».
+      </p>
+      <p class="catalog-more">
+        <a class="catalog-more__link" href={catalogPath}>
+          Все калькуляторы →
+        </a>
+      </p>
+    </div>
+  </section>
+
+  {sections.length > 1 && (
+    <section class="section section--muted" id="categories" aria-labelledby="categories-title">
+      <div class="container">
+        <div class="section-header">
+          <h2 class="section-title" id="categories-title">
+            Категории
+          </h2>
+        </div>
+        <ul class="card-grid card-grid--categories">
+          {sections.map((section) => (
+            <CategoryCard
+              category={section.category}
+              count={section.entries.length}
+              href={`${catalogPath}#${section.category.id}`}
+            />
+          ))}
+        </ul>
+      </div>
+    </section>
+  )}
+
+  <section class="section section--muted" id="about" aria-labelledby="about-title">
+    <div class="container about">
+      <div class="section-header">
+        <h2 class="section-title" id="about-title">
+          О&nbsp;сервисе
+        </h2>
+        <p class="section-lead">
+          {typograph(
+            `${site.name} — русскоязычный сервис расчётов для домашнего ремонта и строительства.`,
+          )}
+        </p>
+      </div>
+      <ul class="principles">
+        <li>
+          <h3>Бесплатно и&nbsp;без регистрации</h3>
+          <p>Расчёты доступны сразу&nbsp;— без аккаунта и&nbsp;оплаты.</p>
+        </li>
+        <li>
+          <h3>Понятные формулы</h3>
+          <p>
+            Каждый калькулятор показывает, из&nbsp;чего складывается результат. Формулы проверяются
+            автоматическими тестами.
+          </p>
+        </li>
+        <li>
+          <h3>Удобно с&nbsp;телефона</h3>
+          <p>
+            Сайт рассчитан на&nbsp;работу прямо в&nbsp;магазине стройматериалов или на&nbsp;объекте.
+          </p>
+        </li>
+      </ul>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  /* Герой — титульный блок чертежа на сетке: штамп, H1, лид, поиск; без градиентов и картинок. */
+  .hero {
+    padding-block: var(--space-8);
+    border-bottom: var(--border);
+  }
+
+  @media (min-width: 48rem) {
+    .hero {
+      padding-block: var(--space-16) var(--space-12);
+    }
+  }
+
+  .hero__inner {
+    display: grid;
+    justify-items: start;
+    gap: var(--space-4);
+  }
+
+  .hero__status {
+    padding: var(--space-1) var(--space-2);
+    background: var(--color-surface);
+    border: var(--border-ink);
+    color: var(--color-text);
+  }
+
+  .hero__title {
+    font-size: var(--font-size-3xl);
+    letter-spacing: -0.02em;
+  }
+
+  .hero__lead {
+    max-width: 38rem;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--space-2);
+  }
+
+  .section--muted {
+    background: var(--color-surface);
+    border-top: var(--border);
+  }
+
+  .catalog-more {
+    margin-top: var(--space-6);
+  }
+
+  .catalog-more__link {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--tap-target-min);
+    color: var(--color-accent);
+    font-family: var(--font-mono);
+    font-weight: var(--font-weight-mono-bold);
+    letter-spacing: var(--letter-spacing-stamp);
+    text-transform: uppercase;
+    font-size: var(--font-size-sm);
+  }
+
+  .principles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+    gap: var(--space-6);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .principles li {
+    display: grid;
+    align-content: start;
+    gap: var(--space-2);
+    padding-left: var(--space-4);
+    border-left: 2px solid var(--color-dimension);
+  }
+
+  .principles h3 {
+    font-size: var(--font-size-md);
+  }
+
+  .principles p {
+    color: var(--color-text-muted);
+  }
+</style>

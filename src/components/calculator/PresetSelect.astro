@@ -1,0 +1,58 @@
+---
+/**
+ * Выбор «Тип материала» у поля расхода: подставляет ориентир из src/data/material-presets.ts
+ * в поле `field`. Поле остаётся главным: ручная правка переключает выбор на «Своё значение».
+ */
+import {
+  presetRange,
+  presetTypicalRange,
+  presetsFor,
+  presetUnits,
+  type MaterialPreset,
+  type PresetCalculator,
+} from '../../data/material-presets';
+import { customChoice, presetFieldText } from '../../lib/presets';
+import SelectField from './SelectField.astro';
+
+interface Props {
+  calculator: PresetCalculator;
+  /** Имя поля расхода, в которое подставляется значение. */
+  field: string;
+  idPrefix: string;
+  label: string;
+}
+
+const { calculator, field, idPrefix, label } = Astro.props;
+// Пометка в результате: ориентир и разброс между марками — точное значение на упаковке.
+const noteFor = (preset: MaterialPreset) => {
+  const range = presetRange(preset);
+  const from = presetFieldText(range.min);
+  const to = presetFieldText(range.max);
+  return `Ориентир для ${preset.forNote}; у разных марок от ${from} до ${to} ${presetUnits[calculator]} — сверьте с упаковкой.`;
+};
+const presets = presetsFor(calculator);
+const options = [
+  { value: customChoice, label: 'Своё значение (с упаковки)' },
+  ...presets.map((preset) => {
+    const text = presetFieldText(preset.value);
+    return {
+      value: preset.id,
+      // Без единицы: она видна в поле рядом, а длинная подпись обрезается в узкой колонке.
+      label: `${preset.label} — ${text}`,
+      fieldValue: text,
+      note: noteFor(preset),
+    };
+  }),
+];
+---
+
+<SelectField
+  name={`${field}Preset`}
+  idPrefix={idPrefix}
+  label={label}
+  value={customChoice}
+  options={options}
+  presetFor={`${idPrefix}-${field}`}
+  typical={JSON.stringify(presetTypicalRange(calculator))}
+  hint="Ориентир по данным производителей — подставится в поле расхода; точное значение — на упаковке."
+/>

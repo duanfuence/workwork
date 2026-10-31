@@ -1,0 +1,137 @@
+---
+import type { CalculatorEntry } from '../data/catalog.types';
+import { getCalculatorHref, sheetNumber, statusLabels } from '../lib/catalog';
+import { typograph } from '../lib/format';
+import { buildSearchIndex } from '../lib/search';
+import MaterialIcon from './MaterialIcon.astro';
+
+interface Props {
+  entry: CalculatorEntry;
+}
+
+const { entry } = Astro.props;
+const href = getCalculatorHref(entry);
+const status = statusLabels[entry.status];
+---
+
+<li class="calc-card-item" data-search-index={buildSearchIndex(entry)}>
+  <article class:list={['calc-card', { 'calc-card--soon': !href }]}>
+    <!-- Карточка — лист: номер листа и раздел, схема материала справа. -->
+    <div class="calc-card__meta">
+      <span class="stamp calc-card__sheet">
+        {`Лист ${sheetNumber(entry)}`}
+        <span class="calc-card__category">{` · ${entry.sheetTitle}`}</span>
+      </span>
+      <MaterialIcon id={entry.id} />
+    </div>
+    {!href && <span class="badge badge--soon">{status}</span>}
+    <h3 class="calc-card__title">
+      {href ? (
+        <a class="calc-card__link" href={href}>
+          {entry.title}
+        </a>
+      ) : (
+        entry.title
+      )}
+    </h3>
+    <p class="calc-card__text">{typograph(entry.description)}</p>
+    {href && (
+      <span class="stamp calc-card__action" aria-hidden="true">
+        Рассчитать →
+      </span>
+    )}
+  </article>
+</li>
+
+<style>
+  .calc-card-item {
+    display: flex;
+  }
+
+  .calc-card-item[hidden] {
+    display: none;
+  }
+
+  .calc-card {
+    position: relative;
+    display: grid;
+    align-content: start;
+    gap: var(--space-2);
+    width: 100%;
+    padding: var(--space-4) var(--space-5) var(--space-5);
+    background: var(--color-surface);
+    border: var(--border);
+    border-radius: var(--radius-lg);
+    transition: border-color var(--transition-fast);
+  }
+
+  .calc-card:not(.calc-card--soon):hover {
+    border-color: var(--color-text);
+  }
+
+  .calc-card__meta {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding-bottom: var(--space-2);
+    border-bottom: var(--border);
+  }
+
+  .calc-card__sheet {
+    color: var(--color-text);
+  }
+
+  .calc-card__category {
+    color: var(--color-text-muted);
+  }
+
+  .calc-card__title {
+    font-size: var(--font-size-lg);
+    line-height: var(--line-height-snug);
+  }
+
+  .calc-card__link {
+    color: var(--color-text);
+    text-decoration: none;
+  }
+
+  /* Вся карточка кликабельна, когда калькулятор доступен. */
+  .calc-card__link::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: var(--radius-lg);
+  }
+
+  .calc-card__text {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+  }
+
+  .calc-card__action {
+    margin-top: var(--space-1);
+    color: var(--color-accent);
+    font-weight: var(--font-weight-mono-bold);
+  }
+
+  .calc-card--soon .calc-card__title {
+    color: var(--color-text-secondary);
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-pill);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .badge--soon {
+    background: var(--color-badge-soon-bg);
+    color: var(--color-badge-soon-text);
+  }
+</style>

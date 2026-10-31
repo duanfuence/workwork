@@ -1,0 +1,100 @@
+name: Deploy
+
+# Выкладка сайта на виртуальный хостинг REG.RU (D-034, инструкция — docs/DEPLOY.md).
+# Запускается при push в main (то есть после слияния) и вручную. Выкладывает только сборку, прошедшую все
+# проверки с адресом сайта из переменной репозитория SITE_URL, и только из ветки main.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  ASTRO_TELEMETRY_DISABLED: '1'
+
+# Одна выкладка за раз; идущая не отменяется (иначе rsync --delete мог бы оборваться на середине).
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Проверки и сборка с адресом сайта
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SITE_URL: ${{ vars.SITE_URL }}
+    steps:
+      - name: Адрес сайта задан
+        run: |
+          if [ -z "$SITE_URL" ]; then
+            echo '::error::Не задана переменная репозитория SITE_URL (docs/DEPLOY.md, шаг 4).'
+            exit 1
+          fi
+          echo "Адрес сайта: $SITE_URL"
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # Те же проверки, что в CI, но с боевым адресом: типы, линтер, форматирование, тесты, сборка.
+      - run: npm run check
+      - run: npx playwright install --with-deps --only-shell chromium
+      - run: npm run ui:check
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: dist/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+
+  deploy:
+    name: Выкладка на хостинг
+    needs: build
+    # Ручной запуск из другой ветки собирает и проверяет, но не выкладывает: на сайт — только main.
+    if: github.ref == 'refs/heads/main'
+    # Окружение production: SSH-секреты и правила выкладки (только ветка main, при желании — ручное
+    # подтверждение) задаются в Settings → Environments (docs/DEPLOY.md, шаг 5).
+    environment:
+      name: production
+      url: ${{ vars.SITE_URL }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          sparse-checkout: scripts/deploy.sh
+          sparse-checkout-cone-mode: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: site
+          path: dist/
+      - name: Инструменты выкладки
+        run: |
+          sudo apt-get update -q >/dev/null
+          sudo apt-get install -y -q rsync lftp sshpass >/dev/null
+      - name: Копирование на хостинг
+        run: scripts/deploy.sh
+        # Секреты репозитория (или окружения production) SSH_* — под именами, которые ждёт scripts/deploy.sh.
+        # Подпись сервера из SSH_KNOWN_HOSTS проверяется всегда (StrictHostKeyChecking=yes).
+        env:
+          DEPLOY_HOST: ${{ secrets.SSH_HOST }}
+          DEPLOY_USER: ${{ secrets.SSH_USER }}
+          DEPLOY_PATH: ${{ secrets.SSH_TARGET }}
+          DEPLOY_SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          DEPLOY_PORT: ${{ vars.DEPLOY_PORT }}
+      - name: Сайт отвечает
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+        run: |
+          status=$(curl -sS -o /dev/null -w '%{http_code}' --retry 3 --retry-delay 5 "$SITE_URL/")
+          echo "$SITE_URL/ → $status"
+          if [ "$status" != 200 ]; then
+            echo "::error::Главная страница ответила $status — проверьте SSL-сертификат и папку сайта (docs/DEPLOY.md, «Если что-то не так»)."
+            exit 1
+          fi
