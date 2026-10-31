@@ -57,6 +57,11 @@ jobs:
     needs: build
     # Ручной запуск из другой ветки собирает и проверяет, но не выкладывает: на сайт — только main.
     if: github.ref == 'refs/heads/main'
+    # Окружение production: SSH-секреты и правила выкладки (только ветка main, при желании — ручное
+    # подтверждение) задаются в Settings → Environments (docs/DEPLOY.md, шаг 5).
+    environment:
+      name: production
+      url: ${{ vars.SITE_URL }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -74,13 +79,14 @@ jobs:
           sudo apt-get install -y -q rsync lftp sshpass >/dev/null
       - name: Копирование на хостинг
         run: scripts/deploy.sh
+        # Секреты репозитория (или окружения production) SSH_* — под именами, которые ждёт scripts/deploy.sh.
+        # Подпись сервера из SSH_KNOWN_HOSTS проверяется всегда (StrictHostKeyChecking=yes).
         env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
-          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
-          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          DEPLOY_PASSWORD: ${{ secrets.DEPLOY_PASSWORD }}
+          DEPLOY_HOST: ${{ secrets.SSH_HOST }}
+          DEPLOY_USER: ${{ secrets.SSH_USER }}
+          DEPLOY_PATH: ${{ secrets.SSH_TARGET }}
+          DEPLOY_SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
           DEPLOY_PORT: ${{ vars.DEPLOY_PORT }}
       - name: Сайт отвечает
         env:
