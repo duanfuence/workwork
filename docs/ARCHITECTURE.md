@@ -92,9 +92,16 @@ public/favicon.svg        логотип: лист с синей рамкой, �
 public/fonts/             woff2 Onest 400/600/800, JetBrains Mono 500/700 (кириллица + латиница), OFL-*.txt
 public/og.png             Open Graph-изображение 1200 × 630 (npm run og:image из scripts/og/og-image.html)
 public/.htaccess          настройки Apache на хостинге: один 301 на https без www и со слэшем, 404, кэш, сжатие (D-034)
-scripts/deploy.sh         выкладка dist/ по SSH: проверка сборки и пути, rsync --delete или SFTP (lftp) (D-034)
+scripts/deploy-lib.sh     общее для выкладки и отката: единственный путь, вход по SSH, резервная копия, копирование (D-035)
+scripts/deploy.sh         выкладка dist/ по SSH: проверка сборки и пути, копия, rsync или SFTP (lftp) (D-034, D-035)
+scripts/restore.sh        откат из резервной копии на сервере (list / latest / имя)
+scripts/check-site.sh     после выкладки: сайт отвечает 200 и отдаёт ожидаемую главную страницу
+scripts/deploy.test.mjs   тесты выкладки с заглушками ssh/rsync/lftp (в npm test)
+scripts/deploy-e2e.sh     выкладка, обрыв, копии, откат на настоящем SSH-сервере (только во временной среде)
 .github/workflows/ci.yml      проверки на каждый push и pull request (без адреса и с example.com)
 .github/workflows/deploy.yml  выкладка на REG.RU: push в main и вручную, проверки с SITE_URL, затем deploy.sh
+.github/workflows/restore.yml откат: вручную, из main, копия по выбору
+.github/workflows/deploy-check.yml  shellcheck и deploy-e2e.sh при изменении файлов выкладки
 scripts/ui-check.mjs      Playwright-проверка главной и калькуляторов (локально и в CI)
 ```
 

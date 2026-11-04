@@ -27,8 +27,9 @@ SITE_URL=https://konturix.ru npm run build
 Сайт выкладывается на виртуальный хостинг REG.RU (Apache) автоматически после слияния в `main`
 (`.github/workflows/deploy.yml`): проверки и сборка с `SITE_URL` из переменной репозитория, затем копирование
 `dist/` по SSH (`scripts/deploy.sh`: rsync, а без него на сервере — SFTP). Настройки сервера — `public/.htaccess`
-(https без www, слэш на конце, 404, кэш, сжатие). Что добавить в GitHub и как проверить выкладку —
-[docs/DEPLOY.md](docs/DEPLOY.md); решение — D-034.
+(https без www, слэш на конце, 404, кэш, сжатие). Перед каждой выкладкой на сервере сохраняется резервная копия,
+откат — workflow Restore. Что добавить в GitHub, как проверить выкладку и откатить её —
+[docs/DEPLOY.md](docs/DEPLOY.md); решения — D-034, D-035.
 
 Требуется Node.js ≥ 22.22.0. Правила работы — [CLAUDE.md](CLAUDE.md), документация — [docs/](docs/),
 SEO — [docs/SEO_STRATEGY.md](docs/SEO_STRATEGY.md).

@@ -1,6 +1,6 @@
 name: Deploy
 
-# Выкладка сайта на виртуальный хостинг REG.RU (D-034, инструкция — docs/DEPLOY.md).
+# Выкладка сайта на виртуальный хостинг REG.RU (D-034, D-035; инструкция — docs/DEPLOY.md).
 # Запускается при push в main (то есть после слияния) и вручную. Выкладывает только сборку, прошедшую все
 # проверки с адресом сайта из переменной репозитория SITE_URL, и только из ветки main.
 on:
@@ -67,7 +67,10 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          sparse-checkout: scripts/deploy.sh
+          sparse-checkout: |
+            scripts/deploy.sh
+            scripts/deploy-lib.sh
+            scripts/check-site.sh
           sparse-checkout-cone-mode: false
       - uses: actions/download-artifact@v4
         with:
@@ -78,6 +81,8 @@ jobs:
           sudo apt-get update -q >/dev/null
           sudo apt-get install -y -q rsync lftp sshpass >/dev/null
       - name: Копирование на хостинг
+        # Перед копированием — резервная копия папки сайта на сервере (не создалась — остановка). Путь
+        # к папке сайта сверяется с единственным разрешённым (scripts/deploy-lib.sh) до подключения к серверу.
         run: scripts/deploy.sh
         # Секреты репозитория (или окружения production) SSH_* — под именами, которые ждёт scripts/deploy.sh.
         # Подпись сервера из SSH_KNOWN_HOSTS проверяется всегда (StrictHostKeyChecking=yes).
@@ -88,13 +93,9 @@ jobs:
           DEPLOY_SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           DEPLOY_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
           DEPLOY_PORT: ${{ vars.DEPLOY_PORT }}
-      - name: Сайт отвечает
+      - name: Сайт отдаёт новую версию
+        # 200 и главная страница байт в байт как в сборке: ответ старой версии или заглушки хостинга — ошибка.
+        # Файлы к этому моменту уже выложены; откат — workflow Restore (docs/DEPLOY.md, «Откат»).
+        run: scripts/check-site.sh dist/index.html
         env:
           SITE_URL: ${{ vars.SITE_URL }}
-        run: |
-          status=$(curl -sS -o /dev/null -w '%{http_code}' --retry 3 --retry-delay 5 "$SITE_URL/")
-          echo "$SITE_URL/ → $status"
-          if [ "$status" != 200 ]; then
-            echo "::error::Главная страница ответила $status — проверьте SSL-сертификат и папку сайта (docs/DEPLOY.md, «Если что-то не так»)."
-            exit 1
-          fi

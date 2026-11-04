@@ -17,6 +17,10 @@ ErrorDocument 404 /404.html
   # HTTPS определяется по %{HTTPS} или по заголовку X-Forwarded-Proto: на хостинге перед Apache может стоять
   # nginx, и тогда Apache видит запрос как HTTP. Домен берётся из запроса без «www.» — файл не привязан к домену.
 
+  # Временные файлы незавершённой выкладки (rsync — папки .~tmp~, lftp — файлы .in.*) не отдаются: 404.
+  RewriteRule (^|/)\.~tmp~(/|$) - [R=404,L]
+  RewriteRule (^|/)\.in\. - [R=404,L]
+
   # 0. Папка без index.html (/_astro/, /fonts/) — 404, а не список файлов. Через mod_rewrite, а не
   #    «Options -Indexes»: если хостинг запрещает менять Options, та строка дала бы ошибку 500 на всём сайте.
   RewriteCond %{REQUEST_FILENAME} -d
