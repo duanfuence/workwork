@@ -26,7 +26,9 @@ readonly SITE_DIR=/var/www/u3703509/data/www/konturix.ru
 #                  «verified <токен> <отпечаток>» (сайт прошёл проверку после выкладки). Статус verified
 #                  ставит только deploy.sh после успешной проверки сайта, в том же процессе (токен никуда
 #                  не передаётся); восстановление его не ставит никогда;
-#   ИМЯ.sum        отпечаток содержимого копии (файлы и их SHA-256, без .well-known);
+#   ИМЯ.sum        отпечаток содержимого копии (файлы и их SHA-256, без .well-known). Нужна команда sha256sum
+#                  на сервере: без неё (или если она даёт неверный результат) выкладка и восстановление
+#                  останавливаются на проверке перед копией, до любых изменений; обходного пути нет;
 #   ИМЯ.verified   в копии — проверенная версия сайта: её содержимое совпадает с прошедшим проверку;
 #   .assets-live   CSS/JS работающей версии (для очистки _astro/).
 # Политика хранения (D-035): последние BACKUP_KEEP копий; кроме них ротация никогда не удаляет первую копию
@@ -127,16 +129,41 @@ read_state() {
   st='' stok='' sfp=''
   if [ -f "$backups/.site-state" ]; then read -r st stok sfp <"$backups/.site-state" || true; fi
 }
-# Отпечаток содержимого папки сайта: пути файлов и их SHA-256 (без .well-known — её меняет хостинг).
-# Нет sha256sum — пусто: тогда копии не объединяются и проверенными не отмечаются.
+hash_ok() { printf '%s\n' "$1" | grep -Eqx '[0-9a-f]{64}'; }
+# sha256sum есть и считает правильно: SHA-256 строки «abc» — эталон из FIPS 180-2.
+sha_works() {
+  command -v sha256sum >/dev/null 2>&1 || return 1
+  sha_test=$(printf abc | sha256sum 2>/dev/null) || return 1
+  [ "${sha_test%% *}" = ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad ]
+}
+# Отпечаток содержимого папки сайта: SHA-256 списка «SHA-256 файла, путь» (без .well-known — её меняет
+# хостинг). Любая ошибка — код 6 и сообщение, никогда не пустой или частичный результат: без конвейеров,
+# в которых ошибка sha256sum потерялась бы, и с проверкой каждого хеша (64 шестнадцатеричных знака).
 fingerprint() {
-  command -v sha256sum >/dev/null 2>&1 || return 0
-  (
-    cd "$site"
-    find . -path ./.well-known -prune -o -type f -print | LC_ALL=C sort | while IFS= read -r f; do
-      printf '%s %s\n' "$(sha256sum <"$f" | cut -d' ' -f1)" "$f"
-    done | sha256sum | cut -d' ' -f1
-  )
+  sha_works || { echo 'на сервере нет работающей команды sha256sum' >&2; return 6; }
+  fp_list="${backups:?}/.fp-list.$$" fp_sums="${backups:?}/.fp-sums.$$"
+  if ! (cd "$site" && find . -path ./.well-known -prune -o -type f -print) >"$fp_list" ||
+    ! LC_ALL=C sort -o "$fp_list" "$fp_list"; then
+    rm -f -- "$fp_list"
+    echo 'не удалось получить список файлов папки сайта' >&2
+    return 6
+  fi
+  : >"$fp_sums"
+  while IFS= read -r f; do
+    if ! fp_h=$(sha256sum 2>/dev/null <"$site/$f") || ! hash_ok "${fp_h%% *}"; then
+      rm -f -- "$fp_list" "$fp_sums"
+      echo "sha256sum не смогла вычислить хеш файла $f" >&2
+      return 6
+    fi
+    printf '%s %s\n' "${fp_h%% *}" "$f" >>"$fp_sums"
+  done <"$fp_list"
+  if ! fp_h=$(sha256sum <"$fp_sums" 2>/dev/null) || ! hash_ok "${fp_h%% *}"; then
+    rm -f -- "$fp_list" "$fp_sums"
+    echo 'sha256sum не смогла вычислить отпечаток папки сайта' >&2
+    return 6
+  fi
+  rm -f -- "$fp_list" "$fp_sums"
+  printf '%s\n' "${fp_h%% *}"
 }
 newest_verified() {
   for f in $(names); do
@@ -151,6 +178,7 @@ preflight)
   if [ -L "$site" ]; then echo symlink; exit 0; fi
   if [ ! -d "$site" ]; then echo no-dir; exit 0; fi
   if [ -e "$backups" ] && [ ! -d "$backups" ]; then echo backups-not-dir; exit 0; fi
+  if ! sha_works; then echo no-sha256sum; exit 0; fi
   if command -v rsync >/dev/null 2>&1; then echo rsync; else echo none; fi
   ;;
 backup)
@@ -161,20 +189,18 @@ backup)
   umask 077
   mkdir -p "$backups"
   chmod 700 "$backups"
-  fp=$(fingerprint)
+  fp=$(fingerprint) || exit 6
   read_state
   # Проверенная версия: содержимое совпадает с тем, что прошло проверку (статус verified с тем же
   # отпечатком), или с содержимым копии, уже отмеченной как проверенная.
   good=no
-  if [ -n "$fp" ]; then
-    if [ "$st" = verified ] && [ "$sfp" = "$fp" ]; then good=yes; fi
-    for f in $(names); do
-      if [ -e "$backups/$f.verified" ] && [ "$(cat "$backups/$f.sum" 2>/dev/null)" = "$fp" ]; then good=yes; fi
-    done
-  fi
+  if [ "$st" = verified ] && [ "$sfp" = "$fp" ]; then good=yes; fi
+  for f in $(names); do
+    if [ -e "$backups/$f.verified" ] && [ "$(cat "$backups/$f.sum" 2>/dev/null)" = "$fp" ]; then good=yes; fi
+  done
   # Содержимое не изменилось с самой новой копии — новая копия не нужна (повторы одной выкладки).
   newest=$(names | head -n 1)
-  if [ -n "$fp" ] && [ -n "$newest" ] && [ "$(cat "$backups/$newest.sum" 2>/dev/null)" = "$fp" ]; then
+  if [ -n "$newest" ] && [ "$(cat "$backups/$newest.sum" 2>/dev/null)" = "$fp" ]; then
     if [ "$good" = yes ]; then : >"$backups/$newest.verified"; fi
     printf '%s %s reused %s\n' "$newest" "$(wc -c <"$backups/$newest")" "$good"
     exit 0
@@ -189,7 +215,7 @@ backup)
   tar -tzf "$tmp" >/dev/null
   mv "$tmp" "$backups/$name"
   trap - EXIT
-  if [ -n "$fp" ]; then printf '%s\n' "$fp" >"$backups/$name.sum"; fi
+  printf '%s\n' "$fp" >"$backups/$name.sum"
   if [ "$good" = yes ]; then : >"$backups/$name.verified"; fi
   # Ротация: последние $keep копий; первая (initial), самая новая проверенная и защищённые — не удаляются.
   keep_good=$(newest_verified)
@@ -248,8 +274,9 @@ finish)
     printf '%s\n' "$@" >"$live.tmp"
     mv "$live.tmp" "$live"
   fi
-  fp=$(fingerprint)
-  set_state "copied $tok ${fp:--}"
+  # Без отпечатка — статус остаётся copying: версию нельзя будет отметить проверенной.
+  fp=$(fingerprint) || exit 6
+  set_state "copied $tok $fp"
   ;;
 verify)
   # Только из deploy.sh и только после успешной проверки сайта. Статус copied этой же операции и то же
@@ -257,9 +284,10 @@ verify)
   tok=$1
   token_ok "$tok" || { echo 'неверный токен' >&2; exit 2; }
   read_state
-  [ "$st" = copied ] && [ "$stok" = "$tok" ] && [ -n "$sfp" ] && [ "$sfp" != - ] ||
+  [ "$st" = copied ] && [ "$stok" = "$tok" ] && hash_ok "$sfp" ||
     { echo 'нет завершённого копирования этой операции' >&2; exit 5; }
-  [ "$(fingerprint)" = "$sfp" ] || { echo 'файлы сайта изменились после копирования' >&2; exit 5; }
+  fp=$(fingerprint) || exit 6
+  [ "$fp" = "$sfp" ] || { echo 'файлы сайта изменились после копирования' >&2; exit 5; }
   set_state "verified $tok $sfp"
   ;;
 *)
@@ -286,6 +314,9 @@ preflight() {
       fail "Папка ${BACKUP_DIR} на сервере — символическая ссылка. Остановлено до любых изменений: замените её обычной папкой (docs/DEPLOY.md, «Если что-то не так»)."
       ;;
     backups-not-dir) fail "${BACKUP_DIR} на сервере — не папка. Остановлено до любых изменений." ;;
+    no-sha256sum)
+      fail 'На сервере нет работающей команды sha256sum (пакет coreutils): без неё нельзя проверить резервные копии и отметить проверенную версию. Остановлено до любых изменений (docs/DEPLOY.md, «Если что-то не так»).'
+      ;;
     rsync | none) ;;
     *) fail 'Сервер ответил неожиданно на проверку папки сайта.' ;;
   esac
@@ -322,6 +353,8 @@ make_backup() {
     [[ $code -eq 3 && $attempt -lt 3 ]] || break
     sleep 1
   done
+  [[ $code -ne 6 ]] ||
+    fail 'Не удалось вычислить SHA-256 папки сайта на сервере (sha256sum) — резервная копия не создана, остановлено, файлы сайта не изменялись (docs/DEPLOY.md, «Если что-то не так»).'
   [[ $code -eq 0 ]] ||
     fail 'Не удалось создать резервную копию папки сайта — остановлено, файлы сайта не изменялись (docs/DEPLOY.md, «Если что-то не так»).'
   read -r backup_name size kind good <<<"$answer"
@@ -401,7 +434,11 @@ transfer() {
     done < <(find "$src/_astro" -maxdepth 1 -type f -print0)
   fi
   [[ "$mode" == prune ]] || assets=()
-  remote finish "$token" "$mode" "${assets[@]}" || interrupted 3 'очистка устаревших CSS и JS'
+  local code=0
+  remote finish "$token" "$mode" "${assets[@]}" || code=$?
+  [[ $code -ne 6 ]] ||
+    fail "Файлы скопированы, но SHA-256 папки сайта на сервере вычислить не удалось (sha256sum) — версия НЕ отмечена проверенной, последняя хорошая версия не изменилась. Восстановить: Actions → Restore, копия ${backup_name:-из списка} (docs/DEPLOY.md, «Если что-то не так»)."
+  [[ $code -eq 0 ]] || interrupted 3 'очистка устаревших CSS и JS'
 }
 
 sftp_mirror() {

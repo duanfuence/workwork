@@ -36,6 +36,8 @@ done
 arg="\${rest[0]:-}"
 echo "ssh $op \${rest[*]}" >>"$STUB_LOG"
 [[ ",\${STUB_FAIL:-}," == *",$op,"* ]] && exit 1
+# STUB_FAIL6 — операция завершается кодом 6 (на сервере не удалось вычислить SHA-256).
+[[ ",\${STUB_FAIL6:-}," == *",$op,"* ]] && exit 6
 case "$op" in
   preflight) echo "\${STUB_PREFLIGHT:-rsync}" ;;
   backup)
@@ -375,6 +377,36 @@ describe('выкладка', () => {
     expect(output).toContain('версия не считается проверенной');
   });
 
+  it('нет работающей sha256sum на сервере — остановка на проверке, до копии и изменений', () => {
+    const { status, output, calls } = run('deploy.sh', { STUB_PREFLIGHT: 'no-sha256sum' });
+    expect(status).toBe(1);
+    expect(output).toContain('нет работающей команды sha256sum');
+    expect(output).toContain('Остановлено до любых изменений');
+    expect(calls).toEqual(['ssh preflight']);
+  });
+
+  it('SHA-256 не вычислилась при резервной копии — остановка до копирования', () => {
+    const { status, output, calls } = run('deploy.sh', { STUB_FAIL6: 'backup' });
+    expect(status).toBe(1);
+    expect(output).toContain('Не удалось вычислить SHA-256 папки сайта на сервере (sha256sum)');
+    expect(output).toContain('файлы сайта не изменялись');
+    expect(calls.some((c) => c.startsWith('ssh begin') || c.startsWith('rsync'))).toBe(false);
+  });
+
+  it('SHA-256 не вычислилась после копирования — версия не отмечена, verify не вызывается', () => {
+    const { status, output, calls } = run('deploy.sh', { STUB_FAIL6: 'finish' });
+    expect(status).toBe(1);
+    expect(output).toContain('SHA-256 папки сайта на сервере вычислить не удалось (sha256sum)');
+    expect(output).toContain('НЕ отмечена проверенной');
+    expect(calls.some((c) => c === 'curl' || c.startsWith('ssh verify'))).toBe(false);
+  });
+
+  it('SHA-256 не вычислилась при записи статуса — версия не считается проверенной', () => {
+    const { status, output } = run('deploy.sh', { STUB_FAIL6: 'verify' });
+    expect(status).toBe(1);
+    expect(output).toContain('(sha256sum) — версия не считается проверенной');
+  });
+
   it('без SITE_URL — отказ до подключения к серверу (без проверки нельзя отметить проверенной)', () => {
     const { status, output, calls } = run('deploy.sh', { SITE_URL: '' });
     expect(status).toBe(1);
@@ -470,6 +502,32 @@ describe('восстановление', () => {
     expect(calls[2]).toBe(`ssh cat ${NAME_OLD}`);
     expect(calls[3]).toMatch(new RegExp(`-restore\\.tar\\.gz ${NAME_OLD}$`));
     expect(calls.some((c) => c.startsWith('ssh verify'))).toBe(false);
+  });
+
+  it.each(['latest', 'last-good', 'list'])(
+    'нет работающей sha256sum — Restore %s останавливается на проверке',
+    (choice) => {
+      const { status, output, calls } = run('restore.sh', {
+        RESTORE_BACKUP: choice,
+        STUB_PREFLIGHT: 'no-sha256sum',
+        STUB_LIST: LIST,
+      });
+      expect(status).toBe(1);
+      expect(output).toContain('нет работающей команды sha256sum');
+      expect(calls).toEqual(['ssh preflight']);
+    },
+  );
+
+  it('SHA-256 не вычислилась при копии перед восстановлением — восстановление остановлено', () => {
+    const { status, output, calls } = run('restore.sh', {
+      RESTORE_BACKUP: 'last-good',
+      STUB_LIST: LIST,
+      STUB_ARCHIVE: goodArchive(),
+      STUB_FAIL6: 'backup',
+    });
+    expect(status).toBe(1);
+    expect(output).toContain('(sha256sum)');
+    expect(calls.some((c) => c.startsWith('ssh begin') || c.startsWith('rsync'))).toBe(false);
   });
 
   it('last-good без проверенных копий — отказ до изменений', () => {

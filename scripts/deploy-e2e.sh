@@ -104,6 +104,13 @@ cmd=${SSH_ORIGINAL_COMMAND:-}
 # именно перед ней.
 op_mode=$(cat "$ctl/mode" 2>/dev/null || true)
 if [[ "$op_mode" == failop:* && "$cmd" == "sh -s -- "* && " $cmd " == *" ${op_mode#failop:} "* ]]; then exit 1; fi
+# nosha — сценарий на сервере без sha256sum; badsha:ОПЕРАЦИЯ — sha256sum завершается ошибкой в этой операции.
+if [[ "$cmd" == "sh -s -- "* ]]; then
+  case "$op_mode" in
+    nosha) export PATH="$ctl/nosha" ;;
+    badsha:*) [[ " $cmd " != *" ${op_mode#badsha:} "* ]] || export PATH="$ctl/badsha:$PATH" ;;
+  esac
+fi
 if [[ "$cmd" == "rsync --server"* ]]; then
   n=$(($(cat "$ctl/count" 2>/dev/null || echo 0) + 1))
   echo "$n" >"$ctl/count"
@@ -114,9 +121,16 @@ if [[ "$cmd" == "rsync --server"* ]]; then
   fi
 fi
 [[ "$cmd" != sftp && "$cmd" != internal-sftp ]] || exec /usr/lib/openssh/sftp-server
-exec bash -c "$cmd"
+exec /bin/bash -c "$cmd"
 EOF
 chmod 755 "$ctl/wrap.sh"
+mkdir -p "$ctl/nosha" "$ctl/badsha"
+for tool in sh ls grep sort tail head find cut mkdir chmod mv rm tar gzip wc cat; do
+  ln -s "$(command -v "$tool")" "$ctl/nosha/$tool"
+done
+printf '#!/bin/sh\ncat >/dev/null\nexit 1\n' >"$ctl/badsha/sha256sum"
+chmod -R a+rX "$ctl/nosha" "$ctl/badsha"
+chmod 755 "$ctl/badsha/sha256sum"
 
 mkdir -p /run/sshd
 cat >"$work/sshd_config" <<EOF
@@ -473,11 +487,13 @@ mv "$work/backups-saved" "$BACKUPS"
 ok 'каталог копий — ссылка или файл: выкладка и восстановление остановлены до любых изменений'
 install -o root -m 000 /dev/null "$SITE/root-only.txt" # файл, который пользователь не может прочитать
 deploy "$NEW"
-((status == 1)) && grep -q 'Не удалось создать резервную копию' "$work/out" || die 'выкладка не остановилась'
+# Нечитаемый файл останавливает уже вычисление SHA-256 (до tar) — тоже до любых изменений.
+((status == 1)) && grep -q 'файлы сайта не изменялись' "$work/out" && grep -q 'root-only.txt' "$work/out" ||
+  die 'выкладка не остановилась'
 rm -f "$SITE/root-only.txt"
 files_are "$OLD" || die 'при сбое копии папка сайта изменилась'
-[[ "$(backups)" == "$before" && -z "$(find "$BACKUPS" -name '.partial-*')" ]] || die 'остался неполный архив'
-ok 'ошибка tar (нечитаемый файл) — остановка, сайт не изменён, неполный архив удалён'
+[[ "$(backups)" == "$before" && -z "$(find "$BACKUPS" -name '.partial-*' -o -name '.fp-*')" ]] || die 'остался неполный архив'
+ok 'нечитаемый файл в папке сайта — остановка (SHA-256 не вычислить), сайт не изменён, временных файлов нет'
 now=$(date -u +%s)
 taken=()
 for d in 0 1; do
@@ -672,6 +688,48 @@ deploy "$NEW2"
   backup_has "$(newest_verified)" "$NEW2" || die 'после повторной выкладки NEW2 не стала последней проверенной'
 ok 'повторная выкладка после обрыва: статус verified; следующая копия NEW2 — проверенная, без дубликатов'
 
+# --- 8a. sha256sum на сервере -----------------------------------------------------------------------------
+echo '8a. sha256sum на сервере: нет команды или она ломается'
+site_has "$NEW2" && [[ "$(state)" == verified ]] || die 'перед проверкой sha256sum сайт не NEW2 или не verified'
+good_before=$(newest_verified)
+state_before=$(cat "$BACKUPS/.site-state")
+list_before=$(backups)
+unchanged() { # сайт, копии, статус и последняя хорошая версия — как до попытки
+  site_has "$NEW2" && [[ "$(backups)" == "$list_before" && "$(cat "$BACKUPS/.site-state")" == "$state_before" ]] &&
+    [[ "$(newest_verified)" == "$good_before" ]]
+}
+wrap_mode nosha
+deploy "$NEW" DEPLOY_PORT=$WRAP_PORT
+((status == 1)) && grep -q 'нет работающей команды sha256sum' "$work/out" && unchanged ||
+  die 'без sha256sum выкладка не остановилась до изменений'
+ok 'нет sha256sum: выкладка остановлена на проверке — сайт, копии, статус и последняя хорошая не изменились'
+run restore.sh RESTORE_BACKUP=last-good DEPLOY_PORT=$WRAP_PORT
+((status == 1)) && grep -q 'нет работающей команды sha256sum' "$work/out" && unchanged ||
+  die 'без sha256sum Restore не остановился до изменений'
+ok 'нет sha256sum: Restore last-good остановлен на проверке, ничего не изменилось'
+wrap_mode badsha:backup
+deploy "$NEW" DEPLOY_PORT=$WRAP_PORT
+((status == 1)) && grep -q 'Не удалось вычислить SHA-256 папки сайта на сервере (sha256sum)' "$work/out" && unchanged ||
+  die 'ошибка sha256sum при копии: выкладка не остановилась до изменений'
+[[ -z "$(find "$BACKUPS" -name '.fp-*' -o -name '.partial-*')" ]] || die 'остались временные файлы отпечатка'
+ok 'sha256sum ломается при резервной копии: копия не создана, сайт не изменён'
+wrap_mode badsha:finish
+deploy "$NEW" DEPLOY_PORT=$WRAP_PORT
+((status == 1)) && grep -q 'вычислить не удалось (sha256sum)' "$work/out" && [[ "$(state)" == copying ]] &&
+  backup_has "$(newest_verified)" "$NEW2" || die 'ошибка sha256sum после копирования обработана неверно'
+ok 'sha256sum ломается после копирования: версия не отмечена (copying), последняя хорошая — NEW2'
+wrap_mode none
+deploy "$NEW"
+((status == 0)) && [[ "$(state)" == verified ]] || die 'выкладка после ошибки sha256sum не прошла'
+wrap_mode badsha:verify
+deploy "$NEW2" DEPLOY_PORT=$WRAP_PORT
+((status == 1)) && grep -q '(sha256sum) — версия не считается проверенной' "$work/out" && [[ "$(state)" == copied ]] &&
+  backup_has "$(newest_verified)" "$NEW" || die 'ошибка sha256sum при записи статуса обработана неверно'
+ok 'sha256sum ломается при записи статуса: copied, последняя хорошая — прежняя проверенная (NEW)'
+wrap_mode none
+deploy "$NEW2"
+((status == 0)) && [[ "$(state)" == verified ]] || die 'выкладка после ошибки sha256sum при записи статуса не прошла'
+
 # --- 9. Восстановление -------------------------------------------------------------------------------------
 echo '9. Восстановление'
 (($(regular | wc -l) >= 5)) || die 'для проверки нужно не меньше 5 копий'
@@ -683,14 +741,15 @@ run restore.sh RESTORE_BACKUP="$oldest_name"
 [[ -f "$oldest" ]] || die 'восстанавливаемая копия удалена ротацией'
 python3 "$work/check.py" has "$work/x/konturix.ru" "$SITE" >"$work/check" || die "сайт не равен копии: $(cat "$work/check")"
 ok "самая старая копия ($oldest_name) восстановлена и не удалена ротацией"
-s0=$(sha256sum <"$SITE/index.html")
+# Два Restore подряд — от известного состояния: выложены NEW, затем NEW2; самая новая копия — с NEW.
+deploy "$NEW"
+deploy "$NEW2"
+((status == 0)) && site_has "$NEW2" || die 'подготовка к двум Restore не прошла'
 run restore.sh RESTORE_BACKUP=latest RESTORED_INDEX="$work/restored-index.html"
-((status == 0)) || die 'первый restore latest не прошёл'
-s1=$(sha256sum <"$SITE/index.html")
+((status == 0)) && site_has "$NEW" || die "первый restore latest не вернул NEW: $(cat "$work/check")"
 cmp -s "$work/restored-index.html" "$SITE/index.html" || die 'RESTORED_INDEX не та страница'
 run restore.sh RESTORE_BACKUP=latest
-((status == 0)) && [[ "$(sha256sum <"$SITE/index.html")" == "$s0" && "$s1" != "$s0" ]] ||
-  die 'два restore latest подряд не вернули исходное состояние'
+((status == 0)) && site_has "$NEW2" || die "второй restore latest не вернул NEW2: $(cat "$work/check")"
 [[ -f "$initial" ]] || die 'первая копия удалена'
 ok 'два Restore подряд: второй отменяет первый; первая копия на месте'
 # Проверенные версии — отпечатки содержимого проверенных копий и (если статус verified) работающего сайта.

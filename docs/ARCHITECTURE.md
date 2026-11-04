@@ -97,6 +97,7 @@ scripts/deploy.sh         выкладка dist/: сборка и путь, ко
 scripts/restore.sh        откат из резервной копии на сервере (list / latest / last-good / имя)
 scripts/check-site.sh     после выкладки: сайт отвечает 200 и отдаёт ожидаемую главную страницу
 scripts/deploy.test.mjs   тесты выкладки с заглушками ssh/rsync/lftp (в npm test)
+scripts/deploy-remote.test.mjs  сценарий на сервере: sha256sum (нет, ошибка, неверный результат), отпечатки
 scripts/deploy-e2e.sh     выкладка, обрыв, копии, откат на настоящем SSH-сервере (только во временной среде)
 .github/workflows/ci.yml      проверки на каждый push и pull request (без адреса и с example.com)
 .github/workflows/deploy.yml  выкладка на REG.RU: push в main и вручную, проверки с SITE_URL, затем deploy.sh
