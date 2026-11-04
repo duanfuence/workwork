@@ -80,9 +80,12 @@ jobs:
         run: |
           sudo apt-get update -q >/dev/null
           sudo apt-get install -y -q rsync lftp sshpass >/dev/null
-      - name: Копирование на хостинг
-        # Перед копированием — резервная копия папки сайта на сервере (не создалась — остановка). Путь
-        # к папке сайта сверяется с единственным разрешённым (scripts/deploy-lib.sh) до подключения к серверу.
+      - name: Выкладка и проверка сайта
+        # scripts/deploy.sh: путь к папке сайта сверяется с единственным разрешённым до подключения к серверу;
+        # резервная копия (не создалась — остановка); копирование в три этапа; проверка сайта — главная по
+        # SITE_URL байт в байт как в сборке (scripts/check-site.sh); только после успешной проверки, в том же
+        # процессе, версия отмечается как проверенная (последняя хорошая). Ошибка на любом шаге — шаг красный,
+        # отметки нет. Отдельного шага «отметить проверенной» нет и не должно быть (D-035).
         run: scripts/deploy.sh
         # Секреты репозитория (или окружения production) SSH_* — под именами, которые ждёт scripts/deploy.sh.
         # Подпись сервера из SSH_KNOWN_HOSTS проверяется всегда (StrictHostKeyChecking=yes).
@@ -93,9 +96,4 @@ jobs:
           DEPLOY_SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           DEPLOY_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
           DEPLOY_PORT: ${{ vars.DEPLOY_PORT }}
-      - name: Сайт отдаёт новую версию
-        # 200 и главная страница байт в байт как в сборке: ответ старой версии или заглушки хостинга — ошибка.
-        # Файлы к этому моменту уже выложены; откат — workflow Restore (docs/DEPLOY.md, «Откат»).
-        run: scripts/check-site.sh dist/index.html
-        env:
           SITE_URL: ${{ vars.SITE_URL }}

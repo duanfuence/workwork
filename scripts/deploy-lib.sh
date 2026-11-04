@@ -1,6 +1,6 @@
 # shellcheck shell=bash
 # Общая часть выкладки (deploy.sh) и восстановления (restore.sh): проверки, вход по SSH, резервная копия,
-# копирование файлов. Решения — docs/DECISIONS.md, D-034 и D-035; инструкция — docs/DEPLOY.md.
+# копирование файлов, статусы операции. Решения — docs/DECISIONS.md, D-034 и D-035; инструкция — docs/DEPLOY.md.
 #
 # Переменные окружения (в GitHub — секреты SSH_*, см. deploy.yml и restore.yml):
 #   DEPLOY_HOST         адрес сервера (IP или имя) — тот же, что в строке known_hosts
@@ -20,10 +20,19 @@
 # пробел или перевод строки — отказ до подключения к серверу.
 readonly SITE_DIR=/var/www/u3703509/data/www/konturix.ru
 # Резервные копии — в домашней папке пользователя хостинга, вне папок сайтов: по HTTP не отдаются. Там же —
-# служебные файлы выкладки: .site-state (завершена ли последняя операция) и .assets-live (CSS/JS работающей
-# версии). Политика хранения (D-035): последние BACKUP_KEEP копий; кроме них ротация никогда не удаляет первую
-# копию (метка initial — то, что было в папке сайта до первой выкладки), последнюю копию полной версии сайта
-# (с отметкой .ok) и копию, из которой идёт восстановление.
+# служебные файлы:
+#   .site-state    статус последней операции с папкой сайта: «copying <токен> -» (копирование идёт или
+#                  прервано), «copied <токен> <отпечаток>» (копирование завершено, сайт ещё не проверен),
+#                  «verified <токен> <отпечаток>» (сайт прошёл проверку после выкладки). Статус verified
+#                  ставит только deploy.sh после успешной проверки сайта, в том же процессе (токен никуда
+#                  не передаётся); восстановление его не ставит никогда;
+#   ИМЯ.sum        отпечаток содержимого копии (файлы и их SHA-256, без .well-known);
+#   ИМЯ.verified   в копии — проверенная версия сайта: её содержимое совпадает с прошедшим проверку;
+#   .assets-live   CSS/JS работающей версии (для очистки _astro/).
+# Политика хранения (D-035): последние BACKUP_KEEP копий; кроме них ротация никогда не удаляет первую копию
+# (метка initial — то, что было в папке сайта до первой выкладки), самую новую проверенную копию
+# (последняя хорошая версия) и копию, из которой идёт восстановление. Если содержимое папки сайта совпадает
+# с самой новой копией, новая копия не создаётся.
 readonly BACKUP_DIR=/var/www/u3703509/data/konturix-backups
 readonly BACKUP_KEEP=5
 # Имя копии: konturix-ГГГГММДД-ЧЧММСС-метка.tar.gz (время UTC — по имени копии сортируются по времени).
@@ -84,9 +93,9 @@ setup_ssh() {
 }
 
 # Сценарий на сервере (POSIX sh). Передаётся через stdin в «sh -s»; аргументы — константы выше и проверенные
-# имена (копий и файлов _astro/: только буквы, цифры, «.», «_», «-»). Пишет только в BACKUP_DIR; в папке
-# сайта удаляет только устаревшие файлы в _astro/ (операция finish), остальное в ней меняют rsync и lftp.
-# Пути в rm — через ${…:?}: пустое значение останавливает сценарий, а не превращается в «/».
+# значения (имена копий и файлов _astro/, токен операции: только буквы, цифры, «.», «_», «-»). Пишет только
+# в BACKUP_DIR; в папке сайта удаляет только устаревшие файлы в _astro/ (операция finish), остальное в ней
+# меняют rsync и lftp. Пути в rm — через ${…:?}: пустое значение останавливает сценарий, а не превращается в «/».
 read -r -d '' REMOTE_SCRIPT <<'SH' || true
 set -eu
 site=$1 backups=$2 keep=$3 op=$4
@@ -95,6 +104,7 @@ parent=${site%/*}
 base=${site##*/}
 re='^konturix-[0-9]{8}-[0-9]{6}-[a-z0-9]{1,40}\.tar\.gz$'
 name_ok() { printf '%s\n' "$1" | grep -Eq "$re"; }
+token_ok() { printf '%s\n' "$1" | grep -Eq '^[a-z0-9-]{8,64}$'; }
 names() {
   [ -d "$backups" ] || return 0
   ls -1 "$backups" | grep -E "$re" | sort -r
@@ -112,6 +122,30 @@ set_state() {
   printf '%s\n' "$1" >"${backups:?}/.site-state.tmp"
   mv "${backups:?}/.site-state.tmp" "${backups:?}/.site-state"
 }
+# Статус последней операции: st (copying, copied, verified или пусто), stok (токен), sfp (отпечаток).
+read_state() {
+  st='' stok='' sfp=''
+  if [ -f "$backups/.site-state" ]; then read -r st stok sfp <"$backups/.site-state" || true; fi
+}
+# Отпечаток содержимого папки сайта: пути файлов и их SHA-256 (без .well-known — её меняет хостинг).
+# Нет sha256sum — пусто: тогда копии не объединяются и проверенными не отмечаются.
+fingerprint() {
+  command -v sha256sum >/dev/null 2>&1 || return 0
+  (
+    cd "$site"
+    find . -path ./.well-known -prune -o -type f -print | LC_ALL=C sort | while IFS= read -r f; do
+      printf '%s %s\n' "$(sha256sum <"$f" | cut -d' ' -f1)" "$f"
+    done | sha256sum | cut -d' ' -f1
+  )
+}
+newest_verified() {
+  for f in $(names); do
+    if [ -e "$backups/$f.verified" ]; then
+      echo "$f"
+      return 0
+    fi
+  done
+}
 case $op in
 preflight)
   if [ -L "$site" ]; then echo symlink; exit 0; fi
@@ -127,8 +161,26 @@ backup)
   umask 077
   mkdir -p "$backups"
   chmod 700 "$backups"
+  fp=$(fingerprint)
+  read_state
+  # Проверенная версия: содержимое совпадает с тем, что прошло проверку (статус verified с тем же
+  # отпечатком), или с содержимым копии, уже отмеченной как проверенная.
+  good=no
+  if [ -n "$fp" ]; then
+    if [ "$st" = verified ] && [ "$sfp" = "$fp" ]; then good=yes; fi
+    for f in $(names); do
+      if [ -e "$backups/$f.verified" ] && [ "$(cat "$backups/$f.sum" 2>/dev/null)" = "$fp" ]; then good=yes; fi
+    done
+  fi
+  # Содержимое не изменилось с самой новой копии — новая копия не нужна (повторы одной выкладки).
+  newest=$(names | head -n 1)
+  if [ -n "$fp" ] && [ -n "$newest" ] && [ "$(cat "$backups/$newest.sum" 2>/dev/null)" = "$fp" ]; then
+    if [ "$good" = yes ]; then : >"$backups/$newest.verified"; fi
+    printf '%s %s reused %s\n' "$newest" "$(wc -c <"$backups/$newest")" "$good"
+    exit 0
+  fi
   # Самая первая копия (то, что было в папке сайта до первой выкладки) — метка initial, ротация её не удаляет.
-  if [ -z "$(names)" ]; then name="${name%-*}-initial.tar.gz"; fi
+  if [ -z "$newest" ]; then name="${name%-*}-initial.tar.gz"; fi
   # Копия с таким именем уже есть (две операции в одну секунду) — не перезаписывать: код 3, имя сменит вызывающий.
   if [ -e "$backups/$name" ]; then echo 'копия с таким именем уже есть' >&2; exit 3; fi
   tmp="${backups:?}/.partial-$name"
@@ -137,31 +189,25 @@ backup)
   tar -tzf "$tmp" >/dev/null
   mv "$tmp" "$backups/$name"
   trap - EXIT
-  # Отметка .ok — копия полной версии: предыдущая выкладка или восстановление завершились.
-  state=complete
-  [ ! -f "$backups/.site-state" ] || state=$(cat "$backups/.site-state")
-  if [ "$state" = complete ]; then : >"$backups/$name.ok"; fi
-  # Ротация: последние $keep копий; первая (initial), последняя полная (.ok) и защищённые — не удаляются.
-  newest_ok=''
-  for f in $(names); do
-    if [ -e "$backups/$f.ok" ]; then
-      newest_ok=$f
-      break
-    fi
-  done
+  if [ -n "$fp" ]; then printf '%s\n' "$fp" >"$backups/$name.sum"; fi
+  if [ "$good" = yes ]; then : >"$backups/$name.verified"; fi
+  # Ротация: последние $keep копий; первая (initial), самая новая проверенная и защищённые — не удаляются.
+  keep_good=$(newest_verified)
   names | grep -v -- '-initial\.tar\.gz$' | tail -n +"$((keep + 1))" | while read -r old; do
-    [ "$old" != "$newest_ok" ] || continue
+    [ "$old" != "$keep_good" ] || continue
     for p in "$@"; do [ "$old" != "$p" ] || continue 2; done
-    rm -f -- "${backups:?}/${old:?}" "${backups:?}/${old:?}.ok"
+    rm -f -- "${backups:?}/${old:?}" "${backups:?}/${old:?}.sum" "${backups:?}/${old:?}.verified"
   done
-  printf '%s %s %s\n' "$name" "$(wc -c <"$backups/$name")" "$state"
+  printf '%s %s new %s\n' "$name" "$(wc -c <"$backups/$name")" "$good"
   ;;
 list)
+  # Строки: имя, размер, verified|unverified, initial (для первой копии).
   for f in $(names); do
-    note='после прерванной операции'
-    [ ! -e "$backups/$f.ok" ] || note='полная версия'
-    case $f in *-initial.tar.gz) note="$note; первая, не удаляется" ;; esac
-    printf '%s %s (%s)\n' "$f" "$(wc -c <"$backups/$f")" "$note"
+    status=unverified
+    [ ! -e "$backups/$f.verified" ] || status=verified
+    flag=''
+    case $f in *-initial.tar.gz) flag=' initial' ;; esac
+    printf '%s %s %s%s\n' "$f" "$(wc -c <"$backups/$f")" "$status" "$flag"
   done
   ;;
 cat)
@@ -171,14 +217,18 @@ cat)
   ;;
 begin)
   # Перед копированием: с этого момента папка сайта может быть в промежуточном состоянии.
+  token_ok "$1" || { echo 'неверный токен' >&2; exit 2; }
   umask 077
   mkdir -p "$backups"
-  set_state incomplete
+  set_state "copying $1 -"
   ;;
 finish)
-  # После копирования. $1 — prune или keep-all; дальше — имена файлов _astro/ новой версии.
-  mode=$1
-  shift
+  # После копирования. $1 — токен, $2 — prune или keep-all; дальше — имена файлов _astro/ новой версии.
+  tok=$1 mode=$2
+  shift 2
+  token_ok "$tok" || { echo 'неверный токен' >&2; exit 2; }
+  read_state
+  [ "$st" = copying ] && [ "$stok" = "$tok" ] || { echo 'чужая или незавершённая операция' >&2; exit 5; }
   assets="$site/_astro"
   live="$backups/.assets-live"
   # Удаляются файлы _astro/, которых нет ни в новой версии, ни в версии, работавшей до этой операции
@@ -198,7 +248,19 @@ finish)
     printf '%s\n' "$@" >"$live.tmp"
     mv "$live.tmp" "$live"
   fi
-  set_state complete
+  fp=$(fingerprint)
+  set_state "copied $tok ${fp:--}"
+  ;;
+verify)
+  # Только из deploy.sh и только после успешной проверки сайта. Статус copied этой же операции и то же
+  # содержимое папки сайта, что сразу после копирования, — иначе отказ.
+  tok=$1
+  token_ok "$tok" || { echo 'неверный токен' >&2; exit 2; }
+  read_state
+  [ "$st" = copied ] && [ "$stok" = "$tok" ] && [ -n "$sfp" ] && [ "$sfp" != - ] ||
+    { echo 'нет завершённого копирования этой операции' >&2; exit 5; }
+  [ "$(fingerprint)" = "$sfp" ] || { echo 'файлы сайта изменились после копирования' >&2; exit 5; }
+  set_state "verified $tok $sfp"
   ;;
 *)
   echo "неизвестная операция: $op" >&2
@@ -235,10 +297,21 @@ preflight() {
   echo "Способ копирования: $method."
 }
 
+# Самая новая проверенная копия (последняя хорошая версия) или пусто.
+last_good() {
+  local name _ status
+  while read -r name _ status _; do
+    if [[ "$status" == verified ]]; then
+      echo "$name"
+      return 0
+    fi
+  done < <(remote list 2>/dev/null || true)
+}
+
 # Резервная копия папки сайта — до любого изменения на сервере. Ошибка — немедленная остановка.
 # $1 — метка; дальше — копии, которые ротация не должна удалять. Задаёт backup_name.
 make_backup() {
-  local label=$1 name answer size state code attempt
+  local label=$1 name answer size kind good code attempt
   shift
   [[ "$label" =~ ^[a-z0-9]{1,40}$ ]] || fail 'Неверная метка резервной копии.'
   for attempt in 1 2 3; do
@@ -251,41 +324,56 @@ make_backup() {
   done
   [[ $code -eq 0 ]] ||
     fail 'Не удалось создать резервную копию папки сайта — остановлено, файлы сайта не изменялись (docs/DEPLOY.md, «Если что-то не так»).'
-  read -r backup_name size state <<<"$answer"
-  [[ "$backup_name" =~ $BACKUP_NAME_RE && "$size" =~ ^[0-9]+$ ]] ||
+  read -r backup_name size kind good <<<"$answer"
+  [[ "$backup_name" =~ $BACKUP_NAME_RE && "$size" =~ ^[0-9]+$ && "$kind" =~ ^(new|reused)$ ]] ||
     fail 'Сервер не подтвердил резервную копию — остановлено, файлы сайта не изменялись.'
-  local note='полная версия'
-  [[ "$state" == complete ]] || note='состояние после прерванной операции'
-  echo "Резервная копия: $backup_name ($size байт, $note) в ~/${BACKUP_DIR##*/}/."
+  local note='не проверенная версия'
+  [[ "$good" != yes ]] || note='проверенная версия'
+  if [[ "$kind" == reused ]]; then
+    echo "Резервная копия: $backup_name — файлы сайта не изменились с неё, новая копия не нужна ($note)."
+  else
+    echo "Резервная копия: $backup_name ($size байт, $note) в ~/${BACKUP_DIR##*/}/."
+  fi
 }
 
 # Прерванное копирование: честно — сайт может быть частично обновлён.
 interrupted() {
-  fail "Копирование прервано на этапе $1 из 3 ($2). Сайт может быть частично обновлён. Запустите операцию ещё раз — обычно этого достаточно; если сайт работает неправильно, верните прежнее состояние: Actions → Restore, копия ${backup_name:-из списка} (docs/DEPLOY.md, «Если выкладка оборвалась»)."
+  local good
+  good=$(last_good)
+  fail "Копирование прервано на этапе $1 из 3 ($2). Сайт может быть частично обновлён; эта версия не отмечена как проверенная. Запустите операцию ещё раз — обычно этого достаточно; если сайт работает неправильно, верните прежнее состояние: Actions → Restore, копия ${backup_name:-из списка}${good:+ или последняя проверенная версия — last-good ($good)} (docs/DEPLOY.md, «Если выкладка оборвалась»)."
 }
 
-# Копирование папки $1 в папку сайта в три этапа. Это не атомарная публикация: файлы встают на место по
-# одному, и при аварийном завершении процесса на сервере (или обрыве в момент замены файла) сайт может
-# оказаться частично обновлённым. Порядок этапов уменьшает вред такого сбоя:
+# Токен операции: связывает begin, finish и verify одного запуска.
+new_token() {
+  local token
+  token=$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')
+  [[ "$token" =~ ^[0-9a-f]{16}$ ]] || fail 'Не удалось получить токен операции.'
+  echo "$token"
+}
+
+# Копирование папки $1 в папку сайта в три этапа; $2 — токен операции. Это не атомарная публикация: файлы
+# встают на место по одному, и при аварийном завершении процесса на сервере (или обрыве в момент замены
+# файла) сайт может оказаться частично обновлённым. Порядок этапов уменьшает вред такого сбоя:
 #   1) всё, кроме страниц и файлов управления сайтом (.htaccess, robots.txt, sitemap.xml): новые CSS/JS
 #      в _astro/, шрифты, картинки. Прежние страницы их не используют — сайт работает в прежнем виде;
 #   2) все файлы (страницы и файлы управления; остальное уже совпадает). Новая страница встаёт на место,
 #      когда её CSS и JS уже на сервере, а прежние CSS и JS ещё не удалены;
 #   3) удаление устаревшего, кроме _astro/ и .well-known/; затем finish: из _astro/ удаляется только то,
-#      чего нет ни в новой, ни в предыдущей версии, и ставится отметка «операция завершена».
+#      чего нет ни в новой, ни в предыдущей версии, и ставится статус copied (копирование завершено).
+# Статус verified здесь не ставится: его ставит только deploy.sh после проверки сайта.
 # rsync: на этапах 1–2 файлы докачиваются в .~tmp~ и переименовываются на место в конце этапа (--delay-updates).
 # SFTP (lftp): файл пишется во временный .in.*, затем прежний файл удаляется и временный переименовывается —
 # между этими двумя действиями файла нет (доли миллисекунды): это тоже не атомарная замена.
 # .well-known/ на сервере не трогается: там файлы для выпуска SSL-сертификата.
 transfer() {
-  local src=$1 assets=() mode=prune name
-  remote begin || fail 'Не удалось записать служебную отметку на сервере — остановлено до копирования.'
+  local src=$1 token=$2 assets=() mode=prune name
+  remote begin "$token" || fail 'Не удалось записать статус операции на сервере — остановлено до копирования.'
   if [[ "$method" == rsync ]]; then
-    local rsync_ssh common
+    local rsync_ssh
     # Пароль (если нет ключа) — sshpass внутри команды ssh, которую запускает rsync.
     rsync_ssh="${pass[*]} ssh $(printf '%q ' "${ssh_options[@]}")"
     # shellcheck disable=SC2054 # запятая — часть значения --chmod
-    common=(--recursive --links --times --perms --compress --chmod=D755,F644 --filter='P .well-known/'
+    local common=(--recursive --links --times --perms --compress --chmod=D755,F644 --filter='P .well-known/'
       -e "$rsync_ssh")
     # Этап 1. Исключения: *.html — по имени на любой глубине, /… — только в корне; без удаления.
     rsync "${common[@]}" --delay-updates --exclude='*.html' --exclude=/.htaccess --exclude=/robots.txt \
@@ -313,7 +401,7 @@ transfer() {
     done < <(find "$src/_astro" -maxdepth 1 -type f -print0)
   fi
   [[ "$mode" == prune ]] || assets=()
-  remote finish "$mode" "${assets[@]}" || interrupted 3 'очистка устаревших CSS и JS'
+  remote finish "$token" "$mode" "${assets[@]}" || interrupted 3 'очистка устаревших CSS и JS'
 }
 
 sftp_mirror() {

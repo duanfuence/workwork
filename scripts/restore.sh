@@ -3,7 +3,8 @@
 #
 # Запускается из .github/workflows/restore.yml; можно и локально с теми же переменными, что у deploy.sh
 # (scripts/deploy-lib.sh). Дополнительно:
-#   RESTORE_BACKUP   list — показать копии и выйти; latest (по умолчанию) — последняя копия;
+#   RESTORE_BACKUP   list — показать копии и выйти; latest (по умолчанию) — самая новая копия;
+#                    last-good — самая новая проверенная копия (последняя версия, прошедшая проверку сайта);
 #                    или имя копии konturix-ГГГГММДД-ЧЧММСС-метка.tar.gz
 #   RESTORED_INDEX   необязательно: куда положить index.html из копии (для проверки ответа сайта)
 #
@@ -11,6 +12,8 @@
 # копия текущего состояния (ошибка — остановка) → копирование тем же способом, что и при выкладке.
 # Восстановление тоже обратимо: «latest» после него — состояние до восстановления. Это не атомарная операция:
 # копирование идёт теми же тремя этапами, что и выкладка (scripts/deploy-lib.sh, transfer).
+# Статус «проверена» восстановление не ставит никогда (только deploy.sh после проверки сайта): отметки
+# проверенных копий и последняя хорошая версия от восстановления не меняются.
 set -euo pipefail
 
 # shellcheck source=scripts/deploy-lib.sh
@@ -18,19 +21,30 @@ source "$(dirname "${BASH_SOURCE[0]}")/deploy-lib.sh"
 
 choice="${RESTORE_BACKUP:-latest}"
 check_settings
-[[ "$choice" == list || "$choice" == latest || "$choice" =~ $BACKUP_NAME_RE ]] ||
-  fail 'RESTORE_BACKUP: нужно list, latest или имя копии вида konturix-20261104-120000-abc1234.tar.gz.'
+[[ "$choice" =~ ^(list|latest|last-good)$ || "$choice" =~ $BACKUP_NAME_RE ]] ||
+  fail 'RESTORE_BACKUP: нужно list, latest, last-good или имя копии вида konturix-20261104-120000-abc1234.tar.gz.'
 
 setup_ssh
 preflight
 
+# Строки списка: имя, размер, verified|unverified, initial (для первой копии); новые сверху.
 listing=$(remote list) || fail 'Не удалось получить список резервных копий.'
+good=''
+while read -r candidate _ status _; do
+  if [[ -z "$good" && "$status" == verified ]]; then good="$candidate"; fi
+done <<<"$listing"
 if [[ "$choice" == list ]]; then
   if [[ -z "$listing" ]]; then
     echo 'Резервных копий пока нет.'
   else
-    echo 'Резервные копии (новые сверху; имя и размер в байтах):'
-    printf '%s\n' "$listing"
+    echo 'Резервные копии (новые сверху; имя, размер в байтах, пометки):'
+    while read -r candidate size status flag; do
+      note='не проверенная версия'
+      [[ "$status" != verified ]] || note='проверенная версия'
+      [[ "$candidate" != "$good" ]] || note="$note; последняя проверенная — last-good"
+      [[ "$flag" != initial ]] || note="$note; первая, не удаляется"
+      echo "$candidate $size ($note)"
+    done <<<"$listing"
   fi
   exit 0
 fi
@@ -39,6 +53,9 @@ fi
 if [[ "$choice" == latest ]]; then
   name="${listing%%$'\n'*}"
   name="${name%% *}"
+elif [[ "$choice" == last-good ]]; then
+  name="$good"
+  [[ -n "$name" ]] || fail 'Проверенных копий пока нет: ни одна выкладка ещё не прошла проверку сайта. Список — запуск с RESTORE_BACKUP=list.'
 else
   name=''
   while read -r candidate _; do
@@ -81,5 +98,5 @@ fi
 
 # Копия текущего состояния; восстанавливаемая копия передаётся как защищённая — ротация её не удалит.
 make_backup restore "$name"
-transfer "$src"
+transfer "$src" "$(new_token)"
 echo "Готово: папка сайта восстановлена из $name."
