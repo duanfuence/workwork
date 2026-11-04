@@ -1,7 +1,8 @@
 name: Deploy check
 
 # Проверка скриптов выкладки и восстановления на настоящем SSH-сервере внутри раннера (D-035): rsync и SFTP,
-# резервные копии, сбой копии, обрыв связи, восстановление, вход по паролю. На хостинг ничего не выкладывает,
+# резервные копии, сбой копии и каждого этапа, аварийное завершение rsync на сервере, обрыв связи,
+# восстановление, вход по паролю. На хостинг ничего не выкладывает,
 # секретов не использует. Запускается только при изменении файлов выкладки.
 on:
   push:
@@ -48,7 +49,7 @@ jobs:
       - name: Инструменты
         run: |
           sudo apt-get update -q >/dev/null
-          sudo apt-get install -y -q openssh-server rsync lftp sshpass shellcheck >/dev/null
+          sudo apt-get install -y -q openssh-server rsync lftp sshpass shellcheck strace >/dev/null
       - name: shellcheck
         run: shellcheck -x scripts/*.sh
       - run: npm ci

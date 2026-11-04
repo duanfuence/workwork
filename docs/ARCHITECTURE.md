@@ -92,8 +92,8 @@ public/favicon.svg        логотип: лист с синей рамкой, �
 public/fonts/             woff2 Onest 400/600/800, JetBrains Mono 500/700 (кириллица + латиница), OFL-*.txt
 public/og.png             Open Graph-изображение 1200 × 630 (npm run og:image из scripts/og/og-image.html)
 public/.htaccess          настройки Apache на хостинге: один 301 на https без www и со слэшем, 404, кэш, сжатие (D-034)
-scripts/deploy-lib.sh     общее для выкладки и отката: единственный путь, вход по SSH, резервная копия, копирование (D-035)
-scripts/deploy.sh         выкладка dist/ по SSH: проверка сборки и пути, копия, rsync или SFTP (lftp) (D-034, D-035)
+scripts/deploy-lib.sh     общее для выкладки и отката: единственный путь, вход по SSH, копии и их хранение, три этапа копирования, очистка _astro (D-035)
+scripts/deploy.sh         выкладка dist/ по SSH: проверка сборки и пути, копия, три этапа rsync или SFTP (lftp) (D-034, D-035)
 scripts/restore.sh        откат из резервной копии на сервере (list / latest / имя)
 scripts/check-site.sh     после выкладки: сайт отвечает 200 и отдаёт ожидаемую главную страницу
 scripts/deploy.test.mjs   тесты выкладки с заглушками ssh/rsync/lftp (в npm test)

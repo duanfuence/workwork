@@ -29,10 +29,12 @@ const SSH_STUB = `#!/usr/bin/env bash
 cat >/dev/null
 args=("$@")
 op=''
+rest=()
 for ((i = 1; i < \${#args[@]}; i++)); do
-  if [[ "\${args[i]}" == -- && "\${args[i-1]}" == -s ]]; then op="\${args[i+4]}"; arg="\${args[i+5]:-}"; fi
+  if [[ "\${args[i]}" == -- && "\${args[i-1]}" == -s ]]; then op="\${args[i+4]}"; rest=("\${args[@]:i+5}"); fi
 done
-echo "ssh $op $arg" >>"$STUB_LOG"
+arg="\${rest[0]:-}"
+echo "ssh $op \${rest[*]}" >>"$STUB_LOG"
 [[ ",\${STUB_FAIL:-}," == *",$op,"* ]] && exit 1
 case "$op" in
   preflight) echo "\${STUB_PREFLIGHT:-rsync}" ;;
@@ -41,16 +43,19 @@ case "$op" in
       touch "$STUB_BACKUP_EXISTS_ONCE"
       exit 3
     fi
-    echo 4242 ;;
+    echo "$arg 4242 \${STUB_STATE:-complete}" ;;
   list) [[ -n "\${STUB_LIST:-}" ]] && printf '%s\\n' "$STUB_LIST" ;;
   cat) cat "$STUB_ARCHIVE" ;;
 esac
 exit 0
 `;
+// rsync и lftp: STUB_FAIL_CALL=N — N-й вызов этой программы завершается ошибкой (обрыв на N-м этапе).
 const TOOL_STUB = (name) => `#!/usr/bin/env bash
 all="$*"
 echo "${name} \${all//$'\\n'/ }" >>"$STUB_LOG"
 [[ ",\${STUB_FAIL:-}," == *",${name},"* ]] && exit 1
+n=$(grep -c '^${name} ' "$STUB_LOG")
+[[ "$n" == "\${STUB_FAIL_CALL:-0}" ]] && exit 12
 exit 0
 `;
 
@@ -71,6 +76,9 @@ beforeAll(() => {
     write(join(dist, file), `${file}\n`);
   }
   write(join(dist, 'kalkulyatory', 'index.html'), 'page\n');
+  mkdirSync(join(dist, '_astro'));
+  write(join(dist, '_astro', 'app.B1c2D3.css'), 'css\n');
+  write(join(dist, '_astro', 'page_x.Zz-9.js'), 'js\n');
 });
 
 afterAll(() => rmSync(root, { recursive: true, force: true }));
@@ -153,15 +161,20 @@ describe('путь к папке сайта (SSH_TARGET)', () => {
     expect(calls).toEqual([]);
   });
 
-  it('разрешённый путь — проверка, резервная копия, затем копирование', () => {
+  it('разрешённый путь — проверка, копия, отметка, три этапа rsync, очистка _astro/', () => {
     const { status, calls, output } = run('deploy.sh');
     expect(status, output).toBe(0);
-    expect(calls).toHaveLength(3);
-    expect(calls[0]).toBe('ssh preflight');
+    expect(calls.map((c) => c.split(' ').slice(0, 2).join(' '))).toEqual([
+      'ssh preflight',
+      'ssh backup',
+      'ssh begin',
+      'rsync --recursive',
+      'rsync --recursive',
+      'rsync --recursive',
+      'ssh finish',
+    ]);
     expect(calls[1]).toMatch(/^ssh backup konturix-\d{8}-\d{6}-manual\.tar\.gz$/);
-    expect(calls[2]).toMatch(/^rsync .*--delete-delay --delay-updates/);
-    expect(calls[2]).toContain(`:${SITE_DIR}/`);
-    expect(calls[2]).not.toMatch(/--delete(?!-delay)/);
+    for (const call of calls.slice(3, 6)) expect(call).toContain(`:${SITE_DIR}/`);
   });
 });
 
@@ -187,7 +200,7 @@ describe('выкладка', () => {
     expect(status, output).toBe(0);
     expect(calls.filter((c) => c.startsWith('ssh backup'))).toHaveLength(2);
     expect(calls[1]).not.toBe(calls[2]);
-    expect(calls[3]).toMatch(/^rsync /);
+    expect(calls[3]).toBe('ssh begin');
   });
 
   it('нет папки сайта на сервере — остановка до резервной копии', () => {
@@ -209,28 +222,97 @@ describe('выкладка', () => {
     expect(calls).toEqual([]);
   });
 
-  it('без rsync на сервере — три прохода SFTP после резервной копии, удаление только в последнем', () => {
+  it('этапы rsync: 1 — без страниц и файлов управления, 2 — всё, 3 — только удаление, _astro/ защищена', () => {
+    const { calls } = run('deploy.sh');
+    const [first, second, third] = calls.filter((c) => c.startsWith('rsync '));
+    expect(first).toContain('--delay-updates');
+    for (const pattern of ['*.html', '/.htaccess', '/robots.txt', '/sitemap.xml']) {
+      expect(first).toContain(`--exclude=${pattern}`);
+    }
+    expect(first).not.toMatch(/--delete/);
+    expect(second).toContain('--delay-updates');
+    expect(second).not.toContain('--exclude');
+    expect(second).not.toMatch(/--delete/);
+    expect(third).toMatch(/--delete --existing --ignore-existing/);
+    expect(third).toContain('--filter=P /_astro/***');
+    expect(third).not.toContain('--delay-updates');
+    for (const call of [first, second, third]) expect(call).toContain('--filter=P .well-known/');
+  });
+
+  it('очистка _astro/: передаются все CSS/JS новой версии', () => {
+    const { calls } = run('deploy.sh');
+    const finish = calls.at(-1).split(' ');
+    expect(finish.slice(0, 3)).toEqual(['ssh', 'finish', 'prune']);
+    expect(finish.slice(3).sort()).toEqual(['app.B1c2D3.css', 'page_x.Zz-9.js']);
+  });
+
+  it('необычное имя файла в _astro/ — очистка пропускается, ничего не удаляется', () => {
+    const odd = join(root, 'dist-odd');
+    spawnSync('cp', ['-a', dist, odd]);
+    writeFileSync(join(odd, '_astro', 'имя с пробелом.js'), 'x');
+    const { status, calls } = run('deploy.sh', { DIST_DIR: odd });
+    expect(status).toBe(0);
+    expect(calls.at(-1)).toBe('ssh finish keep-all');
+  });
+
+  it.each([
+    [1, 'CSS, JS, шрифты, картинки'],
+    [2, 'страницы и файлы управления сайтом'],
+    [3, 'удаление устаревших файлов'],
+  ])('сбой этапа %i rsync — честное сообщение, дальше не идёт', (stage, what) => {
+    const { status, output, calls } = run('deploy.sh', { STUB_FAIL_CALL: String(stage) });
+    expect(status).toBe(1);
+    expect(output).toContain(`Копирование прервано на этапе ${stage} из 3 (${what})`);
+    expect(output).toContain('Сайт может быть частично обновлён');
+    expect(output).toMatch(/Restore, копия konturix-\d{8}-\d{6}-manual\.tar\.gz/);
+    expect(calls.filter((c) => c.startsWith('rsync '))).toHaveLength(stage);
+    expect(calls.some((c) => c.startsWith('ssh finish'))).toBe(false);
+    expect(output).not.toContain('не тронуты');
+  });
+
+  it('без rsync на сервере — три прохода SFTP; удаление только в последнем и не в _astro/', () => {
     const { status, calls, output } = run('deploy.sh', { STUB_PREFLIGHT: 'none' });
     expect(status, output).toBe(0);
     expect(output).toContain('Способ копирования: sftp');
-    expect(calls[1]).toMatch(/^ssh backup /);
-    const passes = calls.slice(2);
+    const passes = calls.filter((c) => c.startsWith('lftp '));
     expect(passes).toHaveLength(3);
-    for (const pass of passes) {
-      expect(pass).toMatch(/^lftp /);
-      expect(pass).toContain('set xfer:use-temp-file yes');
+    for (const pass of passes) expect(pass).toContain('set xfer:use-temp-file yes');
+    for (const glob of ['*.html', '.htaccess', 'robots.txt', 'sitemap.xml']) {
+      expect(passes[0]).toContain(`--exclude-glob ${glob}`);
     }
-    expect(passes[0]).toContain('--exclude-glob *.html');
     expect(passes[0]).not.toContain('--delete');
     expect(passes[1]).not.toContain('--exclude-glob *.html');
     expect(passes[1]).not.toContain('--delete');
-    expect(passes[2]).toContain('--delete');
+    expect(passes[2]).toContain('--delete --exclude-glob _astro/');
+    expect(calls.at(-1)).toMatch(/^ssh finish prune /);
   });
 
-  it('обрыв rsync — ошибка с подсказкой запустить ещё раз', () => {
-    const { status, output } = run('deploy.sh', { STUB_FAIL: 'rsync' });
+  it.each([1, 2, 3])('сбой прохода %i SFTP — честное сообщение', (stage) => {
+    const { status, output } = run('deploy.sh', {
+      STUB_PREFLIGHT: 'none',
+      STUB_FAIL_CALL: String(stage),
+    });
     expect(status).toBe(1);
-    expect(output).toContain('Прежние файлы сайта не тронуты');
+    expect(output).toContain(`Копирование прервано на этапе ${stage} из 3`);
+    expect(output).toContain('Сайт может быть частично обновлён');
+  });
+
+  it('служебную отметку не записать — остановка до копирования', () => {
+    const { status, calls } = run('deploy.sh', { STUB_FAIL: 'begin' });
+    expect(status).toBe(1);
+    expect(calls.some((c) => c.startsWith('rsync'))).toBe(false);
+  });
+
+  it('каталог резервных копий — символическая ссылка — остановка до любых изменений', () => {
+    const { status, output, calls } = run('deploy.sh', { STUB_PREFLIGHT: 'backups-symlink' });
+    expect(status).toBe(1);
+    expect(output).toContain('символическая ссылка');
+    expect(calls).toEqual(['ssh preflight']);
+  });
+
+  it('копия после прерванной операции — так и сказано', () => {
+    const { output } = run('deploy.sh', { STUB_STATE: 'incomplete' });
+    expect(output).toContain('состояние после прерванной операции');
   });
 
   it('DEPLOY_METHOD=rsync без rsync на сервере — остановка до резервной копии', () => {
@@ -249,7 +331,7 @@ describe('выкладка', () => {
 describe('восстановление', () => {
   const NAME_OLD = 'konturix-20261101-100000-abc1234.tar.gz';
   const NAME_NEW = 'konturix-20261102-100000-def5678.tar.gz';
-  const LIST = `${NAME_NEW} 100\n${NAME_OLD} 90`;
+  const LIST = `${NAME_NEW} 100 (полная версия)\n${NAME_OLD} 90 (полная версия)`;
 
   function archive(name, build) {
     const dir = mkdtempSync(join(root, 'archive-'));
@@ -301,8 +383,12 @@ describe('восстановление', () => {
     });
     expect(status, output).toBe(0);
     expect(calls[2]).toBe(`ssh cat ${NAME_NEW}`);
-    expect(calls[3]).toMatch(/^ssh backup konturix-\d{8}-\d{6}-restore\.tar\.gz$/);
-    expect(calls[4]).toMatch(/^rsync .*--delete-delay --delay-updates/);
+    // Восстанавливаемая копия передаётся как защищённая: ротация её не удалит.
+    expect(calls[3]).toMatch(
+      new RegExp(`^ssh backup konturix-\\d{8}-\\d{6}-restore\\.tar\\.gz ${NAME_NEW}$`),
+    );
+    expect(calls[4]).toBe('ssh begin');
+    expect(calls.filter((c) => c.startsWith('rsync '))).toHaveLength(3);
   });
 
   it('копия по имени; копии с таким именем нет — отказ', () => {
@@ -313,6 +399,7 @@ describe('восстановление', () => {
     });
     expect(ok.status, ok.output).toBe(0);
     expect(ok.calls[2]).toBe(`ssh cat ${NAME_OLD}`);
+    expect(ok.calls[3]).toMatch(new RegExp(`-restore\\.tar\\.gz ${NAME_OLD}$`));
     const missing = run('restore.sh', {
       RESTORE_BACKUP: 'konturix-20250101-000000-abc.tar.gz',
       STUB_LIST: LIST,
