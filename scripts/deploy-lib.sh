@@ -104,6 +104,8 @@ backup)
   umask 077
   mkdir -p "$backups"
   chmod 700 "$backups"
+  # Копия с таким именем уже есть (две операции в одну секунду) — не перезаписывать: код 3, имя сменит вызывающий.
+  if [ -e "$backups/$name" ]; then echo 'копия с таким именем уже есть' >&2; exit 3; fi
   tmp="$backups/.partial-$name"
   trap 'rm -f "$tmp"' EXIT
   tar -czf "$tmp" -C "$parent" "$base"
@@ -154,10 +156,17 @@ preflight() {
 
 # Резервная копия папки сайта — до любого изменения на сервере. Ошибка — немедленная остановка.
 make_backup() {
-  local label=$1 name size
+  local label=$1 name size code attempt
   [[ "$label" =~ ^[a-z0-9]{1,40}$ ]] || fail 'Неверная метка резервной копии.'
-  name="konturix-$(date -u +%Y%m%d-%H%M%S)-$label.tar.gz"
-  size=$(remote backup "$name") ||
+  for attempt in 1 2 3; do
+    name="konturix-$(date -u +%Y%m%d-%H%M%S)-$label.tar.gz"
+    code=0
+    size=$(remote backup "$name") || code=$?
+    # 3 — имя занято копией, созданной в ту же секунду: новое имя через секунду; прежняя копия не трогается.
+    [[ $code -eq 3 && $attempt -lt 3 ]] || break
+    sleep 1
+  done
+  [[ $code -eq 0 ]] ||
     fail 'Не удалось создать резервную копию папки сайта — остановлено, файлы сайта не изменялись (docs/DEPLOY.md, «Если что-то не так»).'
   [[ "$size" =~ ^[0-9]+$ ]] || fail 'Сервер не подтвердил резервную копию — остановлено, файлы сайта не изменялись.'
   echo "Резервная копия: $name ($size байт) в ~/${BACKUP_DIR##*/}/, хранятся последние $BACKUP_KEEP."

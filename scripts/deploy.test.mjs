@@ -36,7 +36,12 @@ echo "ssh $op $arg" >>"$STUB_LOG"
 [[ ",\${STUB_FAIL:-}," == *",$op,"* ]] && exit 1
 case "$op" in
   preflight) echo "\${STUB_PREFLIGHT:-rsync}" ;;
-  backup) echo 4242 ;;
+  backup)
+    if [[ -n "\${STUB_BACKUP_EXISTS_ONCE:-}" && ! -e "$STUB_BACKUP_EXISTS_ONCE" ]]; then
+      touch "$STUB_BACKUP_EXISTS_ONCE"
+      exit 3
+    fi
+    echo 4242 ;;
   list) [[ -n "\${STUB_LIST:-}" ]] && printf '%s\\n' "$STUB_LIST" ;;
   cat) cat "$STUB_ARCHIVE" ;;
 esac
@@ -174,6 +179,15 @@ describe('выкладка', () => {
       'ssh preflight',
       'ssh backup',
     ]);
+  });
+
+  it('имя копии занято (та же секунда) — новое имя, без перезаписи', () => {
+    const flag = join(root, `exists-${Math.random().toString(36).slice(2)}`);
+    const { status, calls, output } = run('deploy.sh', { STUB_BACKUP_EXISTS_ONCE: flag });
+    expect(status, output).toBe(0);
+    expect(calls.filter((c) => c.startsWith('ssh backup'))).toHaveLength(2);
+    expect(calls[1]).not.toBe(calls[2]);
+    expect(calls[3]).toMatch(/^rsync /);
   });
 
   it('нет папки сайта на сервере — остановка до резервной копии', () => {
