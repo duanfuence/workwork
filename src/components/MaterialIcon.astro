@@ -1,0 +1,91 @@
+---
+/**
+ * Маленькая статичная схема материала для карточки калькулятора: рулон, доски, банка, плитка, ведро, мешок.
+ * Линии — цветом текста, размерные детали — размерным акцентом (CSS-переменные, без «сырых» цветов).
+ */
+interface Props {
+  /** id калькулятора из каталога. */
+  id: string;
+}
+
+const { id } = Astro.props;
+---
+
+<svg
+  class="material"
+  viewBox="0 0 48 48"
+  width="48"
+  height="48"
+  aria-hidden="true"
+  focusable="false"
+>
+  {id === 'wallpaper' && (
+    <g>
+      <ellipse class="material__line" cx="14" cy="24" rx="6" ry="14" />
+      <ellipse class="material__accent" cx="14" cy="24" rx="2" ry="5" />
+      <path class="material__line" d="M14 10h20M14 38h24V10h-4" />
+      <path class="material__dim" d="M42 10v28M40 10h4M40 38h4" />
+    </g>
+  )}
+  {id === 'laminate' && (
+    <g>
+      <rect class="material__line" x="6" y="10" width="36" height="28" />
+      <path class="material__line" d="M6 17h36M6 24h36M6 31h36M20 10v7M32 17v7M14 24v7M28 31v7" />
+      <path class="material__dim" d="M6 43h36M6 41v4M42 41v4" />
+    </g>
+  )}
+  {id === 'paint' && (
+    <g>
+      <path class="material__line" d="M10 14h28v26H10zM10 14l3-5h22l3 5" />
+      <path class="material__line" d="M16 9a8 8 0 0 1 16 0" />
+      <path class="material__accent" d="M10 24h28v6H10z" />
+    </g>
+  )}
+  {id === 'tile' && (
+    <g>
+      <rect class="material__line" x="6" y="6" width="36" height="36" />
+      <path class="material__line" d="M18 6v36M30 6v36M6 18h36M6 30h36" />
+      <rect class="material__accent" x="30" y="30" width="12" height="12" />
+    </g>
+  )}
+  {id === 'putty' && (
+    <g>
+      <path class="material__line" d="M11 14h26l-3 26H14zM9 14h30" />
+      <path class="material__line" d="M15 14a9 9 0 0 1 18 0" />
+      <path class="material__accent" d="M13 22h22" />
+    </g>
+  )}
+  {id === 'plaster' && (
+    <g>
+      <path class="material__line" d="M12 10h24l3 6-3 24H12l-3-24z" />
+      <path class="material__line" d="M9 16h30" />
+      <path class="material__accent" d="M17 24h14v8H17z" />
+    </g>
+  )}
+</svg>
+
+<style>
+  .material {
+    flex: none;
+    width: 3rem;
+    height: 3rem;
+  }
+
+  .material__line,
+  .material__accent,
+  .material__dim {
+    fill: none;
+    stroke-width: 1.5;
+    stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .material__line {
+    stroke: var(--color-text);
+  }
+
+  .material__accent,
+  .material__dim {
+    stroke: var(--color-dimension);
+  }
+</style>

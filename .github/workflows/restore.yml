@@ -1,0 +1,60 @@
+name: Restore
+
+# Откат: восстановление папки сайта на хостинге из резервной копии на сервере (D-035, docs/DEPLOY.md, «Откат»).
+# Только вручную и только из ветки main. Перед восстановлением сохраняется копия текущего состояния, поэтому
+# восстановление тоже можно откатить. Восстановление никогда не отмечает версию проверенной (D-035).
+on:
+  workflow_dispatch:
+    inputs:
+      backup:
+        description: 'Какую копию: latest — самую новую (состояние до последней операции), last-good — последнюю проверенную версию, list — только показать список, или имя konturix-….tar.gz'
+        required: true
+        default: latest
+        type: string
+
+permissions:
+  contents: read
+
+# Общая очередь с выкладкой: восстановление и выкладка не идут одновременно.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  restore:
+    name: Восстановление из резервной копии
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: production
+      url: ${{ vars.SITE_URL }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          sparse-checkout: |
+            scripts/restore.sh
+            scripts/deploy-lib.sh
+            scripts/check-site.sh
+          sparse-checkout-cone-mode: false
+      - name: Инструменты
+        run: |
+          sudo apt-get update -q >/dev/null
+          sudo apt-get install -y -q rsync lftp sshpass >/dev/null
+      - name: Восстановление
+        run: scripts/restore.sh
+        # Выбор копии — через переменную окружения, не подстановкой в команду: имя проверяется скриптом.
+        env:
+          RESTORE_BACKUP: ${{ inputs.backup }}
+          RESTORED_INDEX: restored-index.html
+          DEPLOY_HOST: ${{ secrets.SSH_HOST }}
+          DEPLOY_USER: ${{ secrets.SSH_USER }}
+          DEPLOY_PATH: ${{ secrets.SSH_TARGET }}
+          DEPLOY_SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          DEPLOY_PORT: ${{ vars.DEPLOY_PORT }}
+      - name: Сайт отдаёт восстановленную версию
+        if: inputs.backup != 'list'
+        run: scripts/check-site.sh restored-index.html
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}

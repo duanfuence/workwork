@@ -1,0 +1,425 @@
+---
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import RelatedCalculators from '../../components/RelatedCalculators.astro';
+import CalculatorIntro from '../../components/calculator/CalculatorIntro.astro';
+import CalculatorResult from '../../components/calculator/CalculatorResult.astro';
+import CostGroup from '../../components/calculator/CostGroup.astro';
+import CostLine from '../../components/calculator/CostLine.astro';
+import RoomNext from '../../components/calculator/RoomNext.astro';
+import NumberField from '../../components/calculator/NumberField.astro';
+import Schematic from '../../components/calculator/Schematic.astro';
+import PresetSelect from '../../components/calculator/PresetSelect.astro';
+import PresetTable from '../../components/calculator/PresetTable.astro';
+import SelectField from '../../components/calculator/SelectField.astro';
+import { calculators } from '../../data/calculators';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { calculatorCrumbs } from '../../lib/breadcrumbs';
+import '../../styles/calculator.css';
+
+const entry = calculators.find((item) => item.id === 'paint');
+if (!entry) throw new Error('В каталоге нет калькулятора краски (id: paint)');
+
+const id = 'pt';
+---
+
+<BaseLayout title={entry.seo.title} description={entry.seo.description}>
+  <div class="container calc-page">
+    <Breadcrumbs items={calculatorCrumbs(entry)} />
+
+    <CalculatorIntro
+      entry={entry}
+      lead="Сколько литров краски нужно на стены и потолок — по площади, слоям и укрывистости."
+    />
+
+    <noscript>
+      <p class="calc-noscript">
+        Для&nbsp;расчёта нужен включённый JavaScript. Способ расчёта описан ниже&nbsp;— по&nbsp;нему
+        можно посчитать вручную.
+      </p>
+    </noscript>
+
+    <div class="calc-layout">
+      <form class="calc-form" data-paint-form novalidate aria-labelledby="calc-form-title">
+        <h2 class="visually-hidden" id="calc-form-title">
+          Параметры расчёта
+        </h2>
+
+        <Schematic kind="room" />
+
+        <fieldset class="calc-group">
+          <legend class="calc-group__title">Помещение</legend>
+          <div class="calc-group__fields">
+            <NumberField name="roomLength" idPrefix={id} label="Длина помещения" unit="м" />
+            <NumberField name="roomWidth" idPrefix={id} label="Ширина помещения" unit="м" />
+            <NumberField
+              name="wallHeight"
+              idPrefix={id}
+              label="Высота стен"
+              unit="м"
+              hint="Высота окрашивания: от пола или плинтуса до потолка."
+            />
+            <NumberField
+              name="openingsArea"
+              idPrefix={id}
+              label="Площадь окон и дверей"
+              unit="м²"
+              optional
+              hint="Сумма площадей всех проёмов, которые не красятся. Например, окно 1,5 × 1,4 и дверь 0,9 × 2,0 — 3,9 м². Пусто — 0."
+            />
+            <SelectField
+              name="ceiling"
+              idPrefix={id}
+              label="Потолок"
+              value="no"
+              options={[
+                { value: 'no', label: 'не красить' },
+                { value: 'yes', label: 'красить той же краской' },
+              ]}
+              hint="Если красится, добавляется площадь потолка: длина × ширина."
+            />
+          </div>
+        </fieldset>
+
+        <fieldset class="calc-group">
+          <legend class="calc-group__title">Краска</legend>
+          <p class="calc-group__hint">
+            Укрывистость и&nbsp;объём банки указаны на&nbsp;упаковке. Универсального значения
+            нет&nbsp;— у&nbsp;разных красок расход отличается в&nbsp;несколько раз.
+          </p>
+          <div class="calc-group__fields">
+            <NumberField
+              name="coats"
+              idPrefix={id}
+              label="Число слоёв"
+              unit="шт."
+              inputmode="numeric"
+              value="2"
+              hint="Обычно 2: первый слой выравнивает цвет, второй — окончательный."
+            />
+            <PresetSelect calculator="paint" field="coverage" idPrefix={id} label="Тип краски" />
+            <NumberField
+              name="coverage"
+              idPrefix={id}
+              label="Укрывистость на один слой"
+              unit="м²/л"
+              placeholder="с этикетки"
+              hint="Сколько м² покрывает литр за слой. Точное значение — на этикетке; без неё выберите тип материала: ориентир по данным производителей."
+            />
+            <NumberField
+              name="canVolume"
+              idPrefix={id}
+              label="Объём банки"
+              unit="л"
+              optional
+              hint="Укажите, чтобы посчитать число банок. Пусто — только литры."
+            />
+          </div>
+        </fieldset>
+
+        <fieldset class="calc-group">
+          <legend class="calc-group__title">
+            Запас <span class="calc-group__optional">необязательно</span>
+          </legend>
+          <div class="calc-group__fields">
+            <NumberField
+              name="reserve"
+              idPrefix={id}
+              label="Запас"
+              unit="%"
+              value="10"
+              optional
+              hint="На впитывание, подкраску и потери на инструменте. Пусто — 0 %."
+            />
+          </div>
+        </fieldset>
+
+        <CostGroup
+          name="canPrice"
+          idPrefix={id}
+          label="Цена банки"
+          basis="по целым банкам"
+          needs={{ field: 'canVolume', text: 'Укажите объём банки — тогда посчитаем стоимость.' }}
+        />
+
+        <div class="calc-actions">
+          <button class="button button--primary" type="submit">
+            Рассчитать
+          </button>
+          <button class="button button--secondary" type="reset">
+            Сбросить
+          </button>
+        </div>
+      </form>
+
+      <CalculatorResult
+        headingId="calc-result-title"
+        title={entry.shortTitle}
+        placeholder="Заполните размеры помещения и укрывистость краски и нажмите «Рассчитать». После первого расчёта результат обновляется сразу при изменении параметров."
+      >
+        <!-- С объёмом банки главная цифра — банки, литры — строкой «нужно»; без него — литры. -->
+        <p class="calc-result__main">
+          <span class="calc-result__number" data-out="buyNumber"></span>
+          <span class="calc-result__unit" data-out="buyUnit"></span>
+          <span class="calc-result__explain" data-row="cans" hidden>
+            нужно <span data-out="litersWithReserve"></span>&nbsp;л
+          </span>
+        </p>
+        <CostLine />
+        <p class="calc-result__preset" data-preset-note="coverage" hidden></p>
+
+        <h3 class="calc-result__subtitle">Как получилось</h3>
+        <dl class="calc-result__list">
+          <div>
+            <dt>Площадь стен</dt>
+            <dd>
+              <span data-out="wallArea"></span>&nbsp;м²
+            </dd>
+          </div>
+          <div class="calc-result__minus">
+            <dt>Окна и&nbsp;двери</dt>
+            <dd>
+              <span data-out="openingsArea"></span>&nbsp;м²
+            </dd>
+          </div>
+          <div data-row="ceilingArea">
+            <dt>Плюс потолок</dt>
+            <dd>
+              <span data-out="ceilingArea"></span>&nbsp;м²
+            </dd>
+          </div>
+          <div>
+            <dt>Площадь окрашивания</dt>
+            <dd>
+              <span data-out="paintArea"></span>&nbsp;м²
+            </dd>
+          </div>
+          <div>
+            <dt>Расход без запаса</dt>
+            <dd>
+              <span data-out="liters"></span>&nbsp;л
+            </dd>
+          </div>
+          <div>
+            <dt>
+              С&nbsp;запасом <span data-out="reserve"></span>&nbsp;%
+            </dt>
+            <dd>
+              <span data-out="litersWithReserve2"></span>&nbsp;л
+            </dd>
+          </div>
+          <div data-row="cans" hidden>
+            <dt>Банки</dt>
+            <dd>
+              <span data-out="cans"></span>&nbsp;× <span data-out="canVolume"></span>&nbsp;л =&nbsp;
+              <span data-out="litersToBuy"></span>&nbsp;л
+            </dd>
+          </div>
+        </dl>
+
+        <div class="calc-result__section">
+          <h3 class="calc-result__subtitle">Формула</h3>
+          <p class="calc-result__note" data-out="formula"></p>
+        </div>
+        <p class="calc-result__note">
+          Литры округлены вверх до&nbsp;0,1&nbsp;л. Фактический расход зависит от&nbsp;впитываемости
+          и&nbsp;фактуры поверхности, грунтовки, инструмента и&nbsp;толщины слоя&nbsp;— сверяйтесь
+          с&nbsp;инструкцией к&nbsp;краске.
+        </p>
+      </CalculatorResult>
+    </div>
+
+    <RoomNext current={entry} />
+
+    <article class="calc-article">
+      <p class="calc-article__intro">
+        Посчитайте, сколько литров краски нужно на&nbsp;стены и&nbsp;потолок прямоугольного
+        помещения. Калькулятор считает площадь окрашивания, умножает её на&nbsp;число слоёв
+        и&nbsp;делит на&nbsp;укрывистость с&nbsp;упаковки. Результат ориентировочный: фактический
+        расход зависит от&nbsp;поверхности, инструмента и&nbsp;самой краски.
+      </p>
+
+      <section aria-labelledby="method-title">
+        <h2 id="method-title">Как считается</h2>
+        <ol>
+          <li>Площадь стен&nbsp;— периметр помещения, умноженный на&nbsp;высоту стен.</li>
+          <li>
+            Из&nbsp;неё вычитается площадь окон и&nbsp;дверей; если красится потолок&nbsp;—
+            прибавляется его площадь.
+          </li>
+          <li>
+            Площадь окрашивания умножается на&nbsp;число слоёв и&nbsp;делится
+            на&nbsp;укрывистость&nbsp;— сколько квадратных метров один литр покрывает за&nbsp;один
+            слой.
+          </li>
+          <li>
+            К&nbsp;результату добавляется запас. Если указан объём банки, литры с&nbsp;запасом
+            делятся на&nbsp;него и&nbsp;округляются вверх до&nbsp;целых банок.
+          </li>
+        </ol>
+      </section>
+
+      <section aria-labelledby="formula-title">
+        <h2 id="formula-title">Формулы</h2>
+        <dl class="formula-list">
+          <div>
+            <dt>Площадь окрашивания</dt>
+            <dd>
+              <code>S = 2 × (длина + ширина) × высота − проёмы + потолок</code>, потолок
+              <code>= длина × ширина</code> или 0
+            </dd>
+          </div>
+          <div>
+            <dt>Расход</dt>
+            <dd>
+              <code>литры = S × слои ÷ укрывистость</code>, с&nbsp;запасом
+              <code>× (1 + запас ÷ 100)</code>
+            </dd>
+          </div>
+          <div>
+            <dt>Банки</dt>
+            <dd>
+              <code>⌈литры с&nbsp;запасом ÷ объём банки⌉</code>
+            </dd>
+          </div>
+        </dl>
+        <p>
+          <strong>Пример.</strong> Комната 4 × 3&nbsp;м, высота 2,7&nbsp;м: стены 2 × 7 × 2,7 =
+          37,8&nbsp;м². Окно и&nbsp;дверь&nbsp;— 3,9&nbsp;м², потолок красится&nbsp;— 12&nbsp;м²:
+          всего 45,9&nbsp;м². Два слоя краски с&nbsp;укрывистостью 8&nbsp;м²/л: 45,9 × 2 ÷ 8 =
+          11,475&nbsp;л. С&nbsp;запасом 10&nbsp;%&nbsp;— 12,6225&nbsp;л, калькулятор покажет
+          12,7&nbsp;л (вверх до&nbsp;0,1&nbsp;л); банок по&nbsp;2,7&nbsp;л&nbsp;— ⌈12,6225 ÷ 2,7⌉ =
+          5.
+        </p>
+      </section>
+
+      <PresetTable calculator="paint" valueTitle="Укрывистость" />
+
+      <section aria-labelledby="limits-title">
+        <h2 id="limits-title">Что калькулятор не&nbsp;учитывает</h2>
+        <ul>
+          <li>
+            Ниши, выступы, короба, откосы окон и&nbsp;дверей&nbsp;— их площадь можно прибавить
+            вручную.
+          </li>
+          <li>
+            Разную впитываемость: на&nbsp;свежей штукатурке и&nbsp;без грунтовки краски уходит
+            больше, чем написано на&nbsp;упаковке.
+          </li>
+          <li>
+            Грунтовку и&nbsp;разные краски для&nbsp;стен и&nbsp;потолка&nbsp;— считайте их отдельно.
+          </li>
+          <li>Комбинацию банок разного объёма.</li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="faq-title">
+        <h2 id="faq-title">Частые вопросы</h2>
+        <div class="faq">
+          <h3>Где взять укрывистость?</h3>
+          <p>
+            На&nbsp;этикетке: «расход 100–120&nbsp;мл/м²» или «8–10&nbsp;м²/л на&nbsp;один слой».
+            Расход в&nbsp;мл/м² переводится так: 1000 ÷ 120 ≈ 8,3&nbsp;м²/л. Если указан диапазон,
+            для&nbsp;запаса берите меньшую укрывистость.
+          </p>
+
+          <h3>Сколько слоёв нужно?</h3>
+          <p>
+            Обычно два. Один слой&nbsp;— при обновлении того же цвета, три&nbsp;— при перекраске
+            тёмного в&nbsp;светлый или по&nbsp;пористой поверхности.
+          </p>
+
+          <h3>Зачем запас?</h3>
+          <p>
+            Поверхность впитывает по-разному, часть краски остаётся на&nbsp;валике
+            и&nbsp;в&nbsp;лотке, после высыхания бывает нужна подкраска. Обычно берут 10–15&nbsp;%.
+          </p>
+        </div>
+      </section>
+    </article>
+
+    <RelatedCalculators current={entry} />
+  </div>
+</BaseLayout>
+
+<script>
+  import { initCalculatorForm } from '../../client/calculator-form';
+  import { evaluatePaintForm, paintFields } from '../../lib/calculators/paint-form';
+  import { costText, packCostDetail } from '../../lib/cost';
+  import { formatNumber, formatRubles } from '../../lib/format';
+  import { pluralizeRu } from '../../lib/plural';
+  import { packagePurchase } from '../../lib/purchase';
+
+  const form = document.querySelector<HTMLFormElement>('[data-paint-form]');
+  const result = document.querySelector<HTMLElement>('[data-calculator-result]');
+  const area = (value: number) => formatNumber(value, 2);
+  const liters = (value: number) => formatNumber(value, 1);
+  const canWords = ['банка', 'банки', 'банок'] as const;
+
+  if (form && result) {
+    initCalculatorForm({
+      form,
+      result,
+      fields: paintFields,
+      evaluate: evaluatePaintForm,
+      render(value, view) {
+        // «К покупке» — банки, если известен их объём (D-031); иначе литры.
+        const purchase =
+          value.cans !== null && value.canVolume !== null
+            ? packagePurchase(
+                value.cans,
+                canWords,
+                `${formatNumber(value.canVolume, 3)} л`,
+                `${liters(value.litersWithReserve)} л`,
+              )
+            : null;
+        view.text('buyNumber', purchase?.number ?? liters(value.litersWithReserve));
+        view.text('buyUnit', purchase?.unit ?? 'л краски');
+        // Стоимость — по целым банкам (D-033); без объёма банки её нет.
+        const cost =
+          value.totalCost !== null && value.cans !== null && value.canPrice !== null
+            ? {
+                total: formatRubles(value.totalCost),
+                detail: packCostDetail(value.cans, canWords, value.canPrice),
+              }
+            : null;
+        view.show('cost', cost !== null);
+        view.text('totalCost', cost?.total ?? '');
+        view.text('costDetail', cost?.detail ?? '');
+        view.summary(
+          purchase?.summary ?? `${liters(value.litersWithReserve)} л краски`,
+          cost?.total,
+        );
+        view.text('litersWithReserve', liters(value.litersWithReserve));
+        view.text('litersWithReserve2', liters(value.litersWithReserve));
+        view.text('liters', liters(value.liters));
+        view.text('reserve', formatNumber(value.reserve, 1));
+        view.text('wallArea', area(value.wallArea));
+        view.text('openingsArea', area(value.openingsArea));
+        view.show('ceilingArea', value.ceilingIncluded);
+        view.text('ceilingArea', area(value.ceilingArea));
+        view.text('paintArea', area(value.paintArea));
+
+        view.show('cans', value.cans !== null);
+        if (value.cans !== null && value.canVolume !== null && value.litersToBuy !== null) {
+          view.text('cans', String(value.cans));
+          view.text('canVolume', formatNumber(value.canVolume, 3));
+          view.text('litersToBuy', formatNumber(value.litersToBuy, 3));
+        }
+
+        const ceiling = value.ceilingIncluded ? ` + потолок ${area(value.ceilingArea)}` : '';
+        view.text(
+          'formula',
+          `${area(value.wallArea)} − ${area(value.openingsArea)}${ceiling} = ${area(value.paintArea)} м²; ${area(value.paintArea)} × ${value.coats} ÷ ${formatNumber(value.coverage, 1)} ≈ ${liters(value.liters)} л; с запасом ${formatNumber(value.reserve, 1)} % — ${liters(value.litersWithReserve)} л.`,
+        );
+        view.report(
+          [
+            `Площадь окрашивания ${area(value.paintArea)} м²${value.ceilingIncluded ? ' (с потолком)' : ''}`,
+            `${value.coats} ${pluralizeRu(value.coats, ['слой', 'слоя', 'слоёв'])}, укрывистость ${formatNumber(value.coverage, 1)} м²/л, запас ${formatNumber(value.reserve, 1)} %`,
+          ],
+          purchase?.purchase ?? `${liters(value.litersWithReserve)} л краски`,
+          cost ? `${costText(value.totalCost ?? 0)} (${cost.detail})` : undefined,
+        );
+      },
+    });
+  }
+</script>

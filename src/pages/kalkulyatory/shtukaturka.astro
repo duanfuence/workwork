@@ -1,0 +1,452 @@
+---
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import RelatedCalculators from '../../components/RelatedCalculators.astro';
+import CalculatorIntro from '../../components/calculator/CalculatorIntro.astro';
+import CalculatorResult from '../../components/calculator/CalculatorResult.astro';
+import CostGroup from '../../components/calculator/CostGroup.astro';
+import CostLine from '../../components/calculator/CostLine.astro';
+import RoomNext from '../../components/calculator/RoomNext.astro';
+import NumberField from '../../components/calculator/NumberField.astro';
+import Schematic from '../../components/calculator/Schematic.astro';
+import PresetSelect from '../../components/calculator/PresetSelect.astro';
+import PresetTable from '../../components/calculator/PresetTable.astro';
+import SelectField from '../../components/calculator/SelectField.astro';
+import { calculators } from '../../data/calculators';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { calculatorCrumbs } from '../../lib/breadcrumbs';
+import '../../styles/calculator.css';
+
+const entry = calculators.find((item) => item.id === 'plaster');
+if (!entry) throw new Error('В каталоге нет калькулятора штукатурки (id: plaster)');
+
+const id = 'pl';
+---
+
+<BaseLayout title={entry.seo.title} description={entry.seo.description}>
+  <div class="container calc-page">
+    <Breadcrumbs items={calculatorCrumbs(entry)} />
+
+    <CalculatorIntro
+      entry={entry}
+      lead="Сколько смеси и мешков нужно на стены — по площади, толщине слоя и расходу с мешка."
+    />
+
+    <noscript>
+      <p class="calc-noscript">
+        Для&nbsp;расчёта нужен включённый JavaScript. Способ расчёта описан ниже&nbsp;— по&nbsp;нему
+        можно посчитать вручную.
+      </p>
+    </noscript>
+
+    <div class="calc-layout">
+      <form class="calc-form" data-plaster-form novalidate aria-labelledby="calc-form-title">
+        <h2 class="visually-hidden" id="calc-form-title">
+          Параметры расчёта
+        </h2>
+
+        <Schematic kind="room-or-walls" initial={{ mode: 'room', wallCount: '1' }} />
+
+        <fieldset class="calc-group">
+          <legend class="calc-group__title">Стены</legend>
+          <div class="calc-group__fields">
+            <SelectField
+              name="mode"
+              idPrefix={id}
+              label="Считать"
+              value="room"
+              options={[
+                { value: 'room', label: 'помещение' },
+                { value: 'walls', label: 'отдельные стены' },
+              ]}
+              hint="Помещение — все стены комнаты по длине и ширине; отдельные стены — по размеру одной стены."
+            />
+            <NumberField
+              name="roomLength"
+              idPrefix={id}
+              label="Длина помещения"
+              unit="м"
+              showWhen="mode=room"
+            />
+            <NumberField
+              name="roomWidth"
+              idPrefix={id}
+              label="Ширина помещения"
+              unit="м"
+              showWhen="mode=room"
+            />
+            <NumberField
+              name="wallLength"
+              idPrefix={id}
+              label="Длина стены"
+              unit="м"
+              showWhen="mode=walls"
+              hidden
+            />
+            <NumberField name="wallHeight" idPrefix={id} label="Высота стен" unit="м" />
+            <NumberField
+              name="wallCount"
+              idPrefix={id}
+              label="Одинаковых стен"
+              unit="шт."
+              inputmode="numeric"
+              value="1"
+              hint="Стены разного размера посчитайте по отдельности."
+              showWhen="mode=walls"
+              hidden
+            />
+            <NumberField
+              name="openingsArea"
+              idPrefix={id}
+              label="Площадь окон и дверей"
+              unit="м²"
+              optional
+              hint="Суммарно на все стены, вычитается. Пусто — 0."
+            />
+          </div>
+        </fieldset>
+
+        <fieldset class="calc-group">
+          <legend class="calc-group__title">Смесь</legend>
+          <div class="calc-group__fields">
+            <NumberField
+              name="thickness"
+              idPrefix={id}
+              label="Средняя толщина слоя"
+              unit="мм"
+              value="10"
+              hint="10 мм — пример. Задайте по замерам отклонений стены, в пределах инструкции к смеси."
+            />
+            <PresetSelect
+              calculator="plaster"
+              field="consumption"
+              idPrefix={id}
+              label="Тип штукатурки"
+            />
+            <NumberField
+              name="consumption"
+              idPrefix={id}
+              label="Расход на 1 м² при слое 1 мм"
+              unit="кг"
+              placeholder="с мешка"
+              hint="Точное значение — на мешке. Без него выберите тип материала: ориентир по данным производителей."
+            />
+            <NumberField
+              name="bagMass"
+              idPrefix={id}
+              label="Масса мешка"
+              unit="кг"
+              optional
+              hint="С мешка — чтобы посчитать мешки. Пусто — только масса."
+            />
+          </div>
+        </fieldset>
+
+        <fieldset class="calc-group">
+          <legend class="calc-group__title">
+            Запас <span class="calc-group__optional">необязательно</span>
+          </legend>
+          <div class="calc-group__fields">
+            <NumberField
+              name="reserve"
+              idPrefix={id}
+              label="Запас"
+              unit="%"
+              value="10"
+              optional
+              hint="На неровности, впитывание основания и потери при работе. Пусто — 0 %."
+            />
+          </div>
+        </fieldset>
+
+        <CostGroup
+          name="bagPrice"
+          idPrefix={id}
+          label="Цена мешка"
+          basis="по целым мешкам"
+          needs={{ field: 'bagMass', text: 'Укажите массу мешка — тогда посчитаем стоимость.' }}
+        />
+
+        <div class="calc-actions">
+          <button class="button button--primary" type="submit">
+            Рассчитать
+          </button>
+          <button class="button button--secondary" type="reset">
+            Сбросить
+          </button>
+        </div>
+      </form>
+
+      <CalculatorResult
+        headingId="calc-result-title"
+        title={entry.shortTitle}
+        placeholder="Заполните размеры стен и расход смеси и нажмите «Рассчитать». После первого расчёта результат обновляется сразу при изменении параметров."
+      >
+        <!-- С массой мешка главная цифра — мешки, килограммы — строкой «нужно»; без неё — килограммы. -->
+        <p class="calc-result__main">
+          <span class="calc-result__number" data-out="buyNumber"></span>
+          <span class="calc-result__unit" data-out="buyUnit"></span>
+          <span class="calc-result__explain" data-row="bags" hidden>
+            нужно <span data-out="massWithReserve"></span>&nbsp;кг
+          </span>
+        </p>
+        <CostLine />
+        <p class="calc-result__preset" data-preset-note="consumption" hidden></p>
+
+        <h3 class="calc-result__subtitle">Как получилось</h3>
+        <dl class="calc-result__list">
+          <div>
+            <dt>Площадь стен</dt>
+            <dd>
+              <span data-out="wallArea"></span>&nbsp;м²
+            </dd>
+          </div>
+          <div class="calc-result__minus">
+            <dt>Окна и&nbsp;двери</dt>
+            <dd>
+              <span data-out="openingsArea"></span>&nbsp;м²
+            </dd>
+          </div>
+          <div>
+            <dt>Штукатурить</dt>
+            <dd>
+              <span data-out="plasterArea"></span>&nbsp;м²
+            </dd>
+          </div>
+          <div>
+            <dt>Смесь без запаса</dt>
+            <dd>
+              <span data-out="mass"></span>&nbsp;кг
+            </dd>
+          </div>
+          <div>
+            <dt>
+              С&nbsp;запасом <span data-out="reserve"></span>&nbsp;%
+            </dt>
+            <dd>
+              <span data-out="massWithReserve2"></span>&nbsp;кг
+            </dd>
+          </div>
+          <div data-row="bags" hidden>
+            <dt>Мешки</dt>
+            <dd>
+              <span data-out="bags"></span>&nbsp;× <span data-out="bagMass"></span>&nbsp;кг =&nbsp;
+              <span data-out="massToBuy"></span>&nbsp;кг
+            </dd>
+          </div>
+        </dl>
+
+        <div class="calc-result__section">
+          <h3 class="calc-result__subtitle">Формула</h3>
+          <p class="calc-result__note" data-out="formula"></p>
+        </div>
+        <p class="calc-result__note">
+          Результат ориентировочный. Фактический расход зависит от&nbsp;состава смеси, впитываемости
+          основания, неровностей стен и&nbsp;маяков. Допустимую толщину слоя за&nbsp;один проход
+          и&nbsp;общую проверьте по&nbsp;инструкции&nbsp;— калькулятор её не&nbsp;проверяет.
+        </p>
+      </CalculatorResult>
+    </div>
+
+    <RoomNext current={entry} />
+
+    <article class="calc-article">
+      <p class="calc-article__intro">
+        Посчитайте, сколько штукатурной смеси и&nbsp;мешков купить на&nbsp;стены. Расчёт
+        ориентировочный: фактический расход зависит от&nbsp;смеси, основания, неровностей стен
+        и&nbsp;допустимой толщины слоя. Расход на&nbsp;1&nbsp;мм возьмите из&nbsp;инструкции
+        к&nbsp;вашей смеси.
+      </p>
+
+      <section aria-labelledby="method-title">
+        <h2 id="method-title">Как считается</h2>
+        <ol>
+          <li>
+            Площадь стен: для&nbsp;помещения&nbsp;— периметр × высота, 2 × (длина + ширина) ×
+            высота; для&nbsp;отдельных стен&nbsp;— длина × высота × число одинаковых стен. Потолок
+            посчитайте отдельно: режим «отдельные стены», длина × ширина помещения, своя толщина
+            слоя.
+          </li>
+          <li>
+            Из&nbsp;неё вычитается площадь окон и&nbsp;дверей&nbsp;— получается площадь
+            оштукатуривания.
+          </li>
+          <li>
+            Масса смеси: площадь × средняя толщина слоя × расход на&nbsp;1&nbsp;м² при слое
+            1&nbsp;мм.
+          </li>
+          <li>
+            К&nbsp;массе добавляется запас; мешки округляются вверх до&nbsp;целого мешка. Массы
+            показаны с&nbsp;округлением вверх до&nbsp;0,1&nbsp;кг.
+          </li>
+        </ol>
+      </section>
+
+      <section aria-labelledby="formula-title">
+        <h2 id="formula-title">Формулы</h2>
+        <dl class="formula-list">
+          <div>
+            <dt>Площадь</dt>
+            <dd>
+              помещение: <code>2 × (длина + ширина) × высота − окна и&nbsp;двери</code>; стены:
+              <code>длина × высота × число стен − окна и&nbsp;двери</code>
+            </dd>
+          </div>
+          <div>
+            <dt>Масса</dt>
+            <dd>
+              <code>площадь × толщина (мм) × расход (кг/м² на&nbsp;1&nbsp;мм)</code>
+            </dd>
+          </div>
+          <div>
+            <dt>С&nbsp;запасом и&nbsp;мешки</dt>
+            <dd>
+              <code>масса × (1 + запас ÷ 100)</code>, мешков
+              <code>⌈масса с&nbsp;запасом ÷ масса мешка⌉</code>
+            </dd>
+          </div>
+        </dl>
+        <p>
+          <strong>Пример (отдельные стены).</strong> 4&nbsp;стены 4 × 2,7&nbsp;м, окна и&nbsp;двери
+          3,9&nbsp;м²: штукатурить 43,2 − 3,9 = 39,3&nbsp;м². Слой 15&nbsp;мм, расход 0,85&nbsp;кг:
+          39,3 × 15 × 0,85 = 501,075&nbsp;кг. С&nbsp;запасом 10&nbsp;%&nbsp;— 551,1825&nbsp;кг,
+          мешков по&nbsp;25&nbsp;кг&nbsp;— ⌈22,05⌉ = 23, это 575&nbsp;кг.
+        </p>
+      </section>
+
+      <PresetTable calculator="plaster" valueTitle="Расход" />
+
+      <section aria-labelledby="limits-title">
+        <h2 id="limits-title">Что калькулятор не&nbsp;учитывает</h2>
+        <ul>
+          <li>
+            Рельеф стены: толщина задаётся средняя. Её определяют по&nbsp;замерам отклонений,
+            например правилом или по&nbsp;маякам.
+          </li>
+          <li>Откосы окон и&nbsp;дверей&nbsp;— их можно посчитать отдельной стеной.</li>
+          <li>Грунтовку, сетку, маяки и&nbsp;углы.</li>
+          <li>
+            Допустимую толщину слоя: сколько можно нанести за&nbsp;один проход и&nbsp;всего, зависит
+            от&nbsp;смеси.
+          </li>
+          <li>Разные стены в&nbsp;одном расчёте&nbsp;— посчитайте их по&nbsp;отдельности.</li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="faq-title">
+        <h2 id="faq-title">Частые вопросы</h2>
+        <div class="faq">
+          <h3>Где взять расход на&nbsp;1&nbsp;мм?</h3>
+          <p>
+            На&nbsp;мешке или в&nbsp;инструкции производителя: обычно он указан как «кг
+            на&nbsp;1&nbsp;м² при толщине слоя 1&nbsp;мм». Расход гипсовых и&nbsp;цементных смесей
+            заметно различается, поэтому калькулятор не&nbsp;подставляет универсальное значение.
+          </p>
+
+          <h3>Как определить среднюю толщину слоя?</h3>
+          <p>
+            Измерьте отклонения стены от&nbsp;вертикали и&nbsp;плоскости в&nbsp;нескольких местах,
+            например правилом или после установки маяков, и&nbsp;возьмите среднее с&nbsp;учётом
+            минимального слоя по&nbsp;инструкции. Если стена неровная, лучше посчитать
+            с&nbsp;запасом.
+          </p>
+
+          <h3>Почему фактический расход отличается?</h3>
+          <p>
+            На&nbsp;расход влияют впитываемость основания, качество грунтовки, перепады стены,
+            способ нанесения и&nbsp;потери при работе. Поэтому результат&nbsp;— оценка, а&nbsp;запас
+            помогает не&nbsp;докупать смесь в&nbsp;процессе.
+          </p>
+        </div>
+      </section>
+    </article>
+
+    <RelatedCalculators current={entry} />
+  </div>
+</BaseLayout>
+
+<script>
+  import { initCalculatorForm } from '../../client/calculator-form';
+  import { evaluatePlasterForm, plasterFields } from '../../lib/calculators/plaster-form';
+  import { costText, packCostDetail } from '../../lib/cost';
+  import { formatNumber, formatRubles } from '../../lib/format';
+  import { pluralizeRu } from '../../lib/plural';
+  import { packagePurchase } from '../../lib/purchase';
+
+  const form = document.querySelector<HTMLFormElement>('[data-plaster-form]');
+  const result = document.querySelector<HTMLElement>('[data-calculator-result]');
+  const bagWords = ['мешок', 'мешка', 'мешков'] as const;
+
+  if (form && result) {
+    initCalculatorForm({
+      form,
+      result,
+      fields: plasterFields,
+      evaluate: evaluatePlasterForm,
+      render(value, view) {
+        // «К покупке» — мешки, если известна их масса (D-031); иначе килограммы.
+        const purchase =
+          value.bags !== null && value.bagMass !== null
+            ? packagePurchase(
+                value.bags,
+                bagWords,
+                `${formatNumber(value.bagMass, 1)} кг`,
+                `${formatNumber(value.massWithReserve, 1)} кг`,
+              )
+            : null;
+        view.text('buyNumber', purchase?.number ?? formatNumber(value.massWithReserve, 1));
+        view.text('buyUnit', purchase?.unit ?? 'кг смеси');
+        // Стоимость — по целым упаковкам (D-033); без массы упаковки её нет.
+        const cost =
+          value.totalCost !== null && value.bags !== null && value.bagPrice !== null
+            ? {
+                total: formatRubles(value.totalCost),
+                detail: packCostDetail(value.bags, bagWords, value.bagPrice),
+              }
+            : null;
+        view.show('cost', cost !== null);
+        view.text('totalCost', cost?.total ?? '');
+        view.text('costDetail', cost?.detail ?? '');
+        view.summary(
+          purchase?.summary ?? `${formatNumber(value.massWithReserve, 1)} кг смеси`,
+          cost?.total,
+        );
+        view.text('massWithReserve', formatNumber(value.massWithReserve, 1));
+        view.text('massWithReserve2', formatNumber(value.massWithReserve, 1));
+        view.text('mass', formatNumber(value.mass, 1));
+        view.text('reserve', formatNumber(value.reserve, 1));
+        view.text('wallArea', formatNumber(value.wallArea, 2));
+        view.text('openingsArea', formatNumber(value.openingsArea, 2));
+        view.text('plasterArea', formatNumber(value.plasterArea, 2));
+
+        view.show('bags', value.bags !== null);
+        if (value.bags !== null && value.bagMass !== null && value.massToBuy !== null) {
+          view.text('bags', String(value.bags));
+          view.text('bagMass', formatNumber(value.bagMass, 1));
+          view.text('massToBuy', formatNumber(value.massToBuy, 1));
+        }
+
+        const bags =
+          value.bags === null
+            ? ''
+            : `; мешков по ${formatNumber(value.bagMass ?? 0, 1)} кг — ${value.bags} ${pluralizeRu(value.bags, bagWords)} (вверх до целого)`;
+        // Для помещения — откуда площадь: стены − проёмы.
+        const areaText =
+          value.mode === 'room'
+            ? `${formatNumber(value.wallArea, 2)} − ${formatNumber(value.openingsArea, 2)} = ${formatNumber(value.plasterArea, 2)} м²; `
+            : '';
+        view.text(
+          'formula',
+          `${areaText}${formatNumber(value.plasterArea, 2)} м² × ${formatNumber(value.thickness, 1)} мм × ${formatNumber(value.consumption, 2)} кг ≈ ${formatNumber(value.mass, 1)} кг; с запасом ${formatNumber(value.reserve, 1)} % — ${formatNumber(value.massWithReserve, 1)} кг${bags}.`,
+        );
+        view.report(
+          [
+            `Площадь ${formatNumber(value.plasterArea, 2)} м²${value.mode === 'room' ? ' (стены помещения)' : ''}`,
+            `Слой ${formatNumber(value.thickness, 1)} мм, расход ${formatNumber(value.consumption, 2)} кг/м² на 1 мм, запас ${formatNumber(value.reserve, 1)} %`,
+          ],
+          purchase?.purchase ?? `${formatNumber(value.massWithReserve, 1)} кг смеси`,
+          cost ? `${costText(value.totalCost ?? 0)} (${cost.detail})` : undefined,
+        );
+      },
+    });
+  }
+</script>

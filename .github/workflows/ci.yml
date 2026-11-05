@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  # Анонимная телеметрия Astro включена по умолчанию и отправляется даже из CI.
+  ASTRO_TELEMETRY_DISABLED: '1'
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Типы, линтер, форматирование, тесты, сборка
+    runs-on: ubuntu-latest
+    # Установка браузера с системными зависимостями иногда занимает 9–10 минут, два прогона ui:check — ещё ~8:
+    # при 15 минутах задача отменялась по таймауту на зелёном коде.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run test
+      - run: npm run build
+      # Браузер для UI-проверок — версия задаётся Playwright из package-lock.json. Не кэшируется:
+      # восстановление кэша не быстрее загрузки, а системные зависимости (--with-deps) не кэшируются.
+      - run: npx playwright install --with-deps --only-shell chromium
+      - run: npm run ui:check
+      # Тот же сайт с адресом: canonical, og:image, JSON-LD BreadcrumbList, sitemap.xml и robots.txt.
+      # example.com — зарезервированный тестовый домен, сайт по нему не публикуется.
+      - name: Сборка и UI-проверки с SITE_URL
+        run: npm run build && npm run ui:check
+        env:
+          SITE_URL: https://example.com

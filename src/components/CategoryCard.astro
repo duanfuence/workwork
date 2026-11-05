@@ -1,0 +1,75 @@
+---
+import type { Category } from '../data/catalog.types';
+import { calculatorWordForms, pluralizeRu } from '../lib/plural';
+
+interface Props {
+  category: Category;
+  /** Сколько опубликованных калькуляторов в категории (карточки выводятся только при count > 0). */
+  count: number;
+  /** Раздел страницы каталога: /kalkulyatory/#<id категории>. */
+  href: string;
+}
+
+const { category, count, href } = Astro.props;
+---
+
+<li class="category-card">
+  <h3 class="category-card__title">
+    <a class="category-card__link" href={href}>
+      {category.title}
+    </a>
+  </h3>
+  <p class="category-card__text">{category.description}</p>
+  <p class="category-card__summary">
+    {count}
+    {pluralizeRu(count, calculatorWordForms)} →
+  </p>
+</li>
+
+<style>
+  .category-card {
+    position: relative;
+    display: grid;
+    align-content: start;
+    gap: var(--space-2);
+    padding: var(--space-5);
+    background: var(--color-surface);
+    border: var(--border);
+    border-radius: var(--radius-lg);
+    transition: border-color var(--transition-fast);
+  }
+
+  .category-card:hover {
+    border-color: var(--color-text);
+  }
+
+  .category-card__title {
+    font-size: var(--font-size-lg);
+    line-height: var(--line-height-snug);
+  }
+
+  .category-card__link {
+    color: var(--color-text);
+    text-decoration: none;
+  }
+
+  /* Кликабельна вся карточка. */
+  .category-card__link::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: var(--radius-lg);
+  }
+
+  .category-card__text {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+  }
+
+  .category-card__summary {
+    margin-top: var(--space-2);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-accent);
+  }
+</style>

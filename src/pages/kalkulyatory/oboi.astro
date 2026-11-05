@@ -1,0 +1,492 @@
+---
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import RelatedCalculators from '../../components/RelatedCalculators.astro';
+import CalculatorIntro from '../../components/calculator/CalculatorIntro.astro';
+import CalculatorResult from '../../components/calculator/CalculatorResult.astro';
+import CostGroup from '../../components/calculator/CostGroup.astro';
+import CostLine from '../../components/calculator/CostLine.astro';
+import RoomNext from '../../components/calculator/RoomNext.astro';
+import NumberField from '../../components/calculator/NumberField.astro';
+import Schematic from '../../components/calculator/Schematic.astro';
+import { calculators } from '../../data/calculators';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { calculatorCrumbs } from '../../lib/breadcrumbs';
+import '../../styles/calculator.css';
+
+const entry = calculators.find((item) => item.id === 'wallpaper');
+if (!entry) throw new Error('В каталоге нет калькулятора обоев (id: wallpaper)');
+
+const id = 'wp';
+---
+
+<BaseLayout title={entry.seo.title} description={entry.seo.description}>
+  <div class="container calc-page">
+    <Breadcrumbs items={calculatorCrumbs(entry)} />
+
+    <CalculatorIntro
+      entry={entry}
+      lead="Сколько рулонов купить на прямоугольную комнату — с окнами, дверями и подгонкой рисунка."
+    />
+
+    <noscript>
+      <p class="calc-noscript">
+        Для&nbsp;расчёта нужен включённый JavaScript. Способ расчёта описан ниже&nbsp;— по&nbsp;нему
+        можно посчитать вручную.
+      </p>
+    </noscript>
+
+    <div class="calc-layout">
+      <form class="calc-form" data-wallpaper-form novalidate aria-labelledby="calc-form-title">
+        <h2 class="visually-hidden" id="calc-form-title">
+          Параметры расчёта
+        </h2>
+
+        <Schematic kind="room" />
+
+        <fieldset class="calc-group">
+          <legend class="calc-group__title">Размеры комнаты</legend>
+          <div class="calc-group__fields">
+            <NumberField name="roomLength" idPrefix={id} label="Длина комнаты" unit="м" />
+            <NumberField name="roomWidth" idPrefix={id} label="Ширина комнаты" unit="м" />
+            <NumberField
+              name="wallHeight"
+              idPrefix={id}
+              label="Высота стен"
+              unit="м"
+              hint="Высота оклейки: от пола или плинтуса до потолка."
+            />
+          </div>
+        </fieldset>
+
+        <fieldset class="calc-group">
+          <legend class="calc-group__title">
+            Окна и&nbsp;двери <span class="calc-group__optional">необязательно</span>
+          </legend>
+          <p class="calc-group__hint">
+            Все окна считаются одинаковыми, все двери&nbsp;— тоже. Если проёмов нет, оставьте поля
+            пустыми.
+          </p>
+          <div class="calc-group__fields">
+            <NumberField
+              name="windowCount"
+              idPrefix={id}
+              label="Количество окон"
+              unit="шт."
+              inputmode="numeric"
+              optional
+            />
+            <NumberField name="windowWidth" idPrefix={id} label="Ширина окна" unit="м" optional />
+            <NumberField name="windowHeight" idPrefix={id} label="Высота окна" unit="м" optional />
+            <NumberField
+              name="doorCount"
+              idPrefix={id}
+              label="Количество дверей"
+              unit="шт."
+              inputmode="numeric"
+              optional
+            />
+            <NumberField name="doorWidth" idPrefix={id} label="Ширина двери" unit="м" optional />
+            <NumberField name="doorHeight" idPrefix={id} label="Высота двери" unit="м" optional />
+          </div>
+        </fieldset>
+
+        <fieldset class="calc-group">
+          <legend class="calc-group__title">Параметры рулона</legend>
+          <p class="calc-group__hint">
+            Размеры указаны на&nbsp;этикетке. Самые распространённые: 0,53 × 10,05&nbsp;м
+            и&nbsp;метровые 1,06 × 10,05&nbsp;м.
+          </p>
+          <div class="calc-group__fields">
+            <NumberField
+              name="rollWidth"
+              idPrefix={id}
+              label="Ширина рулона"
+              unit="м"
+              value="0,53"
+            />
+            <NumberField
+              name="rollLength"
+              idPrefix={id}
+              label="Длина рулона"
+              unit="м"
+              value="10,05"
+            />
+          </div>
+        </fieldset>
+
+        <fieldset class="calc-group">
+          <legend class="calc-group__title">
+            Рисунок и&nbsp;подрезка <span class="calc-group__optional">необязательно</span>
+          </legend>
+          <div class="calc-group__fields">
+            <NumberField
+              name="patternRepeat"
+              idPrefix={id}
+              label="Раппорт"
+              unit="см"
+              optional
+              hint="Шаг повторения рисунка, указан на этикетке (например, 64). Без подгонки — оставьте пустым."
+            />
+            <NumberField
+              name="trimAllowance"
+              idPrefix={id}
+              label="Запас на подрезку"
+              unit="см"
+              value="10"
+              optional
+              hint="На одну полосу, сверху и снизу вместе. Обычно 5–10 см."
+            />
+          </div>
+        </fieldset>
+
+        <CostGroup name="rollPrice" idPrefix={id} label="Цена рулона" basis="по целым рулонам" />
+
+        <div class="calc-actions">
+          <button class="button button--primary" type="submit">
+            Рассчитать
+          </button>
+          <button class="button button--secondary" type="reset">
+            Сбросить
+          </button>
+        </div>
+      </form>
+
+      <CalculatorResult
+        headingId="calc-result-title"
+        title={entry.shortTitle}
+        placeholder="Заполните размеры комнаты и рулона и нажмите «Рассчитать». После первого расчёта результат обновляется сразу при изменении параметров."
+      >
+        <p class="calc-result__main">
+          <span class="calc-result__number" data-out="rolls"></span>
+          <span class="calc-result__unit" data-out="rollsWord"></span>
+          <span class="calc-result__explain">одной партии</span>
+        </p>
+        <CostLine />
+
+        <h3 class="calc-result__subtitle">Как получилось</h3>
+        <dl class="calc-result__list">
+          <div>
+            <dt>Периметр комнаты</dt>
+            <dd>
+              <span data-out="perimeter"></span>&nbsp;м
+            </dd>
+          </div>
+          <div>
+            <dt>Площадь стен</dt>
+            <dd>
+              <span data-out="wallArea"></span>&nbsp;м²
+            </dd>
+          </div>
+          <div class="calc-result__minus" data-row="openings">
+            <dt>Окна и&nbsp;двери</dt>
+            <dd>
+              <span data-out="openingsArea"></span>&nbsp;м²
+            </dd>
+          </div>
+          <div>
+            <dt>Полос по&nbsp;стенам</dt>
+            <dd data-out="stripsForWalls"></dd>
+          </div>
+          <div class="calc-result__minus" data-row="openings">
+            <dt>Из&nbsp;них не&nbsp;нужны на&nbsp;всю высоту</dt>
+            <dd data-out="stripsSavedByOpenings"></dd>
+          </div>
+          <div>
+            <dt>Полос на&nbsp;полную высоту</dt>
+            <dd data-out="fullStrips"></dd>
+          </div>
+          <div>
+            <dt>Длина одной полосы</dt>
+            <dd>
+              <span data-out="stripLength"></span>&nbsp;м
+            </dd>
+          </div>
+          <div data-row="rollStart">
+            <dt>Подгонка рисунка в&nbsp;начале рулона</dt>
+            <dd>
+              до&nbsp;<span data-out="rollStartAllowance"></span>&nbsp;м
+            </dd>
+          </div>
+          <div>
+            <dt>Полос из&nbsp;одного рулона</dt>
+            <dd data-out="stripsPerRoll"></dd>
+          </div>
+          <div data-row="shortPieces">
+            <dt>Коротких кусков над и&nbsp;под проёмами</dt>
+            <dd>
+              <span data-out="shortPieces"></span>&nbsp;шт.,{' '}
+              <span data-out="shortPiecesLength"></span>&nbsp;м
+            </dd>
+          </div>
+          <div data-row="shortPieces">
+            <dt>Дополнительно рулонов на&nbsp;куски</dt>
+            <dd data-out="extraRollsForShortPieces"></dd>
+          </div>
+        </dl>
+
+        <p class="calc-result__note" data-out="stripNote"></p>
+        <p class="calc-result__note" data-row="openingsNote" data-out="openingsNote"></p>
+        <p class="calc-result__note">
+          Результат ориентировочный. Покупайте рулоны одной партии (номер партии&nbsp;—
+          на&nbsp;этикетке): оттенок разных партий может отличаться.
+        </p>
+      </CalculatorResult>
+    </div>
+
+    <RoomNext current={entry} />
+
+    <article class="calc-article">
+      <p class="calc-article__intro">
+        Посчитайте, сколько рулонов обоев купить для&nbsp;прямоугольной комнаты. Калькулятор
+        раскладывает обои на&nbsp;вертикальные полосы, учитывает подгонку рисунка, запас
+        на&nbsp;подрезку, окна и&nbsp;двери. Результат ориентировочный&nbsp;— он показывает,
+        из&nbsp;чего складывается расход, чтобы его можно было проверить.
+      </p>
+
+      <section aria-labelledby="method-title">
+        <h2 id="method-title">Как считается</h2>
+        <p>
+          Обои клеят вертикальными полосами, поэтому калькулятор считает не&nbsp;площадь,
+          а&nbsp;полосы&nbsp;— и&nbsp;там, где точная раскладка неизвестна, выбирает вариант
+          с&nbsp;запасом.
+        </p>
+        <ol>
+          <li>
+            Каждая стена делится на&nbsp;ширину рулона, неполная полоса округляется вверх:
+            у&nbsp;угла её всё равно отрезают от&nbsp;целой. Полосы четырёх стен складываются.
+            Обрезок угловой полосы на&nbsp;соседнюю стену не&nbsp;переносится&nbsp;— это даёт запас
+            до&nbsp;одной полосы на&nbsp;стену.
+          </li>
+          <li>
+            Длина полосы&nbsp;— это высота стен плюс запас на&nbsp;подрезку. Если у&nbsp;обоев есть
+            раппорт, каждая полоса должна начинаться с&nbsp;той же точки рисунка, поэтому её длина
+            округляется вверх до&nbsp;кратной раппорту.
+          </li>
+          <li>
+            Из&nbsp;рулона выходит столько целых полос, сколько помещается в&nbsp;его длину. Если
+            есть раппорт, в&nbsp;начале каждого рулона откладывается до&nbsp;одного раппорта, чтобы
+            совместить рисунок с&nbsp;уже наклеенными полосами. Остаток короче полосы на&nbsp;стену
+            не&nbsp;пойдёт.
+          </li>
+          <li>
+            Окна и&nbsp;двери уменьшают расход только на&nbsp;те полосы, которые гарантированно
+            целиком попадают в&nbsp;ширину проёма. Над и&nbsp;под проёмом нужны короткие
+            куски&nbsp;— калькулятор раскладывает их по&nbsp;остаткам рулонов и&nbsp;добавляет
+            рулоны, если остатков не&nbsp;хватает. Если такой план не&nbsp;дешевле, чем клеить
+            полные полосы, проёмы не&nbsp;учитываются.
+          </li>
+          <li>Число рулонов округляется вверх.</li>
+        </ol>
+      </section>
+
+      <section aria-labelledby="formula-title">
+        <h2 id="formula-title">Формулы</h2>
+        <dl class="formula-list">
+          <div>
+            <dt>Периметр</dt>
+            <dd>
+              <code>P = 2 × (длина + ширина)</code>
+            </dd>
+          </div>
+          <div>
+            <dt>Число полос (по&nbsp;стенам)</dt>
+            <dd>
+              <code>N = 2 × ⌈длина ÷ ширина рулона⌉ + 2 × ⌈ширина ÷ ширина рулона⌉</code>
+            </dd>
+          </div>
+          <div>
+            <dt>Длина полосы</dt>
+            <dd>
+              <code>S = высота + подрезка</code>; с&nbsp;раппортом <code>r</code>:
+              <code>S = ⌈(высота + подрезка) ÷ r⌉ × r</code>
+            </dd>
+          </div>
+          <div>
+            <dt>Полос из&nbsp;рулона</dt>
+            <dd>
+              <code>k = ⌊длина рулона ÷ S⌋</code>; с&nbsp;раппортом:
+              <code>k = ⌊(длина рулона − r − высота − подрезка) ÷ S⌋ + 1</code>
+            </dd>
+          </div>
+          <div>
+            <dt>Экономия на&nbsp;проёме шириной a</dt>
+            <dd>
+              <code>e = max(0, ⌊a ÷ ширина рулона⌋ − 1)</code>; кусок над дверью&nbsp;—
+              <code>высота − h + подрезка</code>, над и&nbsp;под окном&nbsp;—
+              <code>высота − h + 2 × подрезка</code> (с&nbsp;раппортом: округление до&nbsp;кратного
+              <code>r</code>, для&nbsp;окна ещё <code>+ r</code>)
+            </dd>
+          </div>
+          <div>
+            <dt>Рулонов</dt>
+            <dd>
+              <code>n = ⌈(N − Σe) ÷ k⌉</code> + рулоны на&nbsp;короткие куски, если они
+              не&nbsp;поместились в&nbsp;остатки
+            </dd>
+          </div>
+        </dl>
+        <p>
+          <code>⌈x⌉</code>&nbsp;— округление вверх, <code>⌊x⌋</code>&nbsp;— вниз. Расчёт ведётся
+          с&nbsp;точностью до&nbsp;миллиметра.
+        </p>
+        <p>
+          <strong>Пример.</strong> Комната 4 × 3&nbsp;м, высота 2,5&nbsp;м, рулон 0,53 ×
+          10,05&nbsp;м, подрезка 10&nbsp;см: N = 2 × ⌈4 ÷ 0,53⌉ + 2 × ⌈3 ÷ 0,53⌉ = 2 × 8 + 2 × 6 =
+          28&nbsp;полос, S = 2,6&nbsp;м, k = ⌊10,05 ÷ 2,6⌋ = 3, рулонов ⌈28 ÷ 3⌉ = 10.
+        </p>
+      </section>
+
+      <section aria-labelledby="limits-title">
+        <h2 id="limits-title">Что калькулятор не&nbsp;учитывает</h2>
+        <ul>
+          <li>
+            Ниши, выступы, короба и&nbsp;стены разной высоты&nbsp;— комната считается прямоугольной.
+          </li>
+          <li>
+            Удачное расположение проёмов: если окно стоит точно по&nbsp;стыкам полос, расход может
+            быть немного меньше.
+          </li>
+          <li>
+            Перенос обрезка угловой полосы на&nbsp;соседнюю стену: опытный мастер так сэкономит
+            до&nbsp;полосы на&nbsp;каждом углу.
+          </li>
+          <li>
+            Высоту подоконника: при раппорте кусок под окном считается с&nbsp;запасом
+            на&nbsp;совмещение рисунка.
+          </li>
+          <li>Повторное использование обрезков, кроме остатков в&nbsp;конце рулонов.</li>
+          <li>Брак, ошибки при поклейке и&nbsp;обои со&nbsp;смещённой стыковкой рисунка.</li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="faq-title">
+        <h2 id="faq-title">Частые вопросы</h2>
+        <div class="faq">
+          <h3>Почему окна почти не&nbsp;уменьшают количество рулонов?</h3>
+          <p>
+            Полосы по&nbsp;краям окна всё равно режутся из&nbsp;полной длины, а&nbsp;над и&nbsp;под
+            окном нужны короткие куски. Экономия появляется, только когда проём шире двух полос.
+            Например, при ширине рулона 0,53&nbsp;м окно шириной 1,5&nbsp;м экономит одну полосу,
+            а&nbsp;дверь шириной 0,9&nbsp;м&nbsp;— ни одной. При крупном раппорте куски над
+            и&nbsp;под окном с&nbsp;подгонкой рисунка могут оказаться не&nbsp;короче полной
+            полосы&nbsp;— тогда экономии нет совсем.
+          </p>
+
+          <h3>Что такое раппорт и&nbsp;где его найти?</h3>
+          <p>
+            Раппорт&nbsp;— расстояние, через которое рисунок повторяется по&nbsp;вертикали. Он
+            указан на&nbsp;этикетке рулона в&nbsp;сантиметрах, например «64/32» или «64» рядом
+            со&nbsp;значком стыковки. Первое число&nbsp;— раппорт. Для&nbsp;однотонных обоев
+            и&nbsp;обоев «без подбора» раппорт не&nbsp;нужен.
+          </p>
+
+          <h3>Сколько закладывать на&nbsp;подрезку?</h3>
+          <p>
+            Обычно 5–10&nbsp;см на&nbsp;полосу&nbsp;— по&nbsp;несколько сантиметров сверху
+            и&nbsp;снизу, чтобы аккуратно подрезать обои у&nbsp;потолка и&nbsp;плинтуса. При
+            неровном потолке или полу запас лучше увеличить.
+          </p>
+
+          <h3>Как считать метровые обои?</h3>
+          <p>
+            Укажите ширину рулона 1,06&nbsp;м. Полос получится примерно вдвое меньше, но&nbsp;каждая
+            тяжелее и&nbsp;в&nbsp;узких местах (между окном и&nbsp;углом) обрезков будет больше.
+          </p>
+
+          <h3>Нужно ли брать запасной рулон?</h3>
+          <p>
+            Калькулятор уже учитывает подрезку, раппорт и&nbsp;округление вверх. Запасной рулон
+            из&nbsp;той же партии пригодится, если рисунок сложный, стены неровные или вы клеите
+            обои впервые: докупить позже рулон того же оттенка бывает трудно.
+          </p>
+
+          <h3>Как учесть потолок?</h3>
+          <p>Этот калькулятор считает только стены. Для&nbsp;потолка нужен отдельный расчёт.</p>
+        </div>
+      </section>
+    </article>
+
+    <RelatedCalculators current={entry} />
+  </div>
+</BaseLayout>
+
+<script>
+  import { initCalculatorForm } from '../../client/calculator-form';
+  import { evaluateWallpaperForm, wallpaperFields } from '../../lib/calculators/wallpaper-form';
+  import { formatNumber, formatRubles } from '../../lib/format';
+  import { costText, packCostDetail } from '../../lib/cost';
+  import { pluralizeRu, rollWordForms, stripWordForms } from '../../lib/plural';
+
+  const form = document.querySelector<HTMLFormElement>('[data-wallpaper-form]');
+  const result = document.querySelector<HTMLElement>('[data-calculator-result]');
+
+  if (form && result) {
+    initCalculatorForm({
+      form,
+      result,
+      fields: wallpaperFields,
+      evaluate: evaluateWallpaperForm,
+      render(value, view) {
+        // Стоимость — по целым рулонам (D-033).
+        const cost =
+          value.totalCost !== null && value.rollPrice !== null
+            ? {
+                total: formatRubles(value.totalCost),
+                detail: packCostDetail(value.rolls, rollWordForms, value.rollPrice),
+              }
+            : null;
+        view.show('cost', cost !== null);
+        view.text('totalCost', cost?.total ?? '');
+        view.text('costDetail', cost?.detail ?? '');
+        view.summary(`${value.rolls} ${pluralizeRu(value.rolls, rollWordForms)}`, cost?.total);
+        view.text('rolls', String(value.rolls));
+        view.text('rollsWord', pluralizeRu(value.rolls, rollWordForms));
+        view.text('perimeter', formatNumber(value.perimeter, 3));
+        view.text('wallArea', formatNumber(value.wallArea));
+        view.text('openingsArea', formatNumber(value.openingsArea));
+        view.text('stripsForWalls', String(value.stripsForWalls));
+        view.text('stripsSavedByOpenings', String(value.stripsSavedByOpenings));
+        view.text('fullStrips', String(value.fullStrips));
+        view.text('stripLength', formatNumber(value.stripLength, 3));
+        view.text('rollStartAllowance', formatNumber(value.rollStartAllowance, 3));
+        view.text('stripsPerRoll', String(value.stripsPerRoll));
+        view.text('shortPieces', String(value.shortPieces));
+        view.text('shortPiecesLength', formatNumber(value.shortPiecesLength, 3));
+        view.text('extraRollsForShortPieces', String(value.extraRollsForShortPieces));
+        view.show('openings', value.openingsArea > 0);
+        view.show('rollStart', value.rollStartAllowance > 0);
+        view.show('shortPieces', value.shortPieces > 0);
+
+        const parts = [
+          `Полоса ${formatNumber(value.stripLength, 3)} м = высота стен + подрезка ${formatNumber(value.trimAllowance)} см`,
+        ];
+        if (value.patternRepeat > 0) {
+          parts.push(`с округлением до кратного раппорту ${formatNumber(value.patternRepeat)} см`);
+        }
+        view.text(
+          'stripNote',
+          `${parts.join(', ')}. Из рулона выходит ${value.stripsPerRoll} ${pluralizeRu(
+            value.stripsPerRoll,
+            stripWordForms,
+          )}.`,
+        );
+        const openingsGaveNothing = value.openingsArea > 0 && value.stripsSavedByOpenings === 0;
+        view.show('openingsNote', openingsGaveNothing);
+        if (openingsGaveNothing) {
+          view.text(
+            'openingsNote',
+            'Проёмы не уменьшили расход: они уже двух полос или куски над и под ними с подгонкой рисунка не короче полной полосы.',
+          );
+        }
+        view.report(
+          [
+            `Периметр ${formatNumber(value.perimeter, 3)} м, площадь стен ${formatNumber(value.wallArea)} м²`,
+            `Полоса ${formatNumber(value.stripLength, 3)} м, из рулона ${value.stripsPerRoll} ${pluralizeRu(value.stripsPerRoll, stripWordForms)}`,
+          ],
+          `${value.rolls} ${pluralizeRu(value.rolls, rollWordForms)} одной партии`,
+          cost ? `${costText(value.totalCost ?? 0)} (${cost.detail})` : undefined,
+        );
+      },
+    });
+  }
+</script>

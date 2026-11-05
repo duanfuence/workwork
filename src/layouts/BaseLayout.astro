@@ -1,0 +1,84 @@
+---
+import { site } from '../config/site';
+import { canonicalUrl } from '../lib/seo';
+import SiteFooter from '../components/SiteFooter.astro';
+import SiteHeader from '../components/SiteHeader.astro';
+import '../styles/global.css';
+
+interface Props {
+  /** Заголовок страницы без названия сайта. Для главной не передаётся. */
+  title?: string;
+  description?: string;
+  /** Запретить индексацию (служебные страницы, 404). */
+  noindex?: boolean;
+}
+
+const { title, description = site.description, noindex = false } = Astro.props;
+const fullTitle = title
+  ? `${title} — ${site.name}`
+  : `${site.name} — ${site.tagline.toLowerCase()}`;
+// Всё, что требует абсолютного адреса, — только при заданном `site` (SITE_URL при сборке).
+// У служебных страниц (noindex, 404) canonical и og:url нет.
+const origin = Astro.site?.origin;
+const canonical = origin && !noindex ? canonicalUrl(origin, Astro.url.pathname) : undefined;
+const ogImage = origin ? `${origin}/og.png` : undefined;
+---
+
+<!doctype html>
+<html lang={site.lang}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    {noindex && <meta name="robots" content="noindex" />}
+    {canonical && <link rel="canonical" href={canonical} />}
+    <meta name="theme-color" content={site.themeColor} />
+    <meta name="format-detection" content="telephone=no" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <!-- Два основных начертания: текст (кириллица) и цифры (латиница моноширинного); остальные — по мере надобности -->
+    <link
+      rel="preload"
+      href="/fonts/onest-cyrillic-400-normal.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="/fonts/jetbrains-mono-latin-500-normal.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content={site.locale} />
+    <meta property="og:site_name" content={site.name} />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    {canonical && <meta property="og:url" content={canonical} />}
+    {ogImage && (
+      <>
+        <meta property="og:image" content={ogImage} />
+        <meta property="og:image:type" content="image/png" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:image:alt" content={`${site.name} — ${site.tagline.toLowerCase()}`} />
+        <meta name="twitter:card" content="summary_large_image" />
+      </>
+    )}
+    <script is:inline>
+      document.documentElement.classList.add('js');
+    </script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">
+      Перейти к&nbsp;содержимому
+    </a>
+    <SiteHeader />
+    <main id="main" tabindex="-1">
+      <slot />
+    </main>
+    <SiteFooter />
+  </body>
+</html>

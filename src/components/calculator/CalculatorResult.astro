@@ -1,0 +1,95 @@
+---
+import { typograph } from '../../lib/format';
+
+/**
+ * Блок результата калькулятора: заголовок и три состояния — до расчёта, ошибки, результат.
+ * Содержимое состояния «результат» (числа, строки, пояснения) передаётся через слот.
+ * Переключением состояний управляет src/client/calculator-form.ts.
+ *
+ * Ещё два элемента для того же механизма (D-024):
+ * - `[data-result-announce]` — скрытая область для диктора: итог объявляется по «Рассчитать» и после паузы
+ *   ввода, а не на каждое нажатие клавиши;
+ * - панель итога `[data-result-bar]` — на экране уже 960 px, когда итог вне экрана: короткий итог
+ *   и переход «К результату». Не live-регион: объявляет только область выше.
+ * И для ссылки на расчёт (D-027): кнопки «Поделиться» (ссылка на расчёт) и «Скопировать» (список покупок)
+ * `[data-share]` — скрыты, пока их не покажет скрипт: без JavaScript их нет; подтверждение «Скопировано» и поле для
+ * копирования вручную.
+ *
+ * Вид — «спецификация» (DES-1): тёмная полоса со штампом «СПЕЦИФИКАЦИЯ · ОБОИ», первым — «К покупке» (главный
+ * итог страницы `.calc-result__main` крупным моноширинным числом), затем «Как получилось» — строки с выносками.
+ */
+interface Props {
+  /** id заголовка; на него переходит фокус после расчёта. */
+  headingId: string;
+  /** Подсказка до первого расчёта. */
+  placeholder: string;
+  /** Что считается — для штампа «Спецификация · Обои»: короткое название калькулятора. */
+  title: string;
+}
+
+const { headingId, placeholder, title } = Astro.props;
+---
+
+<section class="calc-result" aria-labelledby={headingId} data-calculator-result data-state="empty">
+  <h2 class="calc-result__title" id={headingId} tabindex="-1" data-result-heading>
+    <span class="visually-hidden">Результат: </span>
+    {`Спецификация · ${title}`}
+  </h2>
+
+  <div data-state-panel="empty">
+    <p class="calc-result__placeholder">{typograph(placeholder)}</p>
+  </div>
+
+  <div data-state-panel="invalid" hidden>
+    <p class="calc-result__invalid">Расчёт не&nbsp;выполнен: исправьте значения в&nbsp;полях.</p>
+    <ul class="calc-result__error-list" data-error-summary></ul>
+  </div>
+
+  <div class="calc-result__ready" data-state-panel="ready" hidden>
+    <p class="stamp calc-result__label">К&nbsp;покупке</p>
+    <slot />
+
+    <div class="calc-share" data-share hidden>
+      <div class="calc-share__actions">
+        <!--
+          Подтверждение — на самой кнопке: «Скопировано ✓» на 2 с вместо надписи (для диктора — скрыто,
+          имя кнопки не меняется; «Скопировано» он слышит один раз из строки состояния ниже).
+        -->
+        <button type="button" class="button button--secondary calc-share__button" data-share-copy>
+          <span class="calc-share__caption">Скопировать</span>
+          <span class="visually-hidden">список покупок</span>
+          <span class="calc-share__done" aria-hidden="true">
+            Скопировано ✓
+          </span>
+        </button>
+        <button type="button" class="button button--secondary calc-share__button" data-share-link>
+          <span class="calc-share__caption">Поделиться</span>
+          <span class="visually-hidden">ссылкой на расчёт</span>
+          <span class="calc-share__done" aria-hidden="true">
+            Скопировано ✓
+          </span>
+        </button>
+      </div>
+      <p class="visually-hidden" role="status" data-share-status></p>
+      <div class="calc-share__manual" data-share-manual hidden>
+        <label class="calc-share__label" for={`${headingId}-share-text`}>
+          Буфер обмена недоступен&nbsp;— выделите и&nbsp;скопируйте вручную:
+        </label>
+        <textarea
+          class="calc-share__text"
+          id={`${headingId}-share-text`}
+          rows="4"
+          readonly
+          data-share-text
+        ></textarea>
+      </div>
+    </div>
+  </div>
+
+  <p class="visually-hidden" role="status" data-result-announce></p>
+</section>
+
+<button type="button" class="result-bar" data-result-bar hidden>
+  <span class="result-bar__text" data-result-bar-text></span>{' '}
+  <span class="result-bar__action">К&nbsp;результату</span>
+</button>

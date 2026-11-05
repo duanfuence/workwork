@@ -1,0 +1,117 @@
+---
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import CalculatorCard from '../../components/CalculatorCard.astro';
+import CatalogSearch from '../../components/CatalogSearch.astro';
+import { calculators } from '../../data/calculators';
+import { categories } from '../../data/categories';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { catalogCrumbs } from '../../lib/breadcrumbs';
+import { getAvailableCalculators, getCatalogSections } from '../../lib/catalog';
+import { listRu, typograph } from '../../lib/format';
+import { calculatorWordForms, pluralizeRu } from '../../lib/plural';
+
+// Всё — из каталога: разделы и карточки только с опубликованными калькуляторами.
+const sections = getCatalogSections(calculators, categories);
+const available = getAvailableCalculators(calculators);
+const materials = listRu(available.map((entry) => entry.shortTitle.toLowerCase()));
+const count = `${available.length} ${pluralizeRu(available.length, calculatorWordForms)}`;
+
+const lead = typograph(
+  `${count} для ремонта и отделки: ${materials}. Укажите размеры помещения и материала — ` +
+    'калькулятор посчитает, сколько купить, и покажет формулу, по которой получен результат.',
+);
+
+const title = 'Строительные калькуляторы онлайн для ремонта и отделки';
+// description — до 160 символов (SEO_STRATEGY.md); когда перечень не помещается, — без него.
+const withList = `Бесплатные строительные калькуляторы онлайн: ${materials}. Расход материалов с формулами и примерами.`;
+const description =
+  withList.length <= 160
+    ? withList
+    : 'Бесплатные строительные калькуляторы онлайн для ремонта и отделки: расход материалов с формулами и примерами.';
+---
+
+<BaseLayout title={title} description={description}>
+  <div class="container catalog-page">
+    <Breadcrumbs items={catalogCrumbs()} />
+
+    <header class="catalog-intro">
+      <p class="stamp catalog-intro__stamp">
+        {`Каталог · ${available.length} ${pluralizeRu(available.length, ['лист', 'листа', 'листов'])}`}
+      </p>
+      <h1 class="catalog-intro__title">Строительные калькуляторы онлайн</h1>
+      <p class="catalog-intro__lead">{lead}</p>
+      <CatalogSearch listId="catalog-groups" sectionId="catalog-groups" />
+    </header>
+
+    <p class="catalog-status" id="catalog-search-status" role="status" aria-live="polite"></p>
+    <div class="catalog-groups" id="catalog-groups">
+      {sections.map((section) => (
+        <section
+          class="catalog-group"
+          id={section.category.id}
+          aria-labelledby={`${section.category.id}-title`}
+          data-search-group
+        >
+          <div class="section-header">
+            <h2 class="section-title" id={`${section.category.id}-title`}>
+              {section.category.title}
+            </h2>
+            <p class="section-lead">{typograph(section.category.description)}</p>
+          </div>
+          <ul class="card-grid">
+            {section.entries.map((entry) => (
+              <CalculatorCard entry={entry} />
+            ))}
+          </ul>
+        </section>
+      ))}
+    </div>
+    <p class="catalog-empty" data-catalog-empty hidden>
+      По&nbsp;этому запросу калькуляторов нет. Попробуйте другое слово, например «стены» или «пол».
+    </p>
+  </div>
+</BaseLayout>
+
+<style>
+  .catalog-page {
+    padding-block: var(--space-6) var(--space-8);
+  }
+
+  .catalog-intro {
+    display: grid;
+    justify-items: start;
+    gap: var(--space-4);
+    margin-block: var(--space-6) var(--space-10);
+  }
+
+  .catalog-intro__stamp {
+    padding: var(--space-1) var(--space-2);
+    background: var(--color-surface);
+    border: var(--border-ink);
+  }
+
+  .catalog-intro__title {
+    font-size: var(--font-size-3xl);
+    letter-spacing: -0.02em;
+  }
+
+  .catalog-intro__lead {
+    max-width: 42rem;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-md);
+  }
+
+  .catalog-groups {
+    display: grid;
+    gap: var(--space-12);
+  }
+
+  .catalog-group[hidden] {
+    display: none;
+  }
+
+  /* Переход по якорю раздела (/kalkulyatory/#repair) — заголовок не под липкой шапкой. */
+  .catalog-group {
+    scroll-margin-top: calc(var(--header-height) + var(--space-4));
+  }
+</style>
