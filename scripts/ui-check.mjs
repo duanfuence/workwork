@@ -192,6 +192,64 @@ async function checkFormFields(page, viewport) {
   }
 }
 
+/**
+ * Яндекс Метрика (D-036): в проверках запросы к mc.yandex.ru не уходят в сеть — tag.js подменяется пустым
+ * скриптом. Визиты из проверок не попадают в счётчик, результат не зависит от сети, `networkidle` не ждёт
+ * вебвизор. Адреса запросов — в `metrikaRequests`.
+ */
+const metrikaId = 114103685;
+const metrikaTag = `https://mc.yandex.ru/metrika/tag.js?id=${metrikaId}`;
+const metrikaRequests = [];
+async function stubMetrika(context) {
+  await context.route(/^https:\/\/mc\.yandex\.(ru|com)\//, (route) => {
+    metrikaRequests.push(route.request().url());
+    return route.fulfill({ status: 200, contentType: 'application/javascript', body: '' });
+  });
+}
+
+/**
+ * Счётчик на каждом виде страниц ровно один: один скрипт инициализации в <head>, один вызов `init`
+ * с номером счётчика, одна загрузка tag.js, один <noscript> с пикселем — в <body>, не в <head>.
+ */
+async function checkMetrika(page) {
+  for (const pagePath of ['/', catalogPath, calcPath, '/kalkulyatory/nesushchestvuyushchiy/']) {
+    const before = metrikaRequests.length;
+    await page.goto(baseUrl + pagePath, { waitUntil: 'networkidle' });
+    const state = await page.evaluate(
+      ({ id, tag }) => {
+        const inline = [...document.scripts].filter((s) =>
+          s.textContent.includes(`ym(${id}, 'init'`),
+        );
+        const ym = /** @type {any} */ (window).ym;
+        return {
+          inline: inline.length,
+          inHead: inline.every((s) => s.parentElement === document.head),
+          tags: [...document.scripts].filter((s) => s.src === tag).length,
+          inits: typeof ym === 'function' ? (ym.a ?? []).filter((a) => a[1] === 'init').length : -1,
+          initId: typeof ym === 'function' ? ym.a?.[0]?.[0] : null,
+          noscriptBody: [...document.body.querySelectorAll('noscript')].filter((n) =>
+            n.textContent.includes(`mc.yandex.ru/watch/${id}`),
+          ).length,
+          noscriptHead: document.head.querySelectorAll('noscript').length,
+        };
+      },
+      { id: metrikaId, tag: metrikaTag },
+    );
+    const loads = metrikaRequests.slice(before).filter((url) => url === metrikaTag).length;
+    check(
+      state.inline === 1 &&
+        state.inHead &&
+        state.tags === 1 &&
+        state.inits === 1 &&
+        state.initId === metrikaId &&
+        loads === 1 &&
+        state.noscriptBody === 1 &&
+        state.noscriptHead === 0,
+      `Метрика на ${pagePath}: один счётчик ${metrikaId} (${JSON.stringify({ ...state, loads })})`,
+    );
+  }
+}
+
 /** SEO-разметка и файлы для поисковых систем: один раз, на широком экране. */
 async function checkSeo(page) {
   const mode = siteOrigin ? `SEO (${siteOrigin})` : 'SEO без SITE_URL';
@@ -831,6 +889,7 @@ async function freshPage(browser, viewport, errors, init) {
     hasTouch: viewport.isMobile,
     locale: 'ru-RU',
   });
+  await stubMetrika(context);
   if (init) await context.addInitScript(init);
   const page = await context.newPage();
   page.on('console', (message) => {
@@ -3485,6 +3544,7 @@ try {
       hasTouch: viewport.isMobile,
       locale: 'ru-RU',
     });
+    await stubMetrika(context);
     // Основные сценарии — с пустыми формами: размеры комнаты из прошлых расчётов не подставляются.
     await context.addInitScript((key) => {
       try {
@@ -3530,6 +3590,7 @@ try {
     // 404 и SEO — после проверки консоли: браузер сам пишет в неё об ответах 404.
     const notFound = await page.goto(baseUrl + '/kalkulyatory/nesushchestvuyushchiy/');
     check(notFound?.status() === 404, `${viewport.name}: несуществующий калькулятор отдаёт 404`);
+    if (fullCheckViewports.has(viewport.name)) await checkMetrika(page);
     if (viewport.name === '1440') {
       await checkSeo(page);
       await crawlSite();

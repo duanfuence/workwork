@@ -3,6 +3,7 @@ import { site } from '../config/site';
 import { canonicalUrl } from '../lib/seo';
 import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
+import YandexMetrika from '../components/YandexMetrika.astro';
 import '../styles/global.css';
 
 interface Props {
@@ -22,6 +23,8 @@ const fullTitle = title
 const origin = Astro.site?.origin;
 const canonical = origin && !noindex ? canonicalUrl(origin, Astro.url.pathname) : undefined;
 const ogImage = origin ? `${origin}/og.png` : undefined;
+// Яндекс Метрика (D-036) — только в собранном сайте: `astro dev` визитов не отправляет.
+const metrika = import.meta.env.PROD;
 ---
 
 <!doctype html>
@@ -70,8 +73,10 @@ const ogImage = origin ? `${origin}/og.png` : undefined;
     <script is:inline>
       document.documentElement.classList.add('js');
     </script>
+    {metrika && <YandexMetrika part="head" />}
   </head>
   <body>
+    {metrika && <YandexMetrika part="body" />}
     <a class="skip-link" href="#main">
       Перейти к&nbsp;содержимому
     </a>
