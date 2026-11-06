@@ -22,4 +22,13 @@ export default defineConfig(
       globals: { ...globals.node },
     },
   },
+  {
+    // Официальный код Яндекс Метрики переносится без изменений (D-036): правила стиля к нему не применяются.
+    files: ['src/components/YandexMetrika.astro/**'],
+    rules: {
+      'prefer-rest-params': 'off',
+      'no-var': 'off',
+      '@typescript-eslint/no-unused-expressions': 'off',
+    },
+  },
 );

@@ -61,7 +61,8 @@ src/
   layouts/BaseLayout.astro  <head>, метаданные, шапка, подвал
   components/             SiteHeader, SiteFooter, CalculatorCard, CategoryCard, CatalogSearch, Breadcrumbs,
                           RelatedCalculators («Другие калькуляторы» на страницах калькуляторов),
-                          MaterialIcon (схема материала на карточке-листе)
+                          MaterialIcon (схема материала на карточке-листе),
+                          YandexMetrika (официальный код счётчика; один раз в BaseLayout, только сборка, D-036)
     calculator/CalculatorIntro.astro   шапка калькулятора: штамп листа (sheet, sheetTitle из каталога), H1, лид
     calculator/RoomNext.astro          «Дальше для этой комнаты»: калькуляторы с теми же roomFields (каталог)
     calculator/CostGroup.astro         группа «Стоимость · необязательно» в конце формы: цена (NumberField «₽»

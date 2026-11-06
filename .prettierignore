@@ -3,3 +3,4 @@ dist/
 node_modules/
 .ui-check/
 package-lock.json
+src/components/YandexMetrika.astro
