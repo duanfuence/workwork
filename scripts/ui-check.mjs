@@ -195,7 +195,7 @@ async function checkFormFields(page, viewport) {
 /**
  * Яндекс Метрика (D-036): в проверках запросы к mc.yandex.ru не уходят в сеть — tag.js подменяется пустым
  * скриптом. Визиты из проверок не попадают в счётчик, результат не зависит от сети, `networkidle` не ждёт
- * вебвизор. Адреса запросов — в `metrikaRequests`.
+ * запросов счётчика. Адреса запросов — в `metrikaRequests`.
  */
 const metrikaId = 114103685;
 const metrikaTag = `https://mc.yandex.ru/metrika/tag.js?id=${metrikaId}`;
@@ -210,6 +210,7 @@ async function stubMetrika(context) {
 /**
  * Счётчик на каждом виде страниц ровно один: один скрипт инициализации в <head>, один вызов `init`
  * с номером счётчика, одна загрузка tag.js, один <noscript> с пикселем — в <body>, не в <head>.
+ * Параметры init — ровно те, что решены в D-036: Вебвизор выключен, электронной торговли нет.
  */
 async function checkMetrika(page) {
   for (const pagePath of ['/', catalogPath, calcPath, '/kalkulyatory/nesushchestvuyushchiy/']) {
@@ -227,6 +228,9 @@ async function checkMetrika(page) {
           tags: [...document.scripts].filter((s) => s.src === tag).length,
           inits: typeof ym === 'function' ? (ym.a ?? []).filter((a) => a[1] === 'init').length : -1,
           initId: typeof ym === 'function' ? ym.a?.[0]?.[0] : null,
+          options: typeof ym === 'function' ? ym.a?.[0]?.[2] : null,
+          href: location.href,
+          referrer: document.referrer,
           noscriptBody: [...document.body.querySelectorAll('noscript')].filter((n) =>
             n.textContent.includes(`mc.yandex.ru/watch/${id}`),
           ).length,
@@ -236,6 +240,21 @@ async function checkMetrika(page) {
       { id: metrikaId, tag: metrikaTag },
     );
     const loads = metrikaRequests.slice(before).filter((url) => url === metrikaTag).length;
+    const { options, href, referrer, ...counts } = state;
+    const keys = Object.keys(options ?? {})
+      .sort()
+      .join(',');
+    check(
+      keys === 'accurateTrackBounce,clickmap,referrer,ssr,trackLinks,url,webvisor' &&
+        options.webvisor === false &&
+        options.ssr === true &&
+        options.clickmap === true &&
+        options.accurateTrackBounce === true &&
+        options.trackLinks === true &&
+        options.url === href &&
+        options.referrer === referrer,
+      `Метрика на ${pagePath}: Вебвизор выключен, без ecommerce (${JSON.stringify(options)})`,
+    );
     check(
       state.inline === 1 &&
         state.inHead &&
@@ -245,7 +264,7 @@ async function checkMetrika(page) {
         loads === 1 &&
         state.noscriptBody === 1 &&
         state.noscriptHead === 0,
-      `Метрика на ${pagePath}: один счётчик ${metrikaId} (${JSON.stringify({ ...state, loads })})`,
+      `Метрика на ${pagePath}: один счётчик ${metrikaId} (${JSON.stringify({ ...counts, loads })})`,
     );
   }
 }

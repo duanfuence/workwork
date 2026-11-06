@@ -1,7 +1,8 @@
 ---
 /**
- * Яндекс Метрика, счётчик 114103685 (D-036). Код — официальный из интерфейса Метрики, без изменений;
- * файл исключён из Prettier (.prettierignore), чтобы форматирование его не переписывало.
+ * Яндекс Метрика, счётчик 114103685 (D-036). Код — официальный из интерфейса Метрики с двумя изменениями
+ * по решению владельца: Вебвизор выключен (webvisor:false), электронная торговля убрана (нет ecommerce).
+ * Файл исключён из Prettier (.prettierignore), чтобы форматирование не переписывало официальный код.
  * part="head" — скрипт (в <head>), part="body" — <noscript> с пикселем (в начале <body>: в <head> внутри
  * <noscript> допустимы только link, style и meta). Подключается один раз — в BaseLayout.
  * is:inline: Astro не обрабатывает и не переносит скрипт, он остаётся на месте как есть.
@@ -24,7 +25,7 @@ const { part } = Astro.props;
         k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)
     })(window, document,'script','https://mc.yandex.ru/metrika/tag.js?id=114103685', 'ym');
 
-    ym(114103685, 'init', {ssr:true, webvisor:true, clickmap:true, ecommerce:"dataLayer", referrer: document.referrer, url: location.href, accurateTrackBounce:true, trackLinks:true});
+    ym(114103685, 'init', {ssr:true, webvisor:false, clickmap:true, referrer: document.referrer, url: location.href, accurateTrackBounce:true, trackLinks:true});
 </script>
 <!-- /Yandex.Metrika counter -->
 </Fragment>
